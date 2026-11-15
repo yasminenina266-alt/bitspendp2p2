@@ -392,8 +392,12 @@ async function loadDb() {
 }
 
 async function saveDb() {
-  await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
-  await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2), 'utf8');
+  try {
+    await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
+    await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2), 'utf8');
+  } catch {
+    // Keep running in-memory if filesystem is read-only
+  }
 }
 
 function getAuthUser(req: express.Request): StoredUser | null {
