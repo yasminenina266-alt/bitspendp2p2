@@ -69,7 +69,7 @@ export function CryptoCardView({
   return (
     <div className="mx-auto max-w-[1100px] space-y-8">
       <div>
-        <h1 className="font-display text-2xl font-bold text-[#0E1715] dark:text-white">
+        <h1 className="font-display text-xl font-bold text-[#0E1715] sm:text-2xl dark:text-white">
           No-KYC Virtual Crypto Cards
         </h1>
         <p className="mt-1 text-sm text-[#5C6665] dark:text-[#98A4A2]">
@@ -81,7 +81,7 @@ export function CryptoCardView({
         {/* Card Configurator */}
         <form
           onSubmit={handleIssue}
-          className="space-y-5 rounded-2xl border border-[#E3E7E7] bg-white p-6 lg:col-span-5 dark:border-[#202B2A] dark:bg-[#131A1A]"
+          className="space-y-5 rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 lg:col-span-5 dark:border-[#202B2A] dark:bg-[#131A1A]"
         >
           <h2 className="font-display text-base font-bold text-[#0E1715] dark:text-white">
             Issue New Card
@@ -224,7 +224,7 @@ export function CryptoCardView({
               return (
                 <div
                   key={card.id}
-                  className="rounded-2xl border border-[#E3E7E7] bg-white p-5 dark:border-[#202B2A] dark:bg-[#131A1A]"
+                  className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-5 dark:border-[#202B2A] dark:bg-[#131A1A]"
                 >
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                     {/* Card Visual */}
@@ -274,13 +274,13 @@ export function CryptoCardView({
                         </p>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
+                      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                         <button
                           type="button"
                           onClick={() =>
                             setRevealedIds((p) => ({ ...p, [card.id]: !p[card.id] }))
                           }
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-[#DCE2E1] px-3 py-1.5 text-xs font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#DCE4E3] dark:hover:bg-[#1C2625]"
+                          className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-lg border border-[#DCE2E1] px-3 py-1.5 text-xs font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#DCE4E3] dark:hover:bg-[#1C2625]"
                         >
                           {revealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                           <span>{revealed ? 'Hide PAN' : 'Reveal PAN'}</span>
@@ -289,7 +289,7 @@ export function CryptoCardView({
                         <button
                           type="button"
                           onClick={() => handleCardAction(card.id, 'toggle_freeze')}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-[#DCE2E1] px-3 py-1.5 text-xs font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#DCE4E3] dark:hover:bg-[#1C2625]"
+                          className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-lg border border-[#DCE2E1] px-3 py-1.5 text-xs font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#DCE4E3] dark:hover:bg-[#1C2625]"
                         >
                           {card.frozen ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
                           <span>{card.frozen ? 'Unfreeze' : 'Freeze'}</span>
@@ -299,7 +299,7 @@ export function CryptoCardView({
                           <button
                             type="button"
                             onClick={() => handleCardAction(card.id, 'topup')}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-[#DCE2E1] px-3 py-1.5 text-xs font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#DCE4E3] dark:hover:bg-[#1C2625]"
+                            className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-lg border border-[#DCE2E1] px-3 py-1.5 text-xs font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#DCE4E3] dark:hover:bg-[#1C2625]"
                           >
                             <Plus className="h-3.5 w-3.5" />
                             <span>Top up $50</span>
@@ -309,7 +309,9 @@ export function CryptoCardView({
                         <button
                           type="button"
                           onClick={() => handleCardAction(card.id, 'spend')}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#0B3B2E] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#082B21] dark:bg-[#7FE85B] dark:text-[#082213]"
+                          className={`inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-lg bg-[#0B3B2E] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#082B21] dark:bg-[#7FE85B] dark:text-[#082213] ${
+                            card.type === 'disposable' ? 'col-span-2 sm:col-span-1' : ''
+                          }`}
                         >
                           <ShoppingBag className="h-3.5 w-3.5" />
                           <span>Test $18.50 Spend</span>

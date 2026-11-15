@@ -353,9 +353,25 @@ export default function App() {
             />
 
             {/* Live Spot Rates Strip (Powered by CoinGecko / CryptoCompare / Kraken) */}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E3E7E7] bg-white px-4 py-2.5 text-xs dark:border-[#1E2726] dark:bg-[#131A1A]">
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-                {CRYPTO_ASSETS.slice(0, 5).map((coin) => {
+            <div className="rounded-xl border border-[#E3E7E7] bg-white p-3 text-xs sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-4 sm:py-2.5 dark:border-[#1E2726] dark:bg-[#131A1A]">
+              {/* Mobile Top Status Bar */}
+              <div className="mb-2.5 flex items-center justify-between border-b border-[#ECEFEF] pb-2 text-[#5C6665] sm:hidden dark:border-[#202B2A] dark:text-[#8E9B98]">
+                <span className="inline-flex items-center gap-1 font-medium">
+                  <ShieldCheck className="h-3.5 w-3.5 text-[#0D6832] dark:text-[#7FE85B]" />
+                  <span>Zero KYC</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => loadPrices(true)}
+                  className="inline-flex items-center gap-1.5 font-medium hover:text-[#0E1715] dark:hover:text-white"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${refreshingPrices ? 'animate-spin' : ''}`} />
+                  <span className="truncate max-w-[180px]">{prices.source}</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2">
+                {CRYPTO_ASSETS.slice(0, 5).map((coin, idx) => {
                   const price = prices?.usdPrices?.[coin.symbol] ?? 0;
                   const chg = prices?.changes24h?.[coin.symbol] ?? 0;
                   const active = filters.crypto === coin.symbol;
@@ -369,36 +385,42 @@ export default function App() {
                           crypto: f.crypto === coin.symbol ? 'ALL' : coin.symbol,
                         }))
                       }
-                      className={`flex items-center gap-2 rounded-lg px-2 py-1 transition-colors ${
+                      className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 transition-colors sm:justify-start sm:border-transparent sm:px-2 sm:py-1 ${
+                        idx === 0 ? 'col-span-2 sm:col-span-1' : ''
+                      } ${
                         active
-                          ? 'bg-[#EEF6F2] text-[#0B3B2E] font-bold dark:bg-[#162C22] dark:text-[#7FE85B]'
-                          : 'hover:bg-[#F5F7F7] dark:hover:bg-[#1B2423]'
+                          ? 'border-[#0B3B2E]/25 bg-[#EEF6F2] font-bold text-[#0B3B2E] sm:border-transparent dark:border-[#7FE85B]/30 dark:bg-[#162C22] dark:text-[#7FE85B]'
+                          : 'border-[#ECEFEF] bg-[#F9FAFA] hover:bg-[#F5F7F7] sm:bg-transparent dark:border-[#1E2726] dark:bg-[#0F1515] dark:hover:bg-[#1B2423] dark:sm:bg-transparent'
                       }`}
                     >
-                      <CoinIcon symbol={coin.symbol} size={16} />
-                      <span className="font-semibold">{coin.symbol}</span>
-                      <span className="font-mono tabular-nums text-[#0E1715] dark:text-white">
-                        ${price.toLocaleString('en-US', {
-                          minimumFractionDigits: price < 10 ? 2 : 0,
-                          maximumFractionDigits: price < 10 ? 2 : 0,
-                        })}
+                      <span className="flex items-center gap-1.5">
+                        <CoinIcon symbol={coin.symbol} size={16} />
+                        <span className="font-semibold">{coin.symbol}</span>
                       </span>
-                      <span
-                        className={`font-mono text-[11px] tabular-nums ${
-                          chg >= 0
-                            ? 'text-[#0D6832] dark:text-[#7FE85B]'
-                            : 'text-red-600 dark:text-red-400'
-                        }`}
-                      >
-                        {chg >= 0 ? `+${chg.toFixed(1)}%` : `${chg.toFixed(1)}%`}
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-mono tabular-nums text-[#0E1715] dark:text-white">
+                          ${price.toLocaleString('en-US', {
+                            minimumFractionDigits: price < 10 ? 2 : 0,
+                            maximumFractionDigits: price < 10 ? 2 : 0,
+                          })}
+                        </span>
+                        <span
+                          className={`font-mono text-[11px] tabular-nums ${
+                            chg >= 0
+                              ? 'text-[#0D6832] dark:text-[#7FE85B]'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}
+                        >
+                          {chg >= 0 ? `+${chg.toFixed(1)}%` : `${chg.toFixed(1)}%`}
+                        </span>
                       </span>
                     </button>
                   );
                 })}
               </div>
 
-              <div className="flex items-center gap-3 text-[#5C6665] dark:text-[#8E9B98]">
-                <span className="hidden sm:inline-flex items-center gap-1">
+              <div className="hidden sm:flex items-center gap-3 text-[#5C6665] dark:text-[#8E9B98]">
+                <span className="inline-flex items-center gap-1">
                   <ShieldCheck className="h-3.5 w-3.5 text-[#0D6832] dark:text-[#7FE85B]" />
                   <span>Zero KYC</span>
                 </span>
@@ -414,9 +436,9 @@ export default function App() {
             </div>
 
             {/* Results Header Row */}
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <h1 className="font-display text-2xl font-bold tracking-tight text-[#0E1715] dark:text-white">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center justify-between gap-3 sm:justify-start">
+                <h1 className="font-display text-xl font-bold tracking-tight text-[#0E1715] sm:text-2xl dark:text-white">
                   {filters.intent === 'buy'
                     ? 'Buying offers'
                     : filters.intent === 'sell'
@@ -428,7 +450,7 @@ export default function App() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="grid grid-cols-2 gap-2.5 sm:flex sm:items-center sm:gap-3">
                 {/* Sort Selector */}
                 <div className="relative">
                   <ArrowUpDown className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-[#5C6665]" />
@@ -436,7 +458,7 @@ export default function App() {
                     aria-label="Sort offers"
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as SortOption)}
-                    className="h-10 appearance-none rounded-xl border border-[#DCE2E1] bg-white pl-9 pr-8 text-sm font-medium text-[#111917] focus:border-[#0B3B2E] focus:outline-none dark:border-[#232E2D] dark:bg-[#131A1A] dark:text-[#EDF3F2]"
+                    className="h-10 w-full appearance-none rounded-xl border border-[#DCE2E1] bg-white pl-9 pr-8 text-sm font-medium text-[#111917] focus:border-[#0B3B2E] focus:outline-none sm:w-auto dark:border-[#232E2D] dark:bg-[#131A1A] dark:text-[#EDF3F2]"
                   >
                     <option value="best">Best</option>
                     <option value="price_asc">Lowest Price</option>
@@ -451,7 +473,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setCreateOfferOpen(true)}
-                  className="h-10 rounded-xl bg-[#7FE85B] px-5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] whitespace-nowrap shrink-0 transition-colors"
+                  className="h-10 w-full rounded-xl bg-[#7FE85B] px-5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] sm:w-auto whitespace-nowrap shrink-0 transition-colors"
                 >
                   Create Offer
                 </button>
@@ -469,25 +491,25 @@ export default function App() {
                 ))}
               </div>
             ) : filteredOffers.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[#D3DADA] bg-white p-12 text-center dark:border-[#263130] dark:bg-[#131A1A]">
+              <div className="rounded-2xl border border-dashed border-[#D3DADA] bg-white p-8 text-center sm:p-12 dark:border-[#263130] dark:bg-[#131A1A]">
                 <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
                   No offers match your filters
                 </h2>
                 <p className="mt-1.5 text-sm text-[#5C6665] dark:text-[#98A4A2]">
                   Try clearing the amount, payment method, or currency filters to explore all BTC and XMR listings.
                 </p>
-                <div className="mt-5 flex justify-center gap-3">
+                <div className="mt-5 grid grid-cols-1 gap-2.5 sm:flex sm:justify-center sm:gap-3">
                   <button
                     type="button"
                     onClick={() => setFilters({ ...INITIAL_FILTERS, intent: filters.intent })}
-                    className="rounded-xl bg-[#0B3B2E] px-5 py-2.5 text-sm font-semibold text-white dark:bg-[#7FE85B] dark:text-[#082213]"
+                    className="min-h-[44px] w-full rounded-xl bg-[#0B3B2E] px-5 py-2.5 text-sm font-semibold text-white sm:w-auto dark:bg-[#7FE85B] dark:text-[#082213]"
                   >
                     Reset Filters
                   </button>
                   <button
                     type="button"
                     onClick={() => setCreateOfferOpen(true)}
-                    className="rounded-xl border border-[#DCE2E1] px-5 py-2.5 text-sm font-semibold text-[#0E1715] dark:border-[#263130] dark:text-white"
+                    className="min-h-[44px] w-full rounded-xl border border-[#DCE2E1] px-5 py-2.5 text-sm font-semibold text-[#0E1715] sm:w-auto dark:border-[#263130] dark:text-white"
                   >
                     Post This Offer Yourself
                   </button>
@@ -521,18 +543,18 @@ export default function App() {
                     <p className="mx-auto mt-1.5 max-w-md text-sm text-[#5C6665] dark:text-[#98A4A2]">
                       Guests can preview the top 10 listings. Create a free anonymous BitSpend P2P account in seconds to unlock all {filteredOffers.length} offers — no KYC or ID required.
                     </p>
-                    <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                    <div className="mt-5 grid grid-cols-1 gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-3">
                       <button
                         type="button"
                         onClick={() => setAuthModal('register')}
-                        className="rounded-xl bg-[#7FE85B] px-6 py-2.5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845]"
+                        className="min-h-[44px] w-full rounded-xl bg-[#7FE85B] px-6 py-2.5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] sm:w-auto"
                       >
                         Register Free (No KYC)
                       </button>
                       <button
                         type="button"
                         onClick={() => setAuthModal('login')}
-                        className="rounded-xl border border-[#DCE2E1] px-6 py-2.5 text-sm font-semibold text-[#0E1715] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-white dark:hover:bg-[#1A2423]"
+                        className="min-h-[44px] w-full rounded-xl border border-[#DCE2E1] px-6 py-2.5 text-sm font-semibold text-[#0E1715] hover:bg-[#F5F7F7] sm:w-auto dark:border-[#263130] dark:text-white dark:hover:bg-[#1A2423]"
                       >
                         Sign in
                       </button>
@@ -545,7 +567,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setVisibleCount((c) => c + 25)}
-                      className="rounded-xl border border-[#DCE2E1] bg-white px-6 py-2.5 text-sm font-semibold text-[#0E1715] hover:bg-[#F5F7F7] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white dark:hover:bg-[#1A2423]"
+                      className="min-h-[44px] w-full rounded-xl border border-[#DCE2E1] bg-white px-6 py-2.5 text-sm font-semibold text-[#0E1715] hover:bg-[#F5F7F7] sm:w-auto dark:border-[#263130] dark:bg-[#131A1A] dark:text-white dark:hover:bg-[#1A2423]"
                     >
                       Show more offers ({filteredOffers.length - visibleCount} remaining)
                     </button>
@@ -609,14 +631,14 @@ export default function App() {
 
       {/* Clean Footer */}
       <footer className="border-t border-[#E3E7E7] bg-white py-6 dark:border-[#1E2726] dark:bg-[#111717]">
-        <div className="mx-auto flex max-w-[1380px] flex-wrap items-center justify-between gap-4 px-4 text-xs text-[#5C6665] sm:px-6 lg:px-8 dark:text-[#8E9B98]">
+        <div className="mx-auto flex max-w-[1380px] flex-col items-center justify-between gap-4 px-4 text-center text-xs text-[#5C6665] sm:flex-row sm:px-6 sm:text-left lg:px-8 dark:text-[#8E9B98]">
           <div>
             <span className="font-display font-bold text-[#0E1715] dark:text-white mr-2">
               BitSpend P2P
             </span>
             <span>Peer-to-peer escrow marketplace · Part of BitSpend · Zero KYC required</span>
           </div>
-          <div className="flex flex-wrap items-center gap-5">
+          <div className="grid w-full max-w-xs grid-cols-2 gap-x-6 gap-y-2.5 sm:flex sm:w-auto sm:max-w-none sm:flex-wrap sm:items-center sm:gap-5">
             <button
               type="button"
               onClick={() => {

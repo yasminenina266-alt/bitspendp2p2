@@ -78,14 +78,14 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
 
   return (
     <div ref={barRef} className="space-y-3.5">
-      {/* Main Horizontal Filter Controls */}
-      <div className="flex flex-wrap items-center gap-2.5">
+      {/* Main Filter Controls */}
+      <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:items-center">
         {/* Buy / Sell / Swap Segmented Switch */}
-        <div className="inline-flex h-11 items-center rounded-xl border border-[#DCE2E1] bg-white p-1 dark:border-[#232E2D] dark:bg-[#131A1A] shrink-0">
+        <div className="col-span-2 grid h-11 grid-cols-3 items-center rounded-xl border border-[#DCE2E1] bg-white p-1 sm:col-span-1 sm:inline-flex sm:w-auto dark:border-[#232E2D] dark:bg-[#131A1A] shrink-0">
           <button
             type="button"
             onClick={() => onChange({ ...filters, intent: 'buy' })}
-            className={`h-full rounded-lg px-4 text-sm font-semibold transition-colors whitespace-nowrap ${
+            className={`flex h-full items-center justify-center rounded-lg px-4 text-sm font-semibold transition-colors whitespace-nowrap ${
               filters.intent === 'buy'
                 ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
                 : 'text-[#4B5554] hover:text-[#111917] dark:text-[#98A4A2] dark:hover:text-white'
@@ -96,7 +96,7 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
           <button
             type="button"
             onClick={() => onChange({ ...filters, intent: 'sell' })}
-            className={`h-full rounded-lg px-4 text-sm font-semibold transition-colors whitespace-nowrap ${
+            className={`flex h-full items-center justify-center rounded-lg px-4 text-sm font-semibold transition-colors whitespace-nowrap ${
               filters.intent === 'sell'
                 ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
                 : 'text-[#4B5554] hover:text-[#111917] dark:text-[#98A4A2] dark:hover:text-white'
@@ -107,7 +107,7 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
           <button
             type="button"
             onClick={() => onChange({ ...filters, intent: 'swap' })}
-            className={`h-full rounded-lg px-4 text-sm font-semibold transition-colors whitespace-nowrap ${
+            className={`flex h-full items-center justify-center rounded-lg px-4 text-sm font-semibold transition-colors whitespace-nowrap ${
               filters.intent === 'swap'
                 ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
                 : 'text-[#4B5554] hover:text-[#111917] dark:text-[#98A4A2] dark:hover:text-white'
@@ -118,11 +118,11 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
         </div>
 
         {/* Crypto Dropdown */}
-        <div className="relative">
+        <div className="relative col-span-2 sm:col-span-1 sm:w-auto">
           <button
             type="button"
             onClick={() => setOpenMenu(openMenu === 'crypto' ? null : 'crypto')}
-            className="flex h-11 min-w-[178px] items-center justify-between gap-2.5 rounded-xl border border-[#DCE2E1] bg-white px-3.5 text-sm font-medium text-[#111917] hover:border-[#BFC9C7] dark:border-[#232E2D] dark:bg-[#131A1A] dark:text-[#EDF3F2] dark:hover:border-[#344442] whitespace-nowrap"
+            className="flex h-11 w-full items-center justify-between gap-2.5 rounded-xl border border-[#DCE2E1] bg-white px-3.5 text-sm font-medium text-[#111917] hover:border-[#BFC9C7] sm:w-auto sm:min-w-[178px] dark:border-[#232E2D] dark:bg-[#131A1A] dark:text-[#EDF3F2] dark:hover:border-[#344442] whitespace-nowrap"
           >
             <span className="flex items-center gap-2">
               {selectedCryptoMeta ? (
@@ -160,7 +160,7 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
           </button>
 
           {openMenu === 'crypto' && (
-            <div className="absolute left-0 top-12 z-30 w-64 rounded-xl border border-[#DCE2E1] bg-white p-1.5 shadow-lg dark:border-[#263130] dark:bg-[#151D1C]">
+            <div className="absolute left-0 top-12 z-30 w-full rounded-xl border border-[#DCE2E1] bg-white p-1.5 shadow-lg sm:w-64 dark:border-[#263130] dark:bg-[#151D1C]">
               <button
                 type="button"
                 onClick={() => {
@@ -211,7 +211,7 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
         </div>
 
         {/* Search Payment Methods */}
-        <div className="relative flex-1 min-w-[230px] max-w-[300px]">
+        <div className="relative col-span-2 sm:col-span-1 sm:flex-1 sm:min-w-[230px] sm:max-w-[300px]">
           <div className="flex h-11 items-center rounded-xl border border-[#DCE2E1] bg-white px-3.5 focus-within:border-[#0B3B2E] dark:border-[#232E2D] dark:bg-[#131A1A] dark:focus-within:border-[#7FE85B]">
             <input
               type="text"
@@ -239,7 +239,7 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
           </div>
 
           {openMenu === 'payment' && (
-            <div className="absolute left-0 top-12 z-30 max-h-72 w-80 overflow-y-auto rounded-xl border border-[#DCE2E1] bg-white p-2 shadow-lg dark:border-[#263130] dark:bg-[#151D1C]">
+            <div className="absolute left-0 top-12 z-30 max-h-72 w-full overflow-y-auto rounded-xl border border-[#DCE2E1] bg-white p-2 shadow-lg sm:w-80 dark:border-[#263130] dark:bg-[#151D1C]">
               <div className="px-2 py-1 text-xs font-semibold text-[#6C7775]">
                 Popular payment methods
               </div>
@@ -268,12 +268,12 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
         </div>
 
         {/* Currency Select */}
-        <div className="relative">
+        <div className="relative col-span-1">
           <select
             aria-label="Filter by currency"
             value={filters.fiat}
             onChange={(e) => onChange({ ...filters, fiat: e.target.value as FiatCurrency | 'ALL' })}
-            className="h-11 appearance-none rounded-xl border border-[#DCE2E1] bg-white pl-3.5 pr-9 text-sm font-medium text-[#111917] hover:border-[#BFC9C7] focus:border-[#0B3B2E] focus:outline-none dark:border-[#232E2D] dark:bg-[#131A1A] dark:text-[#EDF3F2]"
+            className="h-11 w-full appearance-none rounded-xl border border-[#DCE2E1] bg-white pl-3.5 pr-9 text-sm font-medium text-[#111917] hover:border-[#BFC9C7] focus:border-[#0B3B2E] focus:outline-none sm:w-auto dark:border-[#232E2D] dark:bg-[#131A1A] dark:text-[#EDF3F2]"
           >
             <option value="ALL">Any currency</option>
             {FIAT_CURRENCIES.map((c) => (
@@ -286,12 +286,12 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
         </div>
 
         {/* Country Select */}
-        <div className="relative">
+        <div className="relative col-span-1">
           <select
             aria-label="Filter by country"
             value={filters.country}
             onChange={(e) => onChange({ ...filters, country: e.target.value })}
-            className="h-11 appearance-none rounded-xl border border-[#DCE2E1] bg-white pl-3.5 pr-9 text-sm font-medium text-[#111917] hover:border-[#BFC9C7] focus:border-[#0B3B2E] focus:outline-none dark:border-[#232E2D] dark:bg-[#131A1A] dark:text-[#EDF3F2]"
+            className="h-11 w-full appearance-none rounded-xl border border-[#DCE2E1] bg-white pl-3.5 pr-9 text-sm font-medium text-[#111917] hover:border-[#BFC9C7] focus:border-[#0B3B2E] focus:outline-none sm:w-auto dark:border-[#232E2D] dark:bg-[#131A1A] dark:text-[#EDF3F2]"
           >
             <option value="ALL">Any country</option>
             {COUNTRIES.map((country) => (
@@ -304,7 +304,7 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
         </div>
 
         {/* Amount Input */}
-        <div className="flex h-11 w-[142px] items-center rounded-xl border border-[#DCE2E1] bg-white px-3.5 focus-within:border-[#0B3B2E] dark:border-[#232E2D] dark:bg-[#131A1A] dark:focus-within:border-[#7FE85B]">
+        <div className="col-span-2 flex h-11 w-full items-center rounded-xl border border-[#DCE2E1] bg-white px-3.5 focus-within:border-[#0B3B2E] sm:col-span-1 sm:w-[142px] dark:border-[#232E2D] dark:bg-[#131A1A] dark:focus-within:border-[#7FE85B]">
           <input
             type="number"
             min="0"
@@ -317,24 +317,26 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
         </div>
 
         {/* Advanced Popover */}
-        <div className="relative">
+        <div className="relative col-span-1">
           <button
             type="button"
             onClick={() => setOpenMenu(openMenu === 'advanced' ? null : 'advanced')}
-            className="flex h-11 items-center gap-2 rounded-xl border border-[#DCE2E1] bg-white px-3.5 text-sm font-medium text-[#111917] hover:border-[#BFC9C7] dark:border-[#232E2D] dark:bg-[#131A1A] dark:text-[#EDF3F2] whitespace-nowrap"
+            className="flex h-11 w-full items-center justify-between gap-2 rounded-xl border border-[#DCE2E1] bg-white px-3.5 text-sm font-medium text-[#111917] hover:border-[#BFC9C7] sm:w-auto sm:justify-start dark:border-[#232E2D] dark:bg-[#131A1A] dark:text-[#EDF3F2] whitespace-nowrap"
           >
-            <SlidersHorizontal className="h-3.5 w-3.5 text-[#5C6665] dark:text-[#98A4A2]" />
-            <span>Advanced</span>
-            {advancedActiveCount > 0 && (
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-[#0B3B2E] px-1.5 font-mono text-xs font-semibold text-white dark:bg-[#7FE85B] dark:text-[#082213]">
-                {advancedActiveCount}
-              </span>
-            )}
+            <span className="flex items-center gap-2">
+              <SlidersHorizontal className="h-3.5 w-3.5 text-[#5C6665] dark:text-[#98A4A2]" />
+              <span>Advanced</span>
+              {advancedActiveCount > 0 && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-[#0B3B2E] px-1.5 font-mono text-xs font-semibold text-white dark:bg-[#7FE85B] dark:text-[#082213]">
+                  {advancedActiveCount}
+                </span>
+              )}
+            </span>
             <ChevronDown className="h-4 w-4 text-[#6C7775]" />
           </button>
 
           {openMenu === 'advanced' && (
-            <div className="absolute right-0 top-12 z-30 w-72 rounded-xl border border-[#DCE2E1] bg-white p-4 shadow-lg dark:border-[#263130] dark:bg-[#151D1C]">
+            <div className="absolute left-0 top-12 z-30 w-[calc(100vw-2rem)] max-w-[300px] rounded-xl border border-[#DCE2E1] bg-white p-4 shadow-lg sm:left-auto sm:right-0 sm:w-72 dark:border-[#263130] dark:bg-[#151D1C]">
               <div className="space-y-3.5">
                 <label className="flex cursor-pointer items-center justify-between text-sm text-[#1E2726] dark:text-[#DCE4E3]">
                   <span>Hide inactive offers</span>
@@ -377,23 +379,25 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
         </div>
 
         {/* Tags Popover */}
-        <div className="relative">
+        <div className="relative col-span-1">
           <button
             type="button"
             onClick={() => setOpenMenu(openMenu === 'tags' ? null : 'tags')}
-            className="flex h-11 items-center gap-2 rounded-xl border border-[#DCE2E1] bg-white px-3.5 text-sm font-medium text-[#111917] hover:border-[#BFC9C7] dark:border-[#232E2D] dark:bg-[#131A1A] dark:text-[#EDF3F2] whitespace-nowrap"
+            className="flex h-11 w-full items-center justify-between gap-2 rounded-xl border border-[#DCE2E1] bg-white px-3.5 text-sm font-medium text-[#111917] hover:border-[#BFC9C7] sm:w-auto sm:justify-start dark:border-[#232E2D] dark:bg-[#131A1A] dark:text-[#EDF3F2] whitespace-nowrap"
           >
-            <span>Tags</span>
-            {filters.selectedTags.length > 0 && (
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-[#0B3B2E] px-1.5 font-mono text-xs font-semibold text-white dark:bg-[#7FE85B] dark:text-[#082213]">
-                {filters.selectedTags.length}
-              </span>
-            )}
+            <span className="flex items-center gap-2">
+              <span>Tags</span>
+              {filters.selectedTags.length > 0 && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-[#0B3B2E] px-1.5 font-mono text-xs font-semibold text-white dark:bg-[#7FE85B] dark:text-[#082213]">
+                  {filters.selectedTags.length}
+                </span>
+              )}
+            </span>
             <ChevronDown className="h-4 w-4 text-[#6C7775]" />
           </button>
 
           {openMenu === 'tags' && (
-            <div className="absolute right-0 top-12 z-30 w-64 rounded-xl border border-[#DCE2E1] bg-white p-2 shadow-lg dark:border-[#263130] dark:bg-[#151D1C]">
+            <div className="absolute right-0 top-12 z-30 w-[calc(100vw-2rem)] max-w-[280px] rounded-xl border border-[#DCE2E1] bg-white p-2 shadow-lg sm:w-64 dark:border-[#263130] dark:bg-[#151D1C]">
               <div className="px-2 py-1 text-xs font-semibold text-[#6C7775]">
                 Offer conditions
               </div>

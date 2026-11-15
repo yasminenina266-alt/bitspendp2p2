@@ -130,8 +130,8 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
   if (provisioningStep !== null) {
     const progressPct = Math.round(((provisioningStep + 1) / registrationSteps.length) * 100);
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
-        <div className="w-full max-w-md rounded-2xl border border-[#DCE2E1] bg-white p-6 shadow-xl dark:border-[#263130] dark:bg-[#131A1A]">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-[2px]">
+        <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-4 shadow-xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
           <div>
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
@@ -209,8 +209,8 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
 
   if (registeredUser) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
-        <div className="w-full max-w-md rounded-2xl border border-[#DCE2E1] bg-white p-6 shadow-xl dark:border-[#263130] dark:bg-[#131A1A]">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-[2px]">
+        <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-4 shadow-xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-2.5">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E3F7EB] text-[#0D6832] dark:bg-[#143322] dark:text-[#7FE85B]">
@@ -263,8 +263,8 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
-      <div className="w-full max-w-md rounded-2xl border border-[#DCE2E1] bg-white p-6 shadow-xl dark:border-[#263130] dark:bg-[#131A1A]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-[2px]">
+      <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-4 shadow-xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-display text-xl font-bold text-[#0E1715] dark:text-white">

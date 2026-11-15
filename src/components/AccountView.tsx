@@ -102,28 +102,28 @@ export function AccountView({
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-2xl rounded-2xl border border-[#E3E7E7] bg-white p-8 text-center dark:border-[#202B2A] dark:bg-[#131A1A]">
+      <div className="mx-auto max-w-2xl rounded-2xl border border-[#E3E7E7] bg-white p-6 text-center sm:p-8 dark:border-[#202B2A] dark:bg-[#131A1A]">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EEF6F2] text-[#0B3B2E] dark:bg-[#152B20] dark:text-[#7FE85B]">
           <User className="h-6 w-6" />
         </div>
-        <h1 className="mt-4 font-display text-2xl font-bold text-[#0E1715] dark:text-white">
+        <h1 className="mt-4 font-display text-xl font-bold text-[#0E1715] sm:text-2xl dark:text-white">
           Manage Your BitSpend P2P Profile &amp; Wallet
         </h1>
         <p className="mt-2 text-sm text-[#5C6665] dark:text-[#98A4A2]">
           Register an anonymous handle in seconds — zero email, zero phone number, and zero KYC required. Access multi-asset wallets, QR deposit addresses, escrow trades, and account settings.
         </p>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <div className="mt-6 grid grid-cols-1 gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-3">
           <button
             type="button"
             onClick={() => onOpenAuth('register')}
-            className="rounded-xl bg-[#7FE85B] px-6 py-3 text-sm font-semibold text-[#082213] hover:bg-[#6AD845]"
+            className="min-h-[44px] w-full rounded-xl bg-[#7FE85B] px-6 py-3 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] sm:w-auto"
           >
             Register Account
           </button>
           <button
             type="button"
             onClick={() => onOpenAuth('login')}
-            className="rounded-xl border border-[#DCE2E1] px-6 py-3 text-sm font-semibold text-[#0E1715] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-white dark:hover:bg-[#1A2423]"
+            className="min-h-[44px] w-full rounded-xl border border-[#DCE2E1] px-6 py-3 text-sm font-semibold text-[#0E1715] hover:bg-[#F5F7F7] sm:w-auto dark:border-[#263130] dark:text-white dark:hover:bg-[#1A2423]"
           >
             Sign in
           </button>
@@ -257,54 +257,57 @@ export function AccountView({
   return (
     <div className="space-y-6">
       {/* Header Portfolio Summary & Sub-Tabs */}
-      <div className="rounded-2xl border border-[#E3E7E7] bg-white p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-xs font-medium text-[#5C6665] dark:text-[#8E9B98]">
               BitSpend P2P Account · {user.username}
             </div>
-            <div className="mt-1 font-mono text-3xl font-bold tabular-nums text-[#0E1715] dark:text-white">
+            <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-[#0E1715] sm:text-3xl dark:text-white">
               ${totalUsdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
               <span className="text-sm font-normal text-[#5C6665]">USD total</span>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid w-full grid-cols-3 gap-1.5 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-2">
             <button
               type="button"
               onClick={() => setSubTab('wallet')}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition-colors ${
+              className={`inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-semibold transition-colors whitespace-nowrap sm:px-4 sm:text-xs ${
                 subTab === 'wallet'
                   ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
                   : 'border border-[#DCE2E1] text-[#394241] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#C5D1CF]'
               }`}
             >
-              <Wallet className="h-3.5 w-3.5" />
-              <span>Wallets &amp; Transfers</span>
+              <Wallet className="h-3.5 w-3.5 shrink-0" />
+              <span className="sm:hidden">Wallets</span>
+              <span className="hidden sm:inline">Wallets &amp; Transfers</span>
             </button>
             <button
               type="button"
               onClick={() => setSubTab('trades')}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition-colors ${
+              className={`inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-semibold transition-colors whitespace-nowrap sm:px-4 sm:text-xs ${
                 subTab === 'trades'
                   ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
                   : 'border border-[#DCE2E1] text-[#394241] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#C5D1CF]'
               }`}
             >
-              <MessageSquare className="h-3.5 w-3.5" />
-              <span>Trades &amp; My Ads ({trades.length})</span>
+              <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+              <span className="sm:hidden">Trades ({trades.length})</span>
+              <span className="hidden sm:inline">Trades &amp; My Ads ({trades.length})</span>
             </button>
             <button
               type="button"
               onClick={() => setSubTab('settings')}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition-colors ${
+              className={`inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-semibold transition-colors whitespace-nowrap sm:px-4 sm:text-xs ${
                 subTab === 'settings'
                   ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
                   : 'border border-[#DCE2E1] text-[#394241] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#C5D1CF]'
               }`}
             >
-              <Settings className="h-3.5 w-3.5" />
-              <span>Profile &amp; Settings</span>
+              <Settings className="h-3.5 w-3.5 shrink-0" />
+              <span className="sm:hidden">Profile</span>
+              <span className="hidden sm:inline">Profile &amp; Settings</span>
             </button>
           </div>
         </div>
@@ -314,8 +317,8 @@ export function AccountView({
       {subTab === 'wallet' && (
         <div className="space-y-6">
           <div className="rounded-2xl border border-[#E3E7E7] bg-white overflow-hidden dark:border-[#202B2A] dark:bg-[#131A1A]">
-            <div className="flex items-center justify-between border-b border-[#ECEFEF] px-6 py-4 dark:border-[#202B2A]">
-              <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ECEFEF] px-4 py-3.5 sm:px-6 sm:py-4 dark:border-[#202B2A]">
+              <h2 className="font-display text-base font-bold text-[#0E1715] sm:text-lg dark:text-white">
                 Multi-Currency Wallets
               </h2>
               <span className="text-xs text-[#5C6665] dark:text-[#8E9B98]">
@@ -331,48 +334,50 @@ export function AccountView({
                 return (
                   <div
                     key={coin.symbol}
-                    className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 hover:bg-[#FAFBFB] dark:hover:bg-[#17201F]"
+                    className="flex flex-col gap-3 px-4 py-4 hover:bg-[#FAFBFB] sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 dark:hover:bg-[#17201F]"
                   >
-                    <div className="flex items-center gap-3.5 min-w-[220px]">
-                      <CoinIcon symbol={coin.symbol} size={32} />
-                      <div>
-                        <div className="text-sm font-bold text-[#0E1715] dark:text-white">
-                          {coin.name}{' '}
-                          <span className="font-mono text-xs font-medium text-[#64706E] dark:text-[#8E9B98]">
-                            ({coin.symbol})
-                          </span>
+                    <div className="flex items-start justify-between gap-3 sm:flex-1 sm:items-center">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <CoinIcon symbol={coin.symbol} size={32} />
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold text-[#0E1715] dark:text-white">
+                            {coin.name}{' '}
+                            <span className="font-mono text-xs font-medium text-[#64706E] dark:text-[#8E9B98]">
+                              ({coin.symbol})
+                            </span>
+                          </div>
+                          {chains ? (
+                            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#64706E] dark:text-[#8E9B98]">
+                              {chains.map((ch) => (
+                                <span
+                                  key={ch.id}
+                                  title={`${ch.name} (${ch.standard})`}
+                                  className="inline-flex items-center gap-1"
+                                >
+                                  <ChainIcon chain={ch.id} size={14} />
+                                  <span className="text-[11px] font-medium">{ch.shortName}</span>
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="truncate text-xs text-[#64706E] dark:text-[#8E9B98]">
+                              {coin.networkName}
+                            </div>
+                          )}
                         </div>
-                        {chains ? (
-                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[#64706E] dark:text-[#8E9B98]">
-                            {chains.map((ch) => (
-                              <span
-                                key={ch.id}
-                                title={`${ch.name} (${ch.standard})`}
-                                className="inline-flex items-center gap-1"
-                              >
-                                <ChainIcon chain={ch.id} size={14} />
-                                <span className="text-[11px] font-medium">{ch.shortName}</span>
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-[#64706E] dark:text-[#8E9B98]">
-                            {coin.networkName}
-                          </div>
-                        )}
+                      </div>
+
+                      <div className="shrink-0 text-right">
+                        <div className="font-mono text-sm font-bold tabular-nums text-[#0E1715] dark:text-white">
+                          {formatCrypto(bal, coin.symbol)}
+                        </div>
+                        <div className="font-mono text-xs tabular-nums text-[#5C6665] dark:text-[#8E9B98]">
+                          ${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                        </div>
                       </div>
                     </div>
 
-                    <div className="text-right min-w-[140px]">
-                      <div className="font-mono text-sm font-bold tabular-nums text-[#0E1715] dark:text-white">
-                        {formatCrypto(bal, coin.symbol)}
-                      </div>
-                      <div className="font-mono text-xs tabular-nums text-[#5C6665] dark:text-[#8E9B98]">
-                        ${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
+                    <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
                       <button
                         type="button"
                         onClick={() => {
@@ -380,7 +385,7 @@ export function AccountView({
                           setSelectedChain('ETH');
                           setWalletModal({ mode: 'deposit', asset: coin.symbol });
                         }}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-[#7FE85B] px-3.5 py-2 text-xs font-semibold text-[#082213] hover:bg-[#6AD845]"
+                        className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl bg-[#7FE85B] px-3.5 py-2 text-xs font-semibold text-[#082213] hover:bg-[#6AD845]"
                       >
                         <QrCode className="h-3.5 w-3.5" />
                         <span>Deposit</span>
@@ -394,7 +399,7 @@ export function AccountView({
                           setWithdrawAmt('');
                           setWalletModal({ mode: 'withdraw', asset: coin.symbol });
                         }}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-[#DCE2E1] bg-white px-3.5 py-2 text-xs font-semibold text-[#0E1715] hover:bg-[#F5F7F7] dark:border-[#263130] dark:bg-[#0F1515] dark:text-white dark:hover:bg-[#1B2524]"
+                        className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-[#DCE2E1] bg-white px-3.5 py-2 text-xs font-semibold text-[#0E1715] hover:bg-[#F5F7F7] dark:border-[#263130] dark:bg-[#0F1515] dark:text-white dark:hover:bg-[#1B2524]"
                       >
                         <ArrowUpRight className="h-3.5 w-3.5" />
                         <span>Withdraw</span>
@@ -407,7 +412,7 @@ export function AccountView({
           </div>
 
           {/* Deposit & Withdrawal Ledger */}
-          <div className="rounded-2xl border border-[#E3E7E7] bg-white p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
+          <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
             <h3 className="font-display text-base font-bold text-[#0E1715] dark:text-white">
               Deposit &amp; Withdrawal History
             </h3>
@@ -420,11 +425,11 @@ export function AccountView({
                 {user.walletHistory.map((tx) => (
                   <div
                     key={tx.id}
-                    className="flex flex-wrap items-center justify-between gap-3 py-3 text-xs"
+                    className="flex items-center justify-between gap-3 py-3 text-xs"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
                       <div
-                        className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
                           tx.type === 'deposit'
                             ? 'bg-[#E3F7EB] text-[#0D6832] dark:bg-[#133322] dark:text-[#7FE85B]'
                             : 'bg-[#F2F4F4] text-[#394241] dark:bg-[#1C2625] dark:text-[#DCE4E3]'
@@ -436,16 +441,16 @@ export function AccountView({
                           <ArrowUpRight className="h-4 w-4" />
                         )}
                       </div>
-                      <div>
-                        <div className="font-semibold text-[#0E1715] dark:text-white">
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-[#0E1715] dark:text-white">
                           {tx.type === 'deposit' ? 'Deposit' : 'Withdrawal'} · {tx.network}
                         </div>
-                        <div className="font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
-                          {tx.id} · {tx.address.slice(0, 14)}...{tx.address.slice(-6)}
+                        <div className="truncate font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
+                          {tx.id} · {tx.address.slice(0, 12)}...{tx.address.slice(-6)}
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="shrink-0 text-right">
                       <div
                         className={`font-mono font-bold tabular-nums ${
                           tx.type === 'deposit'
@@ -471,7 +476,7 @@ export function AccountView({
       {/* TAB 2: P2P Trades & Published Ads */}
       {subTab === 'trades' && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <div className="rounded-2xl border border-[#E3E7E7] bg-white p-6 lg:col-span-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
+          <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 lg:col-span-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
             <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
               My P2P Escrow Trades ({trades.length})
             </h2>
@@ -486,18 +491,18 @@ export function AccountView({
                     key={trade.id}
                     type="button"
                     onClick={() => onOpenTrade(trade)}
-                    className="flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E6EAEA] p-4 text-left hover:border-[#B6C4C1] dark:border-[#202B2A] dark:hover:border-[#344643]"
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#E6EAEA] p-3.5 text-left hover:border-[#B6C4C1] sm:p-4 dark:border-[#202B2A] dark:hover:border-[#344643]"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
                       <CoinIcon symbol={trade.crypto} size={24} />
-                      <div>
-                        <div className="text-sm font-bold text-[#0E1715] dark:text-white">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-bold text-[#0E1715] dark:text-white">
                           {trade.id} ·{' '}
                           {trade.side === 'swap_crypto' && trade.swapToCrypto && trade.swapToAmount
                             ? `Swap ${formatCrypto(trade.swapToAmount, trade.swapToCrypto)} → ${formatCrypto(trade.cryptoAmount, trade.crypto)}`
                             : `${trade.side === 'sell_crypto' ? 'Buy' : 'Sell'} ${formatCrypto(trade.cryptoAmount, trade.crypto)}`}
                         </div>
-                        <div className="text-xs text-[#5C6665] dark:text-[#98A4A2]">
+                        <div className="truncate text-xs text-[#5C6665] dark:text-[#98A4A2]">
                           {trade.side === 'swap_crypto'
                             ? `${trade.paymentMethod} · with ${trade.traderUsername}`
                             : `${formatFiat(trade.fiatAmount, trade.fiat)} via ${trade.paymentMethod} · with ${trade.traderUsername}`}
@@ -506,7 +511,7 @@ export function AccountView({
                     </div>
 
                     <span
-                      className={`font-mono text-xs font-semibold ${
+                      className={`shrink-0 font-mono text-xs font-semibold ${
                         trade.status === 'completed'
                           ? 'text-[#0D6832] dark:text-[#7FE85B]'
                           : trade.status === 'cancelled'
@@ -522,15 +527,15 @@ export function AccountView({
             )}
           </div>
 
-          <div className="rounded-2xl border border-[#E3E7E7] bg-white p-6 lg:col-span-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
-            <div className="flex items-center justify-between">
+          <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 lg:col-span-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
+            <div className="flex items-center justify-between gap-2">
               <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
                 My Published Offer Ads ({myOffers.length})
               </h2>
               <button
                 type="button"
                 onClick={onOpenCreateOffer}
-                className="inline-flex items-center gap-1 rounded-xl bg-[#7FE85B] px-3.5 py-2 text-xs font-semibold text-[#082213] hover:bg-[#6AD845]"
+                className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-[#7FE85B] px-3.5 py-2 text-xs font-semibold text-[#082213] hover:bg-[#6AD845]"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Create Offer</span>
@@ -548,16 +553,16 @@ export function AccountView({
                   return (
                     <div
                       key={offer.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E6EAEA] p-4 transition-colors hover:border-[#B6C4C1] dark:border-[#202B2A] dark:hover:border-[#344643]"
+                      className="flex flex-col gap-3 rounded-xl border border-[#E6EAEA] p-3.5 transition-colors hover:border-[#B6C4C1] sm:flex-row sm:items-center sm:justify-between sm:p-4 dark:border-[#202B2A] dark:hover:border-[#344643]"
                     >
                       <button
                         type="button"
                         onClick={() => onViewOffer(offer)}
-                        className="flex flex-1 min-w-[200px] items-center gap-3 text-left"
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
                       >
                         <CoinIcon symbol={offer.crypto} size={22} />
-                        <div>
-                          <div className="text-sm font-bold text-[#0E1715] hover:text-[#0B3B2E] dark:text-white dark:hover:text-[#7FE85B]">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-bold text-[#0E1715] hover:text-[#0B3B2E] dark:text-white dark:hover:text-[#7FE85B]">
                             {offer.side === 'swap_crypto' && offer.swapToCrypto
                               ? `Swapping ${offer.crypto} for ${offer.swapToCrypto}`
                               : `${offer.side === 'sell_crypto' ? 'Selling' : 'Buying'} ${offer.crypto} · ${offer.paymentMethod}`}
@@ -571,11 +576,11 @@ export function AccountView({
                         </div>
                       </button>
 
-                      <div className="flex items-center gap-2">
+                      <div className="grid w-full grid-cols-[1fr_1fr_auto] gap-2 sm:flex sm:w-auto sm:items-center">
                         <button
                           type="button"
                           onClick={() => onViewOffer(offer)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-[#EEF6F2] px-2.5 py-1.5 text-xs font-semibold text-[#0B3B2E] hover:bg-[#DFF0E6] dark:bg-[#152B20] dark:text-[#7FE85B] dark:hover:bg-[#1C382A]"
+                          className="inline-flex min-h-[38px] items-center justify-center gap-1 rounded-lg bg-[#EEF6F2] px-2.5 py-1.5 text-xs font-semibold text-[#0B3B2E] hover:bg-[#DFF0E6] dark:bg-[#152B20] dark:text-[#7FE85B] dark:hover:bg-[#1C382A]"
                         >
                           <Eye className="h-3.5 w-3.5" />
                           <span>View Live</span>
@@ -586,7 +591,7 @@ export function AccountView({
                             const res = await api.updateOffer(offer.id, { active: !offer.active });
                             onOfferUpdated(res.offer);
                           }}
-                          className="inline-flex items-center gap-1 rounded-lg border border-[#DCE2E1] px-2.5 py-1.5 text-xs font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#DCE4E3]"
+                          className="inline-flex min-h-[38px] items-center justify-center gap-1 rounded-lg border border-[#DCE2E1] px-2.5 py-1.5 text-xs font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#DCE4E3]"
                         >
                           {offer.active ? (
                             <>
@@ -607,7 +612,7 @@ export function AccountView({
                             await api.deleteOffer(offer.id);
                             onOfferDeleted(offer.id);
                           }}
-                          className="rounded-lg border border-[#DCE2E1] p-1.5 text-red-600 hover:bg-red-50 dark:border-[#263130] dark:hover:bg-red-950/30"
+                          className="flex min-h-[38px] min-w-[38px] items-center justify-center rounded-lg border border-[#DCE2E1] p-1.5 text-red-600 hover:bg-red-50 dark:border-[#263130] dark:hover:bg-red-950/30"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -627,10 +632,10 @@ export function AccountView({
           {/* Left: Account Settings & Security */}
           <form
             onSubmit={handleSaveSettings}
-            className="space-y-5 rounded-2xl border border-[#E3E7E7] bg-white p-6 lg:col-span-7 dark:border-[#202B2A] dark:bg-[#131A1A]"
+            className="space-y-5 rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 lg:col-span-7 dark:border-[#202B2A] dark:bg-[#131A1A]"
           >
             <div className="flex items-center gap-2.5 border-b border-[#ECEFEF] pb-4 dark:border-[#202B2A]">
-              <Shield className="h-5 w-5 text-[#0B3B2E] dark:text-[#7FE85B]" />
+              <Shield className="h-5 w-5 shrink-0 text-[#0B3B2E] dark:text-[#7FE85B]" />
               <div>
                 <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
                   Account &amp; Privacy Settings
@@ -677,43 +682,43 @@ export function AccountView({
             </div>
 
             <div className="space-y-3 rounded-xl border border-[#E6EAEA] bg-[#F8FAFA] p-4 dark:border-[#202B2A] dark:bg-[#0F1515]">
-              <label className="flex cursor-pointer items-center justify-between text-sm text-[#1E2726] dark:text-[#DCE4E3]">
+              <label className="flex cursor-pointer items-center justify-between gap-3 text-sm text-[#1E2726] dark:text-[#DCE4E3]">
                 <span>Auto-sign escrow terms with PGP fingerprint</span>
                 <input
                   type="checkbox"
                   checked={autoPgpSign}
                   onChange={(e) => setAutoPgpSign(e.target.checked)}
-                  className="h-4 w-4 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                  className="h-4 w-4 shrink-0 accent-[#0B3B2E] dark:accent-[#7FE85B]"
                 />
               </label>
 
-              <label className="flex cursor-pointer items-center justify-between text-sm text-[#1E2726] dark:text-[#DCE4E3]">
+              <label className="flex cursor-pointer items-center justify-between gap-3 text-sm text-[#1E2726] dark:text-[#DCE4E3]">
                 <span>Hide &ldquo;Active now&rdquo; online status on public ads</span>
                 <input
                   type="checkbox"
                   checked={hideOnlineStatus}
                   onChange={(e) => setHideOnlineStatus(e.target.checked)}
-                  className="h-4 w-4 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                  className="h-4 w-4 shrink-0 accent-[#0B3B2E] dark:accent-[#7FE85B]"
                 />
               </label>
 
-              <label className="flex cursor-pointer items-center justify-between text-sm text-[#1E2726] dark:text-[#DCE4E3]">
+              <label className="flex cursor-pointer items-center justify-between gap-3 text-sm text-[#1E2726] dark:text-[#DCE4E3]">
                 <span>Prioritize Tor-friendly &amp; cash-ready offers</span>
                 <input
                   type="checkbox"
                   checked={torFriendlyMode}
                   onChange={(e) => setTorFriendlyMode(e.target.checked)}
-                  className="h-4 w-4 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                  className="h-4 w-4 shrink-0 accent-[#0B3B2E] dark:accent-[#7FE85B]"
                 />
               </label>
 
-              <label className="flex cursor-pointer items-center justify-between text-sm text-[#1E2726] dark:text-[#DCE4E3]">
+              <label className="flex cursor-pointer items-center justify-between gap-3 text-sm text-[#1E2726] dark:text-[#DCE4E3]">
                 <span>Escrow state &amp; release notifications</span>
                 <input
                   type="checkbox"
                   checked={escrowAlerts}
                   onChange={(e) => setEscrowAlerts(e.target.checked)}
-                  className="h-4 w-4 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                  className="h-4 w-4 shrink-0 accent-[#0B3B2E] dark:accent-[#7FE85B]"
                 />
               </label>
             </div>
@@ -751,7 +756,7 @@ export function AccountView({
               </div>
             )}
 
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               {settingsMsg ? (
                 <span className="text-xs font-semibold text-[#0D6832] dark:text-[#7FE85B]">
                   {settingsMsg}
@@ -762,7 +767,7 @@ export function AccountView({
               <button
                 type="submit"
                 disabled={savingSettings}
-                className="rounded-xl bg-[#7FE85B] px-6 py-2.5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845]"
+                className="min-h-[44px] w-full rounded-xl bg-[#7FE85B] px-6 py-2.5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] sm:w-auto"
               >
                 {savingSettings ? 'Saving...' : 'Save Settings'}
               </button>
@@ -773,7 +778,7 @@ export function AccountView({
           <div className="space-y-6 lg:col-span-5">
             <form
               onSubmit={handleSaveProfile}
-              className="space-y-4 rounded-2xl border border-[#E3E7E7] bg-white p-6 dark:border-[#202B2A] dark:bg-[#131A1A]"
+              className="space-y-4 rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]"
             >
               <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
                 Public Trader Bio &amp; PGP
@@ -803,7 +808,7 @@ export function AccountView({
                 />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 {profileSaved ? (
                   <span className="text-xs font-semibold text-[#0D6832] dark:text-[#7FE85B]">
                     Profile updated
@@ -814,14 +819,14 @@ export function AccountView({
                 <button
                   type="submit"
                   disabled={savingProfile}
-                  className="rounded-xl bg-[#0B3B2E] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#082B21] dark:bg-[#E8EFEA] dark:text-[#082213]"
+                  className="min-h-[44px] w-full rounded-xl bg-[#0B3B2E] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#082B21] sm:w-auto dark:bg-[#E8EFEA] dark:text-[#082213]"
                 >
                   {savingProfile ? 'Saving...' : 'Update Bio'}
                 </button>
               </div>
             </form>
 
-            <div className="rounded-2xl border border-[#E3E7E7] bg-white p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
+            <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
               <h3 className="font-display text-sm font-bold text-[#0E1715] dark:text-white">
                 Anonymous Recovery Seed
               </h3>
@@ -848,8 +853,8 @@ export function AccountView({
 
       {/* DEPOSIT / WITHDRAW MODAL WITH QR GENERATOR */}
       {walletModal && activeMeta && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
-          <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-6 shadow-xl dark:border-[#263130] dark:bg-[#131A1A]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-[2px]">
+          <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-4 shadow-xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
             <div className="flex items-center justify-between border-b border-[#ECEFEF] pb-4 dark:border-[#202B2A]">
               <div className="flex items-center gap-2.5">
                 <CoinIcon symbol={activeMeta.symbol} size={26} />
@@ -881,8 +886,9 @@ export function AccountView({
                   Select Network / Chain
                 </label>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {activeChains.map((ch) => {
+                  {activeChains.map((ch, idx) => {
                     const isSelected = ch.id === activeChainOption.id;
+                    const isLastOddMobile = activeChains.length % 2 === 1 && idx === activeChains.length - 1;
                     return (
                       <button
                         key={ch.id}
@@ -892,6 +898,8 @@ export function AccountView({
                           setCopiedAddr(false);
                         }}
                         className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-xs transition-colors ${
+                          isLastOddMobile ? 'col-span-2 sm:col-span-1' : ''
+                        } ${
                           isSelected
                             ? 'border-[#0B3B2E] bg-[#EEF6F2] text-[#0E1715] font-bold dark:border-[#7FE85B] dark:bg-[#152B20] dark:text-white'
                             : 'border-[#DCE2E1] bg-white text-[#4B5554] hover:border-[#9CA8A6] dark:border-[#263130] dark:bg-[#0D1313] dark:text-[#98A4A2]'

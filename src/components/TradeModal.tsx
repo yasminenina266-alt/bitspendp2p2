@@ -176,8 +176,8 @@ export function TradeModal({
     };
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
-        <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-6 shadow-xl dark:border-[#263130] dark:bg-[#131A1A]">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-[2px]">
+        <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-4 shadow-xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
           <div className="flex items-start justify-between gap-4 border-b border-[#ECEFEF] pb-4 dark:border-[#202B2A]">
             <div className="flex items-center gap-3">
               <CoinIcon symbol={offer.crypto} size={32} />
@@ -387,11 +387,11 @@ export function TradeModal({
             </div>
           )}
 
-          <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#ECEFEF] pt-4 dark:border-[#202B2A]">
+          <div className="mt-6 flex flex-col-reverse gap-2.5 border-t border-[#ECEFEF] pt-4 sm:flex-row sm:items-center sm:justify-end sm:gap-3 dark:border-[#202B2A]">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl px-4 py-2.5 text-sm font-medium text-[#5C6665] hover:bg-[#F1F4F3] dark:text-[#98A4A2] dark:hover:bg-[#1E2927]"
+              className="min-h-[44px] w-full rounded-xl border border-[#DCE2E1] px-4 py-2.5 text-sm font-medium text-[#5C6665] hover:bg-[#F1F4F3] sm:w-auto sm:border-transparent dark:border-[#263130] dark:text-[#98A4A2] dark:hover:bg-[#1E2927]"
             >
               {isOwnOffer ? 'Close' : 'Cancel'}
             </button>
@@ -399,7 +399,7 @@ export function TradeModal({
               <button
                 type="button"
                 disabled
-                className="cursor-not-allowed rounded-xl border border-[#DCE2E1] bg-[#F1F4F3] px-5 py-2.5 text-sm font-semibold text-[#64706E] dark:border-[#263130] dark:bg-[#1A2423] dark:text-[#8E9B98]"
+                className="min-h-[44px] w-full cursor-not-allowed rounded-xl border border-[#DCE2E1] bg-[#F1F4F3] px-5 py-2.5 text-sm font-semibold text-[#64706E] sm:w-auto dark:border-[#263130] dark:bg-[#1A2423] dark:text-[#8E9B98]"
               >
                 Your Own Ad · Self-Trade Disabled
               </button>
@@ -408,7 +408,7 @@ export function TradeModal({
                 type="button"
                 disabled={busy}
                 onClick={handleOpenTrade}
-                className="rounded-xl bg-[#7FE85B] px-6 py-2.5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] disabled:opacity-60 transition-colors"
+                className="min-h-[44px] w-full rounded-xl bg-[#7FE85B] px-6 py-2.5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] disabled:opacity-60 sm:w-auto transition-colors"
               >
                 {busy
                   ? 'Opening Escrow...'
@@ -508,15 +508,15 @@ export function TradeModal({
   }[trade.status];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-[2px]">
       <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[#DCE2E1] bg-white shadow-xl dark:border-[#263130] dark:bg-[#131A1A]">
         {/* Top Bar */}
-        <div className="flex items-center justify-between border-b border-[#ECEFEF] px-6 py-4 dark:border-[#202B2A]">
-          <div className="flex items-center gap-3">
+        <div className="flex items-start justify-between gap-3 border-b border-[#ECEFEF] px-4 py-3.5 sm:items-center sm:px-6 sm:py-4 dark:border-[#202B2A]">
+          <div className="flex min-w-0 items-center gap-3">
             <CoinIcon symbol={trade.crypto} size={28} />
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <h2 className="font-display text-base font-bold text-[#0E1715] sm:text-lg dark:text-white">
                   Trade {trade.id}
                 </h2>
                 <span className="font-mono text-xs font-semibold text-[#0D6832] dark:text-[#7FE85B]">
@@ -541,10 +541,10 @@ export function TradeModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             {(trade.status === 'escrow_funded' || trade.status === 'payment_sent') && (
-              <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-[#DCE2E1] px-2.5 py-1 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:text-white">
-                <Clock className="h-3.5 w-3.5 text-[#5C6665]" />
+              <div className="flex items-center gap-1 rounded-lg border border-[#DCE2E1] px-2 py-1 font-mono text-[11px] font-semibold text-[#0E1715] sm:gap-1.5 sm:px-2.5 sm:text-xs dark:border-[#263130] dark:text-white">
+                <Clock className="h-3 w-3 text-[#5C6665] sm:h-3.5 sm:w-3.5" />
                 <span>{formatTimer(secondsLeft)}</span>
               </div>
             )}
@@ -560,7 +560,7 @@ export function TradeModal({
         </div>
 
         {/* 4-Step Escrow Progress Bar */}
-        <div className="grid grid-cols-4 border-b border-[#ECEFEF] bg-[#F9FAFA] px-6 py-2.5 text-[11px] font-semibold dark:border-[#202B2A] dark:bg-[#0F1515]">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 border-b border-[#ECEFEF] bg-[#F9FAFA] px-4 py-2.5 text-[11px] font-semibold sm:grid-cols-4 sm:px-6 dark:border-[#202B2A] dark:bg-[#0F1515]">
           {[
             isSwap ? '1. Swap Opened' : '1. Trade Opened',
             '2. Escrow Locked',
@@ -586,7 +586,7 @@ export function TradeModal({
         {/* Main Split Body */}
         <div className="grid flex-1 grid-cols-1 overflow-y-auto md:grid-cols-12">
           {/* Left: Escrow Summary, Payment Instructions & Controls */}
-          <div className="space-y-4 border-b border-[#ECEFEF] p-5 md:col-span-5 md:border-b-0 md:border-r dark:border-[#202B2A]">
+          <div className="space-y-4 border-b border-[#ECEFEF] p-4 sm:p-5 md:col-span-5 md:border-b-0 md:border-r dark:border-[#202B2A]">
             <div className="rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-4 dark:border-[#202B2A] dark:bg-[#0F1515]">
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
@@ -773,8 +773,8 @@ export function TradeModal({
           </div>
 
           {/* Right: Escrow Chat */}
-          <div className="flex h-[420px] flex-col md:col-span-7 md:h-[500px]">
-            <div className="flex-1 space-y-3 overflow-y-auto p-5">
+          <div className="flex h-[360px] flex-col sm:h-[420px] md:col-span-7 md:h-[500px]">
+            <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
               {trade.messages.map((m) => {
                 const isMe = m.sender === user?.username;
                 if (m.isSystem) {

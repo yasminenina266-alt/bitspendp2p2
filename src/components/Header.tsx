@@ -41,7 +41,7 @@ export function Header({
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#E3E7E7] bg-white/95 backdrop-blur-sm dark:border-[#1E2726] dark:bg-[#111717]/95">
-      <div className="mx-auto flex h-16 max-w-[1380px] items-center justify-between gap-6 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 max-w-[1380px] items-center justify-between gap-3 px-4 sm:gap-6 sm:px-6 lg:px-8">
         {/* Zone 1: Brand Wordmark */}
         <button
           type="button"
@@ -62,7 +62,7 @@ export function Header({
             <rect x="20" y="9" width="9" height="9" rx="1.5" fill="#1F6F54" />
             <rect x="8" y="19" width="9" height="9" rx="1.5" fill="#5EE048" />
           </svg>
-          <span className="font-display text-[21px] font-bold tracking-tight text-[#0E1715] dark:text-[#F1F5F4]">
+          <span className="font-display text-lg font-bold tracking-tight text-[#0E1715] sm:text-[21px] dark:text-[#F1F5F4]">
             BitSpend <span className="font-semibold text-[#0B3B2E] dark:text-[#7FE85B]">P2P</span>
           </span>
         </button>
@@ -99,7 +99,7 @@ export function Header({
         </nav>
 
         {/* Zone 3: Theme + Primary Auth / Account Action */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
             type="button"
             onClick={onToggleDarkMode}
@@ -187,13 +187,13 @@ export function Header({
               );
             })}
           </div>
-          <div className="mt-4 flex items-center gap-3 border-t border-[#E3E7E7] pt-4 dark:border-[#1E2726]">
+          <div className="mt-4 grid grid-cols-2 gap-2.5 border-t border-[#E3E7E7] pt-4 dark:border-[#1E2726]">
             {user ? (
               <>
                 <button
                   type="button"
                   onClick={() => handleNav('account')}
-                  className="flex-1 rounded-lg border border-[#DCE2E1] px-4 py-2.5 text-sm font-semibold text-[#111917] dark:border-[#263130] dark:text-white"
+                  className="min-h-[44px] truncate rounded-lg border border-[#DCE2E1] px-3 py-2.5 text-center text-sm font-semibold text-[#111917] dark:border-[#263130] dark:text-white"
                 >
                   {user.username}
                 </button>
@@ -203,7 +203,7 @@ export function Header({
                     onLogout();
                     setMobileMenuOpen(false);
                   }}
-                  className="rounded-lg px-4 py-2.5 text-sm font-medium text-[#5C6665] dark:text-[#98A4A2]"
+                  className="min-h-[44px] rounded-lg border border-[#DCE2E1] px-3 py-2.5 text-center text-sm font-medium text-[#5C6665] dark:border-[#263130] dark:text-[#98A4A2]"
                 >
                   Sign out
                 </button>
@@ -216,7 +216,7 @@ export function Header({
                     setMobileMenuOpen(false);
                     onOpenAuth('login');
                   }}
-                  className="flex-1 rounded-lg border border-[#DCE2E1] px-4 py-2.5 text-sm font-semibold text-[#111917] dark:border-[#263130] dark:text-white"
+                  className="min-h-[44px] rounded-lg border border-[#DCE2E1] px-4 py-2.5 text-sm font-semibold text-[#111917] dark:border-[#263130] dark:text-white"
                 >
                   Sign in
                 </button>
@@ -226,7 +226,7 @@ export function Header({
                     setMobileMenuOpen(false);
                     onOpenAuth('register');
                   }}
-                  className="flex-1 rounded-lg bg-[#171D1C] px-4 py-2.5 text-sm font-semibold text-white dark:bg-[#7FE85B] dark:text-[#082213]"
+                  className="min-h-[44px] rounded-lg bg-[#171D1C] px-4 py-2.5 text-sm font-semibold text-white dark:bg-[#7FE85B] dark:text-[#082213]"
                 >
                   Register
                 </button>

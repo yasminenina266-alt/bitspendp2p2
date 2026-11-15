@@ -356,8 +356,8 @@ export function CreateOfferModal({
     const shortfall = Math.max(0, fundingRequired.requiredAmount - fundingRequired.currentBalance);
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
-        <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-6 shadow-xl dark:border-[#263130] dark:bg-[#131A1A]">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-[2px]">
+        <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-4 shadow-xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
           <div className="flex items-start justify-between gap-4 border-b border-[#ECEFEF] pb-4 dark:border-[#202B2A]">
             <div className="flex items-center gap-3">
               <CoinIcon symbol={fundingRequired.asset} size={28} />
@@ -381,22 +381,22 @@ export function CreateOfferModal({
           </div>
 
           <div className="mt-5 space-y-4">
-            <div className="grid grid-cols-3 gap-2.5 rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-3.5 text-xs dark:border-[#202B2A] dark:bg-[#0F1515]">
-              <div>
+            <div className="grid grid-cols-3 gap-2 rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-3 text-[11px] sm:gap-2.5 sm:p-3.5 sm:text-xs dark:border-[#202B2A] dark:bg-[#0F1515]">
+              <div className="min-w-0">
                 <div className="text-[#5C6665] dark:text-[#8E9B98]">Required</div>
-                <div className="mt-0.5 font-mono font-bold text-[#0E1715] dark:text-white">
+                <div className="mt-0.5 truncate font-mono font-bold text-[#0E1715] dark:text-white">
                   {formatCrypto(fundingRequired.requiredAmount, fundingRequired.asset)}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-[#5C6665] dark:text-[#8E9B98]">Your Balance</div>
-                <div className="mt-0.5 font-mono font-bold text-[#0E1715] dark:text-white">
+                <div className="mt-0.5 truncate font-mono font-bold text-[#0E1715] dark:text-white">
                   {formatCrypto(fundingRequired.currentBalance, fundingRequired.asset)}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-[#5C6665] dark:text-[#8E9B98]">Amount Needed</div>
-                <div className="mt-0.5 font-mono font-bold text-amber-700 dark:text-amber-300">
+                <div className="mt-0.5 truncate font-mono font-bold text-amber-700 dark:text-amber-300">
                   {formatCrypto(shortfall, fundingRequired.asset)}
                 </div>
               </div>
@@ -408,8 +408,9 @@ export function CreateOfferModal({
                   Select Network / Chain
                 </label>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {assetChains.map((ch) => {
+                  {assetChains.map((ch, idx) => {
                     const isSelected = ch.id === activeChainOption.id;
+                    const isLastOddMobile = assetChains.length % 2 === 1 && idx === assetChains.length - 1;
                     return (
                       <button
                         key={ch.id}
@@ -419,6 +420,8 @@ export function CreateOfferModal({
                           setCopiedAddress(false);
                         }}
                         className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-xs transition-colors ${
+                          isLastOddMobile ? 'col-span-2 sm:col-span-1' : ''
+                        } ${
                           isSelected
                             ? 'border-[#0B3B2E] bg-[#EEF6F2] text-[#0E1715] font-bold dark:border-[#7FE85B] dark:bg-[#152B20] dark:text-white'
                             : 'border-[#DCE2E1] bg-white text-[#4B5554] hover:border-[#9CA8A6] dark:border-[#263130] dark:bg-[#0D1313] dark:text-[#98A4A2]'
@@ -494,15 +497,15 @@ export function CreateOfferModal({
               </div>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#ECEFEF] pt-4 dark:border-[#202B2A]">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col-reverse gap-2.5 border-t border-[#ECEFEF] pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-[#202B2A]">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                 <button
                   type="button"
                   onClick={() => {
                     setFundingRequired(null);
                     setError('');
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#DCE2E1] px-3.5 py-2.5 text-xs font-semibold text-[#394241] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#C5D1CF] dark:hover:bg-[#1A2423]"
+                  className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border border-[#DCE2E1] px-3.5 py-2.5 text-xs font-semibold text-[#394241] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#C5D1CF] dark:hover:bg-[#1A2423]"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
                   <span>Back</span>
@@ -513,7 +516,7 @@ export function CreateOfferModal({
                     onClose();
                     onOpenWallet();
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#DCE2E1] px-3.5 py-2.5 text-xs font-semibold text-[#394241] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#C5D1CF] dark:hover:bg-[#1A2423]"
+                  className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border border-[#DCE2E1] px-3.5 py-2.5 text-xs font-semibold text-[#394241] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#C5D1CF] dark:hover:bg-[#1A2423]"
                 >
                   <Wallet className="h-3.5 w-3.5" />
                   <span>Open Wallet</span>
@@ -523,7 +526,7 @@ export function CreateOfferModal({
                 type="button"
                 disabled={submitting}
                 onClick={handleCheckBalanceAndPublish}
-                className="rounded-xl bg-[#7FE85B] px-5 py-2.5 text-xs font-semibold text-[#082213] hover:bg-[#6AD845] disabled:opacity-60 transition-colors"
+                className="min-h-[44px] w-full rounded-xl bg-[#7FE85B] px-5 py-2.5 text-xs font-semibold text-[#082213] hover:bg-[#6AD845] disabled:opacity-60 sm:w-auto transition-colors"
               >
                 {submitting ? 'Checking Balance...' : 'Check Balance & Publish'}
               </button>
@@ -535,8 +538,8 @@ export function CreateOfferModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
-      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-6 shadow-xl dark:border-[#263130] dark:bg-[#131A1A]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-[2px]">
+      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-4 shadow-xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
         <div className="flex items-center justify-between border-b border-[#ECEFEF] pb-4 dark:border-[#202B2A]">
           <div>
             <h2 className="font-display text-xl font-bold text-[#0E1715] dark:text-white">
@@ -631,7 +634,7 @@ export function CreateOfferModal({
                   onClick={handleFlipSwapPair}
                   aria-label="Flip swap pair"
                   title="Flip swap pair"
-                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] text-[#0B3B2E] hover:bg-[#EEF6F2] dark:border-[#263130] dark:bg-[#0F1515] dark:text-[#7FE85B]"
+                  className="flex h-10 w-10 justify-self-center items-center justify-center rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] text-[#0B3B2E] hover:bg-[#EEF6F2] sm:h-11 sm:w-11 dark:border-[#263130] dark:bg-[#0F1515] dark:text-[#7FE85B]"
                 >
                   <ArrowLeftRight className="h-4 w-4" />
                 </button>
@@ -790,7 +793,7 @@ export function CreateOfferModal({
 
           {/* Pricing Breakdown Box */}
           <div className="rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-4 dark:border-[#202B2A] dark:bg-[#0F1515]">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <CoinIcon symbol={crypto} size={20} />
                 {isSwap ? (
@@ -812,11 +815,11 @@ export function CreateOfferModal({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-1 rounded-lg border border-[#DCE2E1] bg-white p-0.5 dark:border-[#263130] dark:bg-[#131A1A]">
+              <div className="grid w-full grid-cols-2 items-center gap-1 rounded-lg border border-[#DCE2E1] bg-white p-0.5 sm:flex sm:w-auto dark:border-[#263130] dark:bg-[#131A1A]">
                 <button
                   type="button"
                   onClick={() => setPricingMode('margin')}
-                  className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
+                  className={`rounded-md px-2.5 py-1.5 text-xs font-semibold sm:py-1 ${
                     pricingMode === 'margin'
                       ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
                       : 'text-[#5C6665]'
@@ -827,7 +830,7 @@ export function CreateOfferModal({
                 <button
                   type="button"
                   onClick={() => setPricingMode('fixed')}
-                  className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
+                  className={`rounded-md px-2.5 py-1.5 text-xs font-semibold sm:py-1 ${
                     pricingMode === 'fixed'
                       ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
                       : 'text-[#5C6665]'
@@ -1070,18 +1073,18 @@ export function CreateOfferModal({
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-3 pt-2">
+          <div className="flex flex-col-reverse gap-2.5 pt-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl px-4 py-2.5 text-sm font-medium text-[#5C6665] hover:bg-[#F1F4F3] dark:text-[#98A4A2] dark:hover:bg-[#1E2927]"
+              className="min-h-[44px] w-full rounded-xl border border-[#DCE2E1] px-4 py-2.5 text-sm font-medium text-[#5C6665] hover:bg-[#F1F4F3] sm:w-auto sm:border-transparent dark:border-[#263130] dark:text-[#98A4A2] dark:hover:bg-[#1E2927]"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-xl bg-[#7FE85B] px-6 py-2.5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] disabled:opacity-60 transition-colors"
+              className="min-h-[44px] w-full rounded-xl bg-[#7FE85B] px-6 py-2.5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] disabled:opacity-60 sm:w-auto transition-colors"
             >
               {submitting
                 ? 'Publishing...'

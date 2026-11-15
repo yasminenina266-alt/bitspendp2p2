@@ -70,9 +70,9 @@ export function SwapView({
 
   return (
     <div className="mx-auto max-w-[1060px] space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
         <div>
-          <h1 className="font-display text-2xl font-bold text-[#0E1715] dark:text-white">
+          <h1 className="font-display text-xl font-bold text-[#0E1715] sm:text-2xl dark:text-white">
             Instant Cross-Chain Swap
           </h1>
           <p className="mt-1 text-sm text-[#5C6665] dark:text-[#98A4A2]">
@@ -82,7 +82,7 @@ export function SwapView({
         <button
           type="button"
           onClick={onRefreshPrices}
-          className="inline-flex items-center gap-2 rounded-xl border border-[#DCE2E1] bg-white px-3.5 py-2 text-xs font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3]"
+          className="inline-flex min-h-[40px] w-full items-center justify-center gap-2 rounded-xl border border-[#DCE2E1] bg-white px-3.5 py-2 text-xs font-semibold text-[#1E2726] hover:bg-[#F5F7F7] sm:w-auto dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3]"
         >
           <RefreshCw className="h-3.5 w-3.5" />
           <span>Rates: {prices.source}</span>
@@ -93,17 +93,17 @@ export function SwapView({
         {/* Swap Form */}
         <form
           onSubmit={handleSwap}
-          className="space-y-5 rounded-2xl border border-[#E3E7E7] bg-white p-6 lg:col-span-7 dark:border-[#202B2A] dark:bg-[#131A1A]"
+          className="space-y-5 rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 lg:col-span-7 dark:border-[#202B2A] dark:bg-[#131A1A]"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-xs font-semibold text-[#5C6665] dark:text-[#98A4A2]">
               Rate Mode
             </span>
-            <div className="inline-flex rounded-xl border border-[#DCE2E1] bg-[#F5F7F7] p-1 dark:border-[#263130] dark:bg-[#0D1313]">
+            <div className="grid w-full grid-cols-2 rounded-xl border border-[#DCE2E1] bg-[#F5F7F7] p-1 sm:inline-flex sm:w-auto dark:border-[#263130] dark:bg-[#0D1313]">
               <button
                 type="button"
                 onClick={() => setMode('floating')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                className={`rounded-lg px-2.5 py-2 text-xs font-semibold sm:px-3 sm:py-1.5 ${
                   mode === 'floating'
                     ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1C2625] dark:text-white'
                     : 'text-[#5C6665]'
@@ -114,7 +114,7 @@ export function SwapView({
               <button
                 type="button"
                 onClick={() => setMode('fixed')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                className={`rounded-lg px-2.5 py-2 text-xs font-semibold sm:px-3 sm:py-1.5 ${
                   mode === 'fixed'
                     ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1C2625] dark:text-white'
                     : 'text-[#5C6665]'
@@ -147,7 +147,7 @@ export function SwapView({
                 required
                 value={fromAmount}
                 onChange={(e) => setFromAmount(e.target.value)}
-                className="w-full bg-transparent font-mono text-2xl font-bold tabular-nums text-[#0E1715] focus:outline-none dark:text-white"
+                className="min-w-0 flex-1 bg-transparent font-mono text-xl font-bold tabular-nums text-[#0E1715] focus:outline-none sm:text-2xl dark:text-white"
               />
               <div className="flex items-center gap-2 rounded-xl border border-[#DCE2E1] bg-white px-3 py-2 dark:border-[#263130] dark:bg-[#131A1A] shrink-0">
                 <CoinIcon symbol={fromCrypto} size={20} />
@@ -188,14 +188,14 @@ export function SwapView({
 
           {/* Receive Box */}
           <div className="rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-4 dark:border-[#202B2A] dark:bg-[#0F1515]">
-            <div className="flex items-center justify-between text-xs text-[#5C6665] dark:text-[#98A4A2] mb-2">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-1 text-xs text-[#5C6665] dark:text-[#98A4A2]">
               <span>You receive (estimated)</span>
               <span className="font-mono">
                 1 {fromCrypto} ≈ {rate.toFixed(6)} {toCrypto}
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-full font-mono text-2xl font-bold tabular-nums text-[#0B3B2E] dark:text-[#7FE85B]">
+              <div className="min-w-0 flex-1 truncate font-mono text-xl font-bold tabular-nums text-[#0B3B2E] sm:text-2xl dark:text-[#7FE85B]">
                 {receiveAmount.toFixed(toCrypto === 'USDT' || toCrypto === 'USDC' ? 2 : 5)}
               </div>
               <div className="flex items-center gap-2 rounded-xl border border-[#DCE2E1] bg-white px-3 py-2 dark:border-[#263130] dark:bg-[#131A1A] shrink-0">
