@@ -1,0 +1,6 @@
+{
+  "name": "BitSpend",
+  "description": "No-KYC peer-to-peer crypto marketplace for Bitcoin, Monero (XMR), Ethereum, USDT, and private crypto cards with live spot pricing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
