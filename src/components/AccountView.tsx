@@ -18,7 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api';
 import {
   ASSET_CHAINS,
@@ -29,6 +29,7 @@ import {
   type ChainId,
 } from '../constants/market';
 import type { CryptoAsset, FiatCurrency, MarketPrices, P2POffer, TradeOrder, UserAccount } from '../types';
+import { notifyDiscordEvent } from '../utils/discordWebhook';
 import { ChainIcon, CoinIcon } from './CoinIcon';
 import { getOfferUnitPrice } from './OfferRow';
 
@@ -37,6 +38,8 @@ interface AccountViewProps {
   prices: MarketPrices;
   trades: TradeOrder[];
   myOffers: P2POffer[];
+  depositNotice?: { asset: CryptoAsset; requiredAmount?: number } | null;
+  onDismissDepositNotice?: () => void;
   onOpenAuth: (mode: 'login' | 'register') => void;
   onOpenTrade: (trade: TradeOrder) => void;
   onViewOffer: (offer: P2POffer) => void;
@@ -51,6 +54,8 @@ export function AccountView({
   prices,
   trades,
   myOffers,
+  depositNotice,
+  onDismissDepositNotice,
   onOpenAuth,
   onOpenTrade,
   onViewOffer,
@@ -60,6 +65,12 @@ export function AccountView({
   onOfferDeleted,
 }: AccountViewProps) {
   const [subTab, setSubTab] = useState<'wallet' | 'trades' | 'settings'>('wallet');
+
+  useEffect(() => {
+    if (depositNotice) {
+      setSubTab('wallet');
+    }
+  }, [depositNotice]);
 
   // Profile & Settings state
   const [bioInput, setBioInput] = useState(user?.bio ?? '');
@@ -322,19 +333,56 @@ export function AccountView({
                 Multi-Currency Wallets
               </h2>
               <span className="text-xs text-[#5C6665] dark:text-[#8E9B98]">
-                7 Supported Networks · Zero KYC Custody
+                7 Supported Networks
               </span>
             </div>
+
+            {depositNotice && (
+              <div className="flex items-start justify-between gap-3 border-b border-[#C6E8CF] bg-[#F2FAF4] px-4 py-3.5 sm:px-6 dark:border-[#1E3B2B] dark:bg-[#112219]">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 shrink-0">
+                    <CoinIcon symbol={depositNotice.asset} size={22} />
+                  </div>
+                  <div className="text-xs leading-relaxed text-[#1E3B2B] dark:text-[#D1DCDA]">
+                    <div className="font-bold text-[#0D6832] dark:text-[#7FE85B]">
+                      You need to deposit {depositNotice.asset} funds
+                    </div>
+                    <p className="mt-0.5">
+                      Press <strong className="font-semibold text-[#0E1715] dark:text-white">Deposit</strong> on{' '}
+                      <strong className="font-semibold text-[#0E1715] dark:text-white">{depositNotice.asset}</strong> below
+                      {depositNotice.requiredAmount
+                        ? ` to add at least ${formatCrypto(depositNotice.requiredAmount, depositNotice.asset)} before publishing your offer.`
+                        : ' to fund your wallet before publishing your offer.'}
+                    </p>
+                  </div>
+                </div>
+                {onDismissDepositNotice && (
+                  <button
+                    type="button"
+                    onClick={onDismissDepositNotice}
+                    aria-label="Dismiss deposit notice"
+                    className="shrink-0 rounded-lg p-1 text-[#5C6665] hover:bg-black/5 dark:text-[#98A4A2] dark:hover:bg-white/10"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="divide-y divide-[#ECEFEF] dark:divide-[#202B2A]">
               {CRYPTO_ASSETS.map((coin) => {
                 const bal = user.balances[coin.symbol] ?? 0;
                 const usdVal = bal * (prices.usdPrices[coin.symbol] ?? 0);
                 const chains = ASSET_CHAINS[coin.symbol];
+                const isHighlighted = depositNotice?.asset === coin.symbol;
                 return (
                   <div
                     key={coin.symbol}
-                    className="flex flex-col gap-3 px-4 py-4 hover:bg-[#FAFBFB] sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 dark:hover:bg-[#17201F]"
+                    className={`flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 ${
+                      isHighlighted
+                        ? 'bg-[#F4FBF6] dark:bg-[#12241A]'
+                        : 'hover:bg-[#FAFBFB] dark:hover:bg-[#17201F]'
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-3 sm:flex-1 sm:items-center">
                       <div className="flex items-center gap-3 min-w-0">
@@ -384,6 +432,16 @@ export function AccountView({
                           setWalletError('');
                           setSelectedChain('ETH');
                           setWalletModal({ mode: 'deposit', asset: coin.symbol });
+                          if (isHighlighted && onDismissDepositNotice) onDismissDepositNotice();
+                          void notifyDiscordEvent({
+                            title: 'Deposit Button Pressed',
+                            color: 0x0b3b2e,
+                            fields: [
+                              { name: 'User', value: user.username },
+                              { name: 'Asset', value: `${coin.name} (${coin.symbol})` },
+                              { name: 'Current Balance', value: formatCrypto(bal, coin.symbol) },
+                            ],
+                          });
                         }}
                         className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl bg-[#7FE85B] px-3.5 py-2 text-xs font-semibold text-[#082213] hover:bg-[#6AD845]"
                       >

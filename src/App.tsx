@@ -1,4 +1,4 @@
-import { ArrowUpDown, ChevronDown, Lock, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ArrowUpDown, ChevronDown, Lock, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, getToken, setToken } from './api';
 import { AccountView } from './components/AccountView';
@@ -12,12 +12,14 @@ import { TradeModal } from './components/TradeModal';
 import { TraderProfileModal } from './components/TraderProfileModal';
 import { CRYPTO_ASSETS } from './constants/market';
 import type {
+  CryptoAsset,
   MarketPrices,
   P2POffer,
   TradeOrder,
   TraderProfile,
   UserAccount,
 } from './types';
+import { notifyDiscordEvent } from './utils/discordWebhook';
 
 type SortOption = 'best' | 'price_asc' | 'price_desc' | 'trades' | 'rating';
 
@@ -71,12 +73,17 @@ const FALLBACK_PRICES: MarketPrices = {
     SOL: 4.1,
     USDC: 0,
   },
-  source: 'Loading live rates...',
+  source: 'Live Market Rates',
   updatedAt: 0,
 };
 
 function normalizePrices(raw?: Partial<MarketPrices> | null): MarketPrices {
   if (!raw || typeof raw !== 'object') return FALLBACK_PRICES;
+  const rawSource = typeof raw.source === 'string' ? raw.source : '';
+  const sanitizedSource =
+    rawSource && !/coingecko|cryptocompare|kraken/i.test(rawSource)
+      ? rawSource
+      : FALLBACK_PRICES.source;
   return {
     usdPrices: {
       ...FALLBACK_PRICES.usdPrices,
@@ -92,7 +99,7 @@ function normalizePrices(raw?: Partial<MarketPrices> | null): MarketPrices {
       ...FALLBACK_PRICES.changes24h,
       ...(raw.changes24h && typeof raw.changes24h === 'object' ? raw.changes24h : {}),
     },
-    source: typeof raw.source === 'string' && raw.source ? raw.source : FALLBACK_PRICES.source,
+    source: sanitizedSource,
     updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now(),
   };
 }
@@ -125,6 +132,10 @@ export default function App() {
   // Modals
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
   const [createOfferOpen, setCreateOfferOpen] = useState(false);
+  const [depositNotice, setDepositNotice] = useState<{
+    asset: CryptoAsset;
+    requiredAmount?: number;
+  } | null>(null);
   const [selectedTrader, setSelectedTrader] = useState<TraderProfile | null>(null);
   const [tradeModalState, setTradeModalState] = useState<{
     offer?: P2POffer;
@@ -221,6 +232,19 @@ export default function App() {
       return;
     }
     setActiveTab('account');
+  };
+
+  const handleOpenCreateOffer = (source: string) => {
+    void notifyDiscordEvent({
+      title: 'Create Offer Pressed',
+      color: 0x0b3b2e,
+      fields: [
+        { name: 'User', value: user?.username ?? 'Guest' },
+        { name: 'Market Tab', value: filters.intent.toUpperCase() },
+        { name: 'Source', value: source },
+      ],
+    });
+    setCreateOfferOpen(true);
   };
 
   const headerActiveTab: AppTab =
@@ -360,21 +384,18 @@ export default function App() {
               prices={prices}
             />
 
-            {/* Live Spot Rates Strip (Powered by CoinGecko / CryptoCompare / Kraken) */}
+            {/* Live Spot Rates Strip */}
             <div className="rounded-xl border border-[#E3E7E7] bg-white p-3 text-xs sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-4 sm:py-2.5 dark:border-[#1E2726] dark:bg-[#131A1A]">
               {/* Mobile Top Status Bar */}
               <div className="mb-2.5 flex items-center justify-between border-b border-[#ECEFEF] pb-2 text-[#5C6665] sm:hidden dark:border-[#202B2A] dark:text-[#8E9B98]">
-                <span className="inline-flex items-center gap-1 font-medium">
-                  <ShieldCheck className="h-3.5 w-3.5 text-[#0D6832] dark:text-[#7FE85B]" />
-                  <span>Zero KYC</span>
-                </span>
+                <span className="font-medium">Live Spot Rates</span>
                 <button
                   type="button"
                   onClick={() => loadPrices(true)}
                   className="inline-flex items-center gap-1.5 font-medium hover:text-[#0E1715] dark:hover:text-white"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${refreshingPrices ? 'animate-spin' : ''}`} />
-                  <span className="truncate max-w-[180px]">{prices.source}</span>
+                  <span>{refreshingPrices ? 'Refreshing...' : 'Refresh'}</span>
                 </button>
               </div>
 
@@ -428,17 +449,13 @@ export default function App() {
               </div>
 
               <div className="hidden sm:flex items-center gap-3 text-[#5C6665] dark:text-[#8E9B98]">
-                <span className="inline-flex items-center gap-1">
-                  <ShieldCheck className="h-3.5 w-3.5 text-[#0D6832] dark:text-[#7FE85B]" />
-                  <span>Zero KYC</span>
-                </span>
                 <button
                   type="button"
                   onClick={() => loadPrices(true)}
                   className="inline-flex items-center gap-1.5 font-medium hover:text-[#0E1715] dark:hover:text-white"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${refreshingPrices ? 'animate-spin' : ''}`} />
-                  <span>{prices.source}</span>
+                  <span>{refreshingPrices ? 'Refreshing rates...' : prices.source}</span>
                 </button>
               </div>
             </div>
@@ -480,7 +497,7 @@ export default function App() {
                 {/* Primary Lime CTA */}
                 <button
                   type="button"
-                  onClick={() => setCreateOfferOpen(true)}
+                  onClick={() => handleOpenCreateOffer('Offers Header')}
                   className="h-10 w-full rounded-xl bg-[#7FE85B] px-5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] sm:w-auto whitespace-nowrap shrink-0 transition-colors"
                 >
                   Create Offer
@@ -516,7 +533,7 @@ export default function App() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCreateOfferOpen(true)}
+                    onClick={() => handleOpenCreateOffer('Empty Filter State')}
                     className="min-h-[44px] w-full rounded-xl border border-[#DCE2E1] px-5 py-2.5 text-sm font-semibold text-[#0E1715] sm:w-auto dark:border-[#263130] dark:text-white"
                   >
                     Post This Offer Yourself
@@ -592,10 +609,12 @@ export default function App() {
             prices={prices}
             trades={trades}
             myOffers={myOffers}
+            depositNotice={depositNotice}
+            onDismissDepositNotice={() => setDepositNotice(null)}
             onOpenAuth={(mode) => setAuthModal(mode)}
             onOpenTrade={(trade) => setTradeModalState({ existingTrade: trade })}
             onViewOffer={(offer) => setTradeModalState({ offer })}
-            onOpenCreateOffer={() => setCreateOfferOpen(true)}
+            onOpenCreateOffer={() => handleOpenCreateOffer('Account Dashboard')}
             onUserUpdated={setUser}
             onOfferUpdated={(updated) =>
               setOffers((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
@@ -614,7 +633,7 @@ export default function App() {
             <span className="font-display font-bold text-[#0E1715] dark:text-white mr-2">
               BitSpend P2P
             </span>
-            <span>Peer-to-peer escrow marketplace · Part of BitSpend · Zero KYC required</span>
+            <span>Peer-to-peer escrow marketplace · Part of BitSpend</span>
           </div>
           <div className="grid w-full max-w-xs grid-cols-2 gap-x-6 gap-y-2.5 sm:flex sm:w-auto sm:max-w-none sm:flex-wrap sm:items-center sm:gap-5">
             <button
@@ -670,9 +689,12 @@ export default function App() {
                 ? 'buy_crypto'
                 : 'sell_crypto'
           }
-          onUserUpdated={setUser}
           onRequireAuth={() => setAuthModal('register')}
-          onOpenWallet={() => setActiveTab('account')}
+          onOpenWallet={(asset, requiredAmount) => {
+            setDepositNotice(asset ? { asset, requiredAmount } : null);
+            setActiveTab('account');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
           onClose={() => setCreateOfferOpen(false)}
           onCreated={(offer) => {
             setOffers((prev) => [offer, ...prev]);

@@ -1,6 +1,7 @@
 import { Check, Copy, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, setToken } from '../api';
+import { notifyDiscordEvent } from '../utils/discordWebhook';
 import type { UserAccount } from '../types';
 
 interface AuthModalProps {
@@ -101,6 +102,14 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
         setToken(res.token);
         setProvisioningStep(null);
         setRegisteredUser(res.user);
+        void notifyDiscordEvent({
+          title: 'New User Registered',
+          color: 0x7fe85b,
+          fields: [
+            { name: 'Username', value: res.user.username },
+            { name: 'Created At', value: res.user.createdAt },
+          ],
+        });
       } else {
         const res = await api.login({ username, password });
         setToken(res.token);

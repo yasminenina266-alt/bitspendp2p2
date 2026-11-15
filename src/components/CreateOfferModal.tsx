@@ -1,9 +1,7 @@
-import { ArrowLeft, ArrowLeftRight, Check, Copy, RefreshCw, Wallet, X } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { ArrowLeft, ArrowLeftRight, ArrowRight, Wallet, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { api } from '../api';
 import {
-  ASSET_CHAINS,
   COUNTRIES,
   COUNTRY_TO_CURRENCY,
   CRYPTO_ASSETS,
@@ -12,7 +10,6 @@ import {
   PAYMENT_METHODS,
   formatCrypto,
   formatFiat,
-  type ChainId,
 } from '../constants/market';
 import type {
   CryptoAsset,
@@ -23,15 +20,15 @@ import type {
   P2POffer,
   UserAccount,
 } from '../types';
-import { ChainIcon, CoinIcon } from './CoinIcon';
+import { notifyDiscordEvent } from '../utils/discordWebhook';
+import { CoinIcon } from './CoinIcon';
 
 interface CreateOfferModalProps {
   prices: MarketPrices;
   user: UserAccount | null;
   initialSide?: OfferSide;
-  onUserUpdated: (user: UserAccount) => void;
   onRequireAuth: () => void;
-  onOpenWallet: () => void;
+  onOpenWallet: (asset?: CryptoAsset, requiredAmount?: number) => void;
   onClose: () => void;
   onCreated: (offer: P2POffer) => void;
 }
@@ -53,7 +50,6 @@ export function CreateOfferModal({
   prices,
   user,
   initialSide,
-  onUserUpdated,
   onRequireAuth,
   onOpenWallet,
   onClose,
@@ -90,9 +86,6 @@ export function CreateOfferModal({
     requiredAmount: number;
     currentBalance: number;
   } | null>(null);
-  const [selectedChain, setSelectedChain] = useState<ChainId>('ETH');
-  const [copiedAddress, setCopiedAddress] = useState(false);
-  const [rotatingAddress, setRotatingAddress] = useState(false);
 
   const isSwap = side === 'swap_crypto';
   const requiresCryptoFunding = side === 'sell_crypto' || side === 'swap_crypto';
@@ -213,6 +206,15 @@ export function CreateOfferModal({
     if (requiresCryptoFunding) {
       const bal = activeUser.balances?.[crypto] ?? 0;
       if (bal < requiredCryptoForOffer) {
+        void notifyDiscordEvent({
+          title: 'Offer Publish Needs Deposit',
+          color: 0xf59e0b,
+          fields: [
+            { name: 'User', value: activeUser.username },
+            { name: 'Asset', value: isSwap ? `${swapToCrypto} → ${crypto}` : `${crypto} (${fiat})` },
+            { name: 'Required', value: formatCrypto(requiredCryptoForOffer, crypto) },
+          ],
+        });
         setFundingRequired({
           asset: crypto,
           requiredAmount: requiredCryptoForOffer,
@@ -244,6 +246,15 @@ export function CreateOfferModal({
           tags: selectedTags,
           terms,
         });
+        void notifyDiscordEvent({
+          title: 'P2P Swap Offer Published',
+          color: 0x7fe85b,
+          fields: [
+            { name: 'User', value: activeUser.username },
+            { name: 'Pair', value: `${swapToCrypto} → ${crypto}` },
+            { name: 'Margin', value: `${marginPct}%` },
+          ],
+        });
         onCreated(res.offer);
         onClose();
         return;
@@ -266,6 +277,15 @@ export function CreateOfferModal({
         paymentWindowMinutes,
         tags: selectedTags,
         terms,
+      });
+      void notifyDiscordEvent({
+        title: 'P2P Offer Published',
+        color: 0x7fe85b,
+        fields: [
+          { name: 'User', value: activeUser.username },
+          { name: 'Side', value: side === 'sell_crypto' ? 'Sell Crypto' : 'Buy Crypto' },
+          { name: 'Market', value: `${crypto} / ${fiat} (${paymentMethod})` },
+        ],
       });
       onCreated(res.offer);
       onClose();
@@ -294,83 +314,24 @@ export function CreateOfferModal({
     await publishOffer(user);
   };
 
-  const handleCheckBalanceAndPublish = async () => {
-    if (!user) return;
-    setSubmitting(true);
-    setError('');
-    try {
-      const { user: freshUser } = await api.getMe();
-      onUserUpdated(freshUser);
-      const freshBalance = freshUser.balances?.[crypto] ?? 0;
-      if (freshBalance < requiredCryptoForOffer) {
-        setFundingRequired({
-          asset: crypto,
-          requiredAmount: requiredCryptoForOffer,
-          currentBalance: freshBalance,
-        });
-        setError(
-          `Deposit not yet confirmed. Current ${crypto} balance is ${formatCrypto(freshBalance, crypto)}; ${formatCrypto(requiredCryptoForOffer, crypto)} is required.`
-        );
-        return;
-      }
-      setFundingRequired(null);
-      await publishOffer(freshUser);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to refresh wallet balance');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleCopyDepositAddress = async (addr: string) => {
-    try {
-      await navigator.clipboard.writeText(addr);
-      setCopiedAddress(true);
-      setTimeout(() => setCopiedAddress(false), 2000);
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleRotateAddress = async (asset: CryptoAsset) => {
-    setRotatingAddress(true);
-    setError('');
-    try {
-      const res = await api.newDepositAddress(asset);
-      onUserUpdated(res.user);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate new address');
-    } finally {
-      setRotatingAddress(false);
-    }
-  };
-
   if (fundingRequired && user) {
-    const assetMeta = CRYPTO_ASSETS.find((c) => c.symbol === fundingRequired.asset);
-    const assetChains = ASSET_CHAINS[fundingRequired.asset];
-    const activeChainOption = assetChains
-      ? assetChains.find((ch) => ch.id === selectedChain) ?? assetChains[0]
-      : undefined;
-    const depositAddress = activeChainOption
-      ? activeChainOption.address
-      : user.depositAddresses?.[fundingRequired.asset] ?? '';
-    const networkDisplay = activeChainOption
-      ? `${activeChainOption.name} (${activeChainOption.standard})`
-      : assetMeta?.networkName ?? 'Mainnet';
     const shortfall = Math.max(0, fundingRequired.requiredAmount - fundingRequired.currentBalance);
+    const assetMeta = CRYPTO_ASSETS.find((c) => c.symbol === fundingRequired.asset);
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-[2px]">
-        <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-4 shadow-xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
+        <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-5 shadow-xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
           <div className="flex items-start justify-between gap-4 border-b border-[#ECEFEF] pb-4 dark:border-[#202B2A]">
             <div className="flex items-center gap-3">
-              <CoinIcon symbol={fundingRequired.asset} size={28} />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#EEF6F2] dark:bg-[#152B20]">
+                <CoinIcon symbol={fundingRequired.asset} size={28} />
+              </div>
               <div>
                 <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
-                  Add Funds to Publish Listing
+                  Deposit Funds to Publish
                 </h2>
                 <p className="text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                  {fundingRequired.asset} wallet balance is required before publishing this offer
+                  {assetMeta?.name ?? fundingRequired.asset} balance needed for escrow liquidity
                 </p>
               </div>
             </div>
@@ -385,6 +346,14 @@ export function CreateOfferModal({
           </div>
 
           <div className="mt-5 space-y-4">
+            <p className="text-sm leading-relaxed text-[#394241] dark:text-[#C5D1CF]">
+              You need to deposit at least{' '}
+              <strong className="font-mono text-[#0E1715] dark:text-white">
+                {formatCrypto(shortfall, fundingRequired.asset)}
+              </strong>{' '}
+              into your {fundingRequired.asset} wallet before publishing this listing. Head to your dashboard to make a deposit manually.
+            </p>
+
             <div className="grid grid-cols-3 gap-2 rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-3 text-[11px] sm:gap-2.5 sm:p-3.5 sm:text-xs dark:border-[#202B2A] dark:bg-[#0F1515]">
               <div className="min-w-0">
                 <div className="text-[#5C6665] dark:text-[#8E9B98]">Required</div>
@@ -399,140 +368,38 @@ export function CreateOfferModal({
                 </div>
               </div>
               <div className="min-w-0">
-                <div className="text-[#5C6665] dark:text-[#8E9B98]">Amount Needed</div>
-                <div className="mt-0.5 truncate font-mono font-bold text-amber-700 dark:text-amber-300">
+                <div className="text-[#5C6665] dark:text-[#8E9B98]">Needed</div>
+                <div className="mt-0.5 truncate font-mono font-bold text-[#0D6832] dark:text-[#7FE85B]">
                   {formatCrypto(shortfall, fundingRequired.asset)}
                 </div>
               </div>
             </div>
 
-            {assetChains && activeChainOption && (
-              <div>
-                <label className="mb-2 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
-                  Select Network / Chain
-                </label>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {assetChains.map((ch, idx) => {
-                    const isSelected = ch.id === activeChainOption.id;
-                    const isLastOddMobile = assetChains.length % 2 === 1 && idx === assetChains.length - 1;
-                    return (
-                      <button
-                        key={ch.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedChain(ch.id);
-                          setCopiedAddress(false);
-                        }}
-                        className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-xs transition-colors ${
-                          isLastOddMobile ? 'col-span-2 sm:col-span-1' : ''
-                        } ${
-                          isSelected
-                            ? 'border-[#0B3B2E] bg-[#EEF6F2] text-[#0E1715] font-bold dark:border-[#7FE85B] dark:bg-[#152B20] dark:text-white'
-                            : 'border-[#DCE2E1] bg-white text-[#4B5554] hover:border-[#9CA8A6] dark:border-[#263130] dark:bg-[#0D1313] dark:text-[#98A4A2]'
-                        }`}
-                      >
-                        <ChainIcon chain={ch.id} size={18} />
-                        <div className="min-w-0">
-                          <div className="truncate leading-tight">{ch.name}</div>
-                          <div className="font-mono text-[10px] opacity-75">{ch.standard}</div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col items-center rounded-xl border border-[#E3E7E7] bg-white p-5 dark:border-[#24302E] dark:bg-white">
-              <QRCodeSVG
-                value={depositAddress || `${fundingRequired.asset}:bitspend`}
-                size={156}
-                level="M"
-              />
-            </div>
-
-            <div>
-              <div className="mb-1.5 flex items-center justify-between text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                <span className="inline-flex items-center gap-1.5">
-                  {activeChainOption && <ChainIcon chain={activeChainOption.id} size={14} />}
-                  <span>
-                    {fundingRequired.asset} Deposit Address ({networkDisplay})
-                  </span>
-                </span>
-                {fundingRequired.asset === 'XMR' && (
-                  <button
-                    type="button"
-                    disabled={rotatingAddress}
-                    onClick={() => handleRotateAddress(fundingRequired.asset)}
-                    className="inline-flex items-center gap-1 font-semibold text-[#0B3B2E] hover:underline dark:text-[#7FE85B]"
-                  >
-                    <RefreshCw className={`h-3 w-3 ${rotatingAddress ? 'animate-spin' : ''}`} />
-                    <span>New Address</span>
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-2 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] px-3 py-2.5 dark:border-[#263130] dark:bg-[#0D1313]">
-                <span className="flex-1 break-all font-mono text-xs text-[#0E1715] dark:text-white">
-                  {depositAddress}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleCopyDepositAddress(depositAddress)}
-                  aria-label="Copy deposit address"
-                  className="shrink-0 rounded-lg p-1.5 text-[#0B3B2E] hover:bg-[#E7EEEC] dark:text-[#7FE85B] dark:hover:bg-[#1A2623]"
-                >
-                  {copiedAddress ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-3.5 text-xs leading-relaxed text-[#4B5554] dark:border-[#202B2A] dark:bg-[#0F1515] dark:text-[#98A4A2]">
-              Send at least{' '}
-              <strong className="font-mono text-[#0E1715] dark:text-white">
-                {formatCrypto(shortfall, fundingRequired.asset)}
-              </strong>{' '}
-              on <strong className="text-[#0E1715] dark:text-white">{networkDisplay}</strong>. Once confirmed on-chain, click{' '}
-              <strong className="text-[#0E1715] dark:text-white">Check Balance &amp; Publish</strong> to make your offer live.
-            </div>
-
-            {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
-                {error}
-              </div>
-            )}
-
             <div className="flex flex-col-reverse gap-2.5 border-t border-[#ECEFEF] pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-[#202B2A]">
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFundingRequired(null);
-                    setError('');
-                  }}
-                  className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border border-[#DCE2E1] px-3.5 py-2.5 text-xs font-semibold text-[#394241] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#C5D1CF] dark:hover:bg-[#1A2423]"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  <span>Back</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onOpenWallet();
-                  }}
-                  className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border border-[#DCE2E1] px-3.5 py-2.5 text-xs font-semibold text-[#394241] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#C5D1CF] dark:hover:bg-[#1A2423]"
-                >
-                  <Wallet className="h-3.5 w-3.5" />
-                  <span>Open Wallet</span>
-                </button>
-              </div>
               <button
                 type="button"
-                disabled={submitting}
-                onClick={handleCheckBalanceAndPublish}
-                className="min-h-[44px] w-full rounded-xl bg-[#7FE85B] px-5 py-2.5 text-xs font-semibold text-[#082213] hover:bg-[#6AD845] disabled:opacity-60 sm:w-auto transition-colors"
+                onClick={() => {
+                  setFundingRequired(null);
+                  setError('');
+                }}
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-[#DCE2E1] px-4 py-2.5 text-xs font-semibold text-[#394241] hover:bg-[#F5F7F7] sm:w-auto dark:border-[#263130] dark:text-[#C5D1CF] dark:hover:bg-[#1A2423]"
               >
-                {submitting ? 'Checking Balance...' : 'Check Balance & Publish'}
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>Back to Offer</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetAsset = fundingRequired.asset;
+                  const targetReq = fundingRequired.requiredAmount;
+                  onClose();
+                  onOpenWallet(targetAsset, targetReq);
+                }}
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#7FE85B] px-5 py-2.5 text-xs font-semibold text-[#082213] hover:bg-[#6AD845] sm:w-auto transition-colors"
+              >
+                <Wallet className="h-4 w-4" />
+                <span>Go to Wallet Dashboard</span>
+                <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
@@ -550,7 +417,7 @@ export function CreateOfferModal({
               Create P2P Offer Ad
             </h2>
             <p className="mt-0.5 text-xs text-[#5C6665] dark:text-[#98A4A2]">
-              Live market pricing synced with {prices.source} · Real-time FX &amp; cross-pair rates
+              Live market pricing · Real-time FX &amp; cross-pair rates
             </p>
           </div>
           <button

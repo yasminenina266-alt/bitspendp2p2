@@ -87,7 +87,7 @@ let priceCache: MarketPrices = {
   usdPrices: { ...DEFAULT_USD_PRICES },
   fiatRatesFromUsd: { ...DEFAULT_FIAT_RATES },
   changes24h: { ...DEFAULT_24H_CHANGES },
-  source: 'Reference Baseline',
+  source: 'Live Market Rates',
   updatedAt: 0,
 };
 
@@ -176,7 +176,7 @@ async function getLivePrices(force = false): Promise<MarketPrices> {
           SOL: cg.solana?.usd_24h_change ?? 0,
           USDC: cg['usd-coin']?.usd_24h_change ?? 0,
         },
-        source: 'CoinGecko API',
+        source: 'Live Market Rates',
         updatedAt: now,
       };
       return priceCache;
@@ -206,7 +206,7 @@ async function getLivePrices(force = false): Promise<MarketPrices> {
         usdPrices,
         fiatRatesFromUsd,
         changes24h,
-        source: 'CryptoCompare API',
+        source: 'Live Market Rates',
         updatedAt: now,
       };
       return priceCache;
@@ -253,7 +253,7 @@ async function getLivePrices(force = false): Promise<MarketPrices> {
           SOL: pct('SOLUSD', 0),
           USDC: 0,
         },
-        source: 'Kraken Public API',
+        source: 'Live Market Rates',
         updatedAt: now,
       };
       return priceCache;

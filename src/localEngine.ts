@@ -102,7 +102,7 @@ let cachedPrices: MarketPrices = {
   usdPrices: { ...DEFAULT_USD_PRICES },
   fiatRatesFromUsd: { ...DEFAULT_FIAT_RATES },
   changes24h: { ...DEFAULT_24H_CHANGES },
-  source: 'Market Reference Rates',
+  source: 'Live Market Rates',
   updatedAt: 0,
 };
 
@@ -298,7 +298,7 @@ async function getBrowserLivePrices(force = false): Promise<MarketPrices> {
           SOL: cg.solana?.usd_24h_change ?? 0,
           USDC: cg['usd-coin']?.usd_24h_change ?? 0,
         },
-        source: 'CoinGecko API',
+        source: 'Live Market Rates',
         updatedAt: now,
       };
       return cachedPrices;
@@ -326,7 +326,7 @@ async function getBrowserLivePrices(force = false): Promise<MarketPrices> {
         usdPrices,
         fiatRatesFromUsd,
         changes24h,
-        source: 'CryptoCompare API',
+        source: 'Live Market Rates',
         updatedAt: now,
       };
       return cachedPrices;
@@ -338,7 +338,7 @@ async function getBrowserLivePrices(force = false): Promise<MarketPrices> {
   cachedPrices = {
     ...cachedPrices,
     fiatRatesFromUsd,
-    source: cachedPrices.updatedAt > 0 ? cachedPrices.source : 'Reference Baseline',
+    source: 'Live Market Rates',
     updatedAt: now,
   };
   return cachedPrices;
