@@ -5,22 +5,18 @@ import { AccountView } from './components/AccountView';
 import { AuthModal } from './components/AuthModal';
 import { CoinIcon } from './components/CoinIcon';
 import { CreateOfferModal } from './components/CreateOfferModal';
-import { CryptoCardView } from './components/CryptoCardView';
 import { Header, type AppTab } from './components/Header';
 import { OfferFilterBar, type OfferFilters } from './components/OfferFilterBar';
 import { OfferRow, getOfferUnitPrice } from './components/OfferRow';
-import { SwapView } from './components/SwapView';
 import { TradeModal } from './components/TradeModal';
 import { TraderProfileModal } from './components/TraderProfileModal';
 import { CRYPTO_ASSETS } from './constants/market';
 import type {
   MarketPrices,
   P2POffer,
-  SwapOrder,
   TradeOrder,
   TraderProfile,
   UserAccount,
-  VirtualCard,
 } from './types';
 
 type SortOption = 'best' | 'price_asc' | 'price_desc' | 'trades' | 'rating';
@@ -110,7 +106,7 @@ export default function App() {
     }
   });
 
-  const [activeTab, setActiveTab] = useState<AppTab>('offers');
+  const [activeTab, setActiveTab] = useState<'offers' | 'account'>('offers');
   const [prices, setPrices] = useState<MarketPrices>(FALLBACK_PRICES);
   const [refreshingPrices, setRefreshingPrices] = useState(false);
 
@@ -125,8 +121,6 @@ export default function App() {
   // Auth & User State
   const [user, setUser] = useState<UserAccount | null>(null);
   const [trades, setTrades] = useState<TradeOrder[]>([]);
-  const [swaps, setSwaps] = useState<SwapOrder[]>([]);
-  const [cards, setCards] = useState<VirtualCard[]>([]);
 
   // Modals
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
@@ -177,17 +171,13 @@ export default function App() {
   const loadUserWorkspace = useCallback(async () => {
     if (!getToken()) return;
     try {
-      const [meRes, tradesRes, swapsRes, cardsRes] = await Promise.all([
+      const [meRes, tradesRes] = await Promise.all([
         api.getMe(),
         api.getTrades(),
-        api.getSwaps(),
-        api.getCards(),
       ]);
       if (meRes?.user) {
         setUser(meRes.user);
         setTrades(Array.isArray(tradesRes?.trades) ? tradesRes.trades : []);
-        setSwaps(Array.isArray(swapsRes?.swaps) ? swapsRes.swaps : []);
-        setCards(Array.isArray(cardsRes?.cards) ? cardsRes.cards : []);
       }
     } catch {
       setToken(null);
@@ -214,9 +204,27 @@ export default function App() {
     setToken(null);
     setUser(null);
     setTrades([]);
-    setSwaps([]);
-    setCards([]);
   };
+
+  const handleHeaderTabSelect = (tab: AppTab) => {
+    if (tab === 'swap') {
+      setActiveTab('offers');
+      setFilters((f) => ({ ...f, intent: 'swap' }));
+      setVisibleCount(20);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    if (tab === 'offers') {
+      setActiveTab('offers');
+      setFilters((f) => (f.intent === 'swap' ? { ...f, intent: 'buy' } : f));
+      setVisibleCount(20);
+      return;
+    }
+    setActiveTab('account');
+  };
+
+  const headerActiveTab: AppTab =
+    activeTab === 'account' ? 'account' : filters.intent === 'swap' ? 'swap' : 'offers';
 
   const handleSelectTrader = async (username: string) => {
     if (traders[username]) {
@@ -325,8 +333,8 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-[#F3F5F5] text-[#111817] dark:bg-[#0B1010] dark:text-[#EAF0EF]">
       <Header
-        activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        activeTab={headerActiveTab}
+        onSelectTab={handleHeaderTabSelect}
         user={user}
         activeTradesCount={activeTradesCount}
         darkMode={darkMode}
@@ -578,36 +586,6 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'swap' && (
-          <SwapView
-            prices={prices}
-            user={user}
-            swaps={swaps}
-            onRequireAuth={() => setAuthModal('register')}
-            onRefreshPrices={() => loadPrices(true)}
-            onSwapCreated={(swap, updatedUser) => {
-              setSwaps((prev) => [swap, ...prev]);
-              setUser(updatedUser);
-            }}
-          />
-        )}
-
-        {activeTab === 'card' && (
-          <CryptoCardView
-            prices={prices}
-            user={user}
-            cards={cards}
-            onRequireAuth={() => setAuthModal('register')}
-            onCardUpdated={(card, updatedUser) => {
-              setCards((prev) => {
-                const exists = prev.some((c) => c.id === card.id);
-                return exists ? prev.map((c) => (c.id === card.id ? card : c)) : [card, ...prev];
-              });
-              setUser(updatedUser);
-            }}
-          />
-        )}
-
         {activeTab === 'account' && (
           <AccountView
             user={user}
@@ -643,7 +621,8 @@ export default function App() {
               type="button"
               onClick={() => {
                 setActiveTab('offers');
-                setFilters((f) => ({ ...f, crypto: 'XMR' }));
+                setFilters((f) => ({ ...f, intent: f.intent === 'swap' ? 'buy' : f.intent, crypto: 'XMR' }));
+                window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               className="hover:text-[#0E1715] dark:hover:text-white"
             >
@@ -653,7 +632,8 @@ export default function App() {
               type="button"
               onClick={() => {
                 setActiveTab('offers');
-                setFilters((f) => ({ ...f, crypto: 'BTC' }));
+                setFilters((f) => ({ ...f, intent: f.intent === 'swap' ? 'buy' : f.intent, crypto: 'BTC' }));
+                window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               className="hover:text-[#0E1715] dark:hover:text-white"
             >
@@ -661,18 +641,19 @@ export default function App() {
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('swap')}
+              onClick={() => handleHeaderTabSelect('swap')}
               className="hover:text-[#0E1715] dark:hover:text-white"
             >
-              Instant Swap
+              P2P Swap Ads
             </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('card')}
+            <a
+              href="https://bitspend.me"
+              target="_blank"
+              rel="noopener noreferrer"
               className="hover:text-[#0E1715] dark:hover:text-white"
             >
               Privacy Cards
-            </button>
+            </a>
           </div>
         </div>
       </footer>
@@ -682,6 +663,13 @@ export default function App() {
         <CreateOfferModal
           prices={prices}
           user={user}
+          initialSide={
+            filters.intent === 'swap'
+              ? 'swap_crypto'
+              : filters.intent === 'sell'
+                ? 'buy_crypto'
+                : 'sell_crypto'
+          }
           onUserUpdated={setUser}
           onRequireAuth={() => setAuthModal('register')}
           onOpenWallet={() => setActiveTab('account')}

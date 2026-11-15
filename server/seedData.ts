@@ -1248,59 +1248,139 @@ for (let i = 0; i < 48; i++) {
   });
 }
 
-// Generate 14 peer-to-peer Crypto-to-Crypto Swap offers
-const SWAP_SEED_PAIRS: {
-  crypto: P2POffer['crypto'];
-  swapToCrypto: P2POffer['crypto'];
-  minSwap: number;
-  maxSwap: number;
-  minUsd: number;
-  maxUsd: number;
-  avail: number;
-  margin: number;
-  method: string;
-}[] = [
-  { crypto: 'XMR', swapToCrypto: 'BTC', minSwap: 0.002, maxSwap: 0.35, minUsd: 130, maxUsd: 22000, avail: 48, margin: 0.8, method: 'BitSpend P2P Escrow Swap' },
-  { crypto: 'BTC', swapToCrypto: 'XMR', minSwap: 0.5, maxSwap: 25, minUsd: 230, maxUsd: 11700, avail: 0.65, margin: 1.2, method: 'BitSpend P2P Escrow Swap' },
-  { crypto: 'XMR', swapToCrypto: 'USDT', minSwap: 100, maxSwap: 12000, minUsd: 100, maxUsd: 12000, avail: 36, margin: 1.4, method: 'BitSpend P2P Escrow Swap' },
-  { crypto: 'XMR', swapToCrypto: 'ETH', minSwap: 0.1, maxSwap: 6, minUsd: 180, maxUsd: 10500, avail: 22, margin: 0.9, method: 'Direct On-Chain Atomic Swap' },
-  { crypto: 'USDT', swapToCrypto: 'BTC', minSwap: 0.005, maxSwap: 0.5, minUsd: 320, maxUsd: 31800, avail: 35000, margin: 0.5, method: 'BitSpend P2P Escrow Swap' },
-  { crypto: 'ETH', swapToCrypto: 'XMR', minSwap: 1, maxSwap: 30, minUsd: 465, maxUsd: 14000, avail: 9.5, margin: 1.1, method: 'Direct On-Chain Atomic Swap' },
-  { crypto: 'BTC', swapToCrypto: 'USDC', minSwap: 250, maxSwap: 25000, minUsd: 250, maxUsd: 25000, avail: 1.2, margin: 0.6, method: 'BitSpend P2P Escrow Swap' },
-  { crypto: 'SOL', swapToCrypto: 'XMR', minSwap: 0.5, maxSwap: 18, minUsd: 230, maxUsd: 8400, avail: 180, margin: 1.5, method: 'BitSpend P2P Escrow Swap' },
-  { crypto: 'XMR', swapToCrypto: 'LTC', minSwap: 2, maxSwap: 120, minUsd: 90, maxUsd: 5400, avail: 18, margin: 1.0, method: 'Direct On-Chain Atomic Swap' },
-  { crypto: 'LTC', swapToCrypto: 'BTC', minSwap: 0.003, maxSwap: 0.25, minUsd: 190, maxUsd: 16000, avail: 260, margin: 0.7, method: 'BitSpend P2P Escrow Swap' },
-  { crypto: 'USDC', swapToCrypto: 'XMR', minSwap: 0.4, maxSwap: 20, minUsd: 185, maxUsd: 9400, avail: 15000, margin: 1.3, method: 'BitSpend P2P Escrow Swap' },
-  { crypto: 'XMR', swapToCrypto: 'SOL', minSwap: 1.5, maxSwap: 80, minUsd: 105, maxUsd: 5600, avail: 14, margin: 1.2, method: 'BitSpend P2P Escrow Swap' },
-  { crypto: 'ETH', swapToCrypto: 'USDT', minSwap: 200, maxSwap: 15000, minUsd: 200, maxUsd: 15000, avail: 12, margin: 0.4, method: 'BitSpend P2P Escrow Swap' },
-  { crypto: 'BTC', swapToCrypto: 'LTC', minSwap: 5, maxSwap: 300, minUsd: 220, maxUsd: 13200, avail: 0.85, margin: 1.1, method: 'Direct On-Chain Atomic Swap' },
+// Generate 60 peer-to-peer Crypto-to-Crypto Swap offers across the userbase
+const SWAP_REF_USD: Record<P2POffer['crypto'], number> = {
+  BTC: 91250,
+  XMR: 184.6,
+  ETH: 3140,
+  USDT: 1.0,
+  LTC: 86.4,
+  SOL: 214.5,
+  USDC: 1.0,
+};
+
+function roundSwapLimit(usdTarget: number, asset: P2POffer['crypto']): number {
+  const raw = usdTarget / (SWAP_REF_USD[asset] || 1);
+  if (asset === 'USDT' || asset === 'USDC') return Math.max(10, Math.round(raw / 5) * 5);
+  if (raw >= 50) return Number(raw.toFixed(0));
+  if (raw >= 5) return Number(raw.toFixed(1));
+  if (raw >= 0.5) return Number(raw.toFixed(2));
+  return Number(raw.toFixed(4));
+}
+
+const SWAP_METHODS = [
+  'BitSpend P2P Escrow Swap',
+  'Direct On-Chain Atomic Swap',
+  'Multi-Sig Escrow Swap',
 ];
 
-for (let i = 0; i < SWAP_SEED_PAIRS.length; i++) {
-  const sp = SWAP_SEED_PAIRS[i];
-  const traderUsername = TRADER_NAMES[(i * 2 + 1) % TRADER_NAMES.length];
+const SWAP_PAIR_BLUEPRINTS: Array<{
+  crypto: P2POffer['crypto'];
+  swapToCrypto: P2POffer['crypto'];
+  marginPct: number;
+  minUsd: number;
+  maxUsd: number;
+  availUsd: number;
+  methodIdx: number;
+}> = [
+  // XMR P2P Swap Ads (expensive: strictly >10% and <=17%)
+  { crypto: 'XMR', swapToCrypto: 'BTC', marginPct: 11.4, minUsd: 180, maxUsd: 18000, availUsd: 24000, methodIdx: 0 },
+  { crypto: 'XMR', swapToCrypto: 'USDT', marginPct: 12.8, minUsd: 100, maxUsd: 12500, availUsd: 16500, methodIdx: 0 },
+  { crypto: 'XMR', swapToCrypto: 'ETH', marginPct: 10.6, minUsd: 150, maxUsd: 14000, availUsd: 19000, methodIdx: 1 },
+  { crypto: 'XMR', swapToCrypto: 'USDC', marginPct: 13.5, minUsd: 120, maxUsd: 10000, availUsd: 14000, methodIdx: 0 },
+  { crypto: 'XMR', swapToCrypto: 'LTC', marginPct: 14.2, minUsd: 80, maxUsd: 6500, availUsd: 9500, methodIdx: 1 },
+  { crypto: 'XMR', swapToCrypto: 'SOL', marginPct: 15.6, minUsd: 100, maxUsd: 7500, availUsd: 11000, methodIdx: 2 },
+  { crypto: 'XMR', swapToCrypto: 'BTC', marginPct: 13.9, minUsd: 250, maxUsd: 25000, availUsd: 32000, methodIdx: 1 },
+  { crypto: 'XMR', swapToCrypto: 'USDT', marginPct: 10.9, minUsd: 200, maxUsd: 15000, availUsd: 21000, methodIdx: 2 },
+  { crypto: 'XMR', swapToCrypto: 'ETH', marginPct: 14.8, minUsd: 300, maxUsd: 11000, availUsd: 14500, methodIdx: 0 },
+  { crypto: 'XMR', swapToCrypto: 'USDC', marginPct: 16.4, minUsd: 75, maxUsd: 5500, availUsd: 8200, methodIdx: 0 },
+  { crypto: 'XMR', swapToCrypto: 'BTC', marginPct: 16.8, minUsd: 120, maxUsd: 9000, availUsd: 13000, methodIdx: 2 },
+  { crypto: 'XMR', swapToCrypto: 'LTC', marginPct: 11.9, minUsd: 90, maxUsd: 4800, availUsd: 7400, methodIdx: 1 },
+  { crypto: 'XMR', swapToCrypto: 'SOL', marginPct: 12.3, minUsd: 110, maxUsd: 6200, availUsd: 9000, methodIdx: 0 },
+  { crypto: 'XMR', swapToCrypto: 'USDT', marginPct: 15.1, minUsd: 150, maxUsd: 20000, availUsd: 26000, methodIdx: 1 },
+  { crypto: 'XMR', swapToCrypto: 'BTC', marginPct: 14.5, minUsd: 400, maxUsd: 28000, availUsd: 35000, methodIdx: 0 },
+  { crypto: 'XMR', swapToCrypto: 'ETH', marginPct: 16.1, minUsd: 140, maxUsd: 8400, availUsd: 11500, methodIdx: 2 },
+  { crypto: 'XMR', swapToCrypto: 'USDC', marginPct: 11.2, minUsd: 200, maxUsd: 16000, availUsd: 22000, methodIdx: 1 },
+  { crypto: 'XMR', swapToCrypto: 'BTC', marginPct: 12.1, minUsd: 100, maxUsd: 12000, availUsd: 17500, methodIdx: 0 },
+  { crypto: 'BTC', swapToCrypto: 'XMR', marginPct: 11.6, minUsd: 220, maxUsd: 15000, availUsd: 28000, methodIdx: 0 },
+  { crypto: 'USDT', swapToCrypto: 'XMR', marginPct: 10.8, minUsd: 150, maxUsd: 12000, availUsd: 24000, methodIdx: 0 },
+  { crypto: 'ETH', swapToCrypto: 'XMR', marginPct: 12.4, minUsd: 200, maxUsd: 11000, availUsd: 19500, methodIdx: 1 },
+  { crypto: 'LTC', swapToCrypto: 'XMR', marginPct: 13.7, minUsd: 95, maxUsd: 5200, availUsd: 9800, methodIdx: 1 },
+  { crypto: 'USDC', swapToCrypto: 'XMR', marginPct: 11.5, minUsd: 160, maxUsd: 14000, availUsd: 22000, methodIdx: 2 },
+  { crypto: 'SOL', swapToCrypto: 'XMR', marginPct: 15.2, minUsd: 130, maxUsd: 7800, availUsd: 13500, methodIdx: 0 },
+  { crypto: 'BTC', swapToCrypto: 'XMR', marginPct: 14.9, minUsd: 300, maxUsd: 22000, availUsd: 34000, methodIdx: 2 },
+  { crypto: 'USDT', swapToCrypto: 'XMR', marginPct: 16.2, minUsd: 100, maxUsd: 9500, availUsd: 18000, methodIdx: 0 },
+  { crypto: 'ETH', swapToCrypto: 'XMR', marginPct: 13.1, minUsd: 180, maxUsd: 13000, availUsd: 21000, methodIdx: 1 },
+  { crypto: 'BTC', swapToCrypto: 'XMR', marginPct: 10.5, minUsd: 500, maxUsd: 30000, availUsd: 42000, methodIdx: 0 },
+
+  // Other Coin Swap Ads (tighter spreads around 3%-4% for major pairs, plus moderate alt spreads <=10%)
+  { crypto: 'BTC', swapToCrypto: 'USDT', marginPct: 3.2, minUsd: 150, maxUsd: 25000, availUsd: 45000, methodIdx: 0 },
+  { crypto: 'USDT', swapToCrypto: 'BTC', marginPct: 3.1, minUsd: 200, maxUsd: 28000, availUsd: 48000, methodIdx: 0 },
+  { crypto: 'BTC', swapToCrypto: 'USDC', marginPct: 3.4, minUsd: 200, maxUsd: 22000, availUsd: 36000, methodIdx: 0 },
+  { crypto: 'USDC', swapToCrypto: 'BTC', marginPct: 3.3, minUsd: 250, maxUsd: 20000, availUsd: 32000, methodIdx: 2 },
+  { crypto: 'ETH', swapToCrypto: 'USDT', marginPct: 3.5, minUsd: 120, maxUsd: 16000, availUsd: 29000, methodIdx: 0 },
+  { crypto: 'USDT', swapToCrypto: 'ETH', marginPct: 3.6, minUsd: 120, maxUsd: 18000, availUsd: 31000, methodIdx: 0 },
+  { crypto: 'ETH', swapToCrypto: 'USDC', marginPct: 3.4, minUsd: 150, maxUsd: 14000, availUsd: 25000, methodIdx: 2 },
+  { crypto: 'USDC', swapToCrypto: 'ETH', marginPct: 3.8, minUsd: 150, maxUsd: 15000, availUsd: 24000, methodIdx: 0 },
+  { crypto: 'BTC', swapToCrypto: 'ETH', marginPct: 3.5, minUsd: 250, maxUsd: 24000, availUsd: 40000, methodIdx: 1 },
+  { crypto: 'ETH', swapToCrypto: 'BTC', marginPct: 3.7, minUsd: 200, maxUsd: 20000, availUsd: 34000, methodIdx: 1 },
+  { crypto: 'LTC', swapToCrypto: 'BTC', marginPct: 3.6, minUsd: 100, maxUsd: 11000, availUsd: 19000, methodIdx: 1 },
+  { crypto: 'BTC', swapToCrypto: 'LTC', marginPct: 3.9, minUsd: 120, maxUsd: 12000, availUsd: 21000, methodIdx: 1 },
+  { crypto: 'SOL', swapToCrypto: 'USDT', marginPct: 3.8, minUsd: 80, maxUsd: 9500, availUsd: 18000, methodIdx: 0 },
+  { crypto: 'USDT', swapToCrypto: 'SOL', marginPct: 3.4, minUsd: 90, maxUsd: 10500, availUsd: 20000, methodIdx: 0 },
+  { crypto: 'SOL', swapToCrypto: 'USDC', marginPct: 3.7, minUsd: 80, maxUsd: 8500, availUsd: 15000, methodIdx: 2 },
+  { crypto: 'USDC', swapToCrypto: 'SOL', marginPct: 3.9, minUsd: 100, maxUsd: 9000, availUsd: 16000, methodIdx: 0 },
+  { crypto: 'LTC', swapToCrypto: 'USDT', marginPct: 3.5, minUsd: 60, maxUsd: 7500, availUsd: 13000, methodIdx: 0 },
+  { crypto: 'USDT', swapToCrypto: 'LTC', marginPct: 3.8, minUsd: 75, maxUsd: 8000, availUsd: 14500, methodIdx: 0 },
+  { crypto: 'LTC', swapToCrypto: 'USDC', marginPct: 4.0, minUsd: 70, maxUsd: 6500, availUsd: 11000, methodIdx: 2 },
+  { crypto: 'SOL', swapToCrypto: 'BTC', marginPct: 4.1, minUsd: 150, maxUsd: 14000, availUsd: 22000, methodIdx: 1 },
+  { crypto: 'BTC', swapToCrypto: 'SOL', marginPct: 4.2, minUsd: 160, maxUsd: 15000, availUsd: 24000, methodIdx: 0 },
+  { crypto: 'ETH', swapToCrypto: 'SOL', marginPct: 4.0, minUsd: 120, maxUsd: 11000, availUsd: 18000, methodIdx: 2 },
+  { crypto: 'SOL', swapToCrypto: 'ETH', marginPct: 4.3, minUsd: 110, maxUsd: 10000, availUsd: 17000, methodIdx: 0 },
+  { crypto: 'BTC', swapToCrypto: 'USDT', marginPct: 3.9, minUsd: 350, maxUsd: 30000, availUsd: 55000, methodIdx: 2 },
+  { crypto: 'USDT', swapToCrypto: 'BTC', marginPct: 3.6, minUsd: 100, maxUsd: 15000, availUsd: 27000, methodIdx: 0 },
+  { crypto: 'ETH', swapToCrypto: 'USDT', marginPct: 3.3, minUsd: 200, maxUsd: 20000, availUsd: 35000, methodIdx: 0 },
+  { crypto: 'USDC', swapToCrypto: 'LTC', marginPct: 4.4, minUsd: 65, maxUsd: 6000, availUsd: 10500, methodIdx: 1 },
+  { crypto: 'ETH', swapToCrypto: 'LTC', marginPct: 5.8, minUsd: 100, maxUsd: 7500, availUsd: 12000, methodIdx: 1 },
+  { crypto: 'LTC', swapToCrypto: 'ETH', marginPct: 6.4, minUsd: 100, maxUsd: 7000, availUsd: 11500, methodIdx: 1 },
+  { crypto: 'SOL', swapToCrypto: 'LTC', marginPct: 7.2, minUsd: 75, maxUsd: 5000, availUsd: 8800, methodIdx: 2 },
+  { crypto: 'LTC', swapToCrypto: 'SOL', marginPct: 7.8, minUsd: 75, maxUsd: 5500, availUsd: 9200, methodIdx: 0 },
+  { crypto: 'BTC', swapToCrypto: 'USDC', marginPct: 4.0, minUsd: 500, maxUsd: 35000, availUsd: 60000, methodIdx: 2 },
+];
+
+for (let i = 0; i < SWAP_PAIR_BLUEPRINTS.length; i++) {
+  const sp = SWAP_PAIR_BLUEPRINTS[i];
+  const traderUsername = TRADER_NAMES[(i * 3 + 1) % TRADER_NAMES.length];
+  const minSwap = roundSwapLimit(sp.minUsd, sp.swapToCrypto);
+  const maxSwap = roundSwapLimit(sp.maxUsd, sp.swapToCrypto);
+  const avail = roundSwapLimit(sp.availUsd, sp.crypto);
+  const method = SWAP_METHODS[sp.methodIdx % SWAP_METHODS.length];
+  const isXmrSwap = sp.crypto === 'XMR' || sp.swapToCrypto === 'XMR';
+
   GENERATED_OFFERS.push({
-    id: `off-gen-swp-${i + 1}`,
+    id: `off-swp-p2p-${i + 1}`,
     side: 'swap_crypto',
     traderUsername,
     crypto: sp.crypto,
     swapToCrypto: sp.swapToCrypto,
     fiat: 'USD',
     country: 'Global',
-    paymentMethod: sp.method,
+    paymentMethod: method,
     paymentCategory: 'Crypto Swap',
     pricingMode: 'margin',
-    marginPct: sp.margin,
+    marginPct: sp.marginPct,
     minFiat: sp.minUsd,
     maxFiat: sp.maxUsd,
-    minSwapAmount: sp.minSwap,
-    maxSwapAmount: sp.maxSwap,
-    availableCrypto: sp.avail,
-    paymentWindowMinutes: 30,
-    tags: ['No ID Required', 'Instant Release', 'Tor Friendly'],
-    terms: `Direct user-to-user ${sp.swapToCrypto} to ${sp.crypto} escrow swap. Both assets settle through BitSpend P2P multi-asset escrow with zero KYC.`,
-    active: true,
-    createdAt: new Date(Date.UTC(2026, 10, 14, 11, 30) - i * 2400_000).toISOString(),
+    minSwapAmount: minSwap,
+    maxSwapAmount: maxSwap,
+    availableCrypto: avail,
+    paymentWindowMinutes: sp.methodIdx === 1 ? 45 : 30,
+    tags: isXmrSwap
+      ? ['No ID Required', 'PGP Signed', 'Tor Friendly']
+      : EXTRA_TAGS[(i + 2) % EXTRA_TAGS.length],
+    terms: `Direct peer-to-peer ${sp.swapToCrypto} to ${sp.crypto} escrow swap (${sp.marginPct >= 0 ? `+${sp.marginPct}%` : `${sp.marginPct}%`} spread). Locked in BitSpend P2P multi-asset escrow with zero KYC.`,
+    active: i < SWAP_PAIR_BLUEPRINTS.length - 2,
+    createdAt: new Date(Date.UTC(2026, 10, 14, 12, 0) - i * 1800_000).toISOString(),
   });
 }
 

@@ -370,7 +370,9 @@ async function loadDb() {
   try {
     const raw = await fs.readFile(DB_PATH, 'utf8');
     const parsed = JSON.parse(raw) as Partial<DatabaseSchema>;
-    const existingOffers = Array.isArray(parsed.offers) ? parsed.offers : [];
+    const existingOffers = (Array.isArray(parsed.offers) ? parsed.offers : []).filter(
+      (o) => !o.id.startsWith('off-gen-swp-')
+    );
     const existingIds = new Set(existingOffers.map((o) => o.id));
     const mergedOffers = [
       ...existingOffers,

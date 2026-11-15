@@ -2,7 +2,7 @@ import { ArrowLeftRight, CreditCard, Menu, Moon, Sun, Tag, User, X } from 'lucid
 import { useState } from 'react';
 import type { UserAccount } from '../types';
 
-export type AppTab = 'offers' | 'swap' | 'card' | 'account';
+export type AppTab = 'offers' | 'swap' | 'account';
 
 interface HeaderProps {
   activeTab: AppTab;
@@ -14,6 +14,8 @@ interface HeaderProps {
   onOpenAuth: (mode: 'login' | 'register') => void;
   onLogout: () => void;
 }
+
+const BITSPEND_CARD_URL = 'https://bitspend.me';
 
 export function Header({
   activeTab,
@@ -30,7 +32,6 @@ export function Header({
   const navItems: { id: AppTab; label: string; icon: typeof Tag }[] = [
     { id: 'offers', label: 'P2P Offers', icon: Tag },
     { id: 'swap', label: 'Swap', icon: ArrowLeftRight },
-    { id: 'card', label: 'Crypto Card', icon: CreditCard },
     { id: 'account', label: user ? 'Profile & Trades' : 'Trades & Wallet', icon: User },
   ];
 
@@ -69,7 +70,7 @@ export function Header({
 
         {/* Zone 2: Navigation Links */}
         <nav className="hidden md:flex items-center gap-7 h-full">
-          {navItems.map((item) => {
+          {navItems.slice(0, 2).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
@@ -85,7 +86,41 @@ export function Header({
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 <span>{item.label}</span>
-                {item.id === 'account' && activeTradesCount > 0 && (
+                {isActive && (
+                  <span className="absolute inset-x-0 bottom-0 h-[2.5px] bg-[#16A34A] dark:bg-[#7FE85B]" />
+                )}
+              </button>
+            );
+          })}
+
+          <a
+            href={BITSPEND_CARD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative flex h-full items-center gap-2 whitespace-nowrap shrink-0 text-sm font-medium text-[#5C6665] hover:text-[#0E1715] dark:text-[#98A4A2] dark:hover:text-white transition-colors"
+          >
+            <CreditCard className="h-4 w-4 shrink-0" />
+            <span>Crypto Card</span>
+          </a>
+
+          {(() => {
+            const accountItem = navItems[2];
+            const Icon = accountItem.icon;
+            const isActive = activeTab === accountItem.id;
+            return (
+              <button
+                key={accountItem.id}
+                type="button"
+                onClick={() => handleNav(accountItem.id)}
+                className={`relative flex h-full items-center gap-2 whitespace-nowrap shrink-0 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'text-[#0E1715] dark:text-white'
+                    : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#98A4A2] dark:hover:text-white'
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span>{accountItem.label}</span>
+                {activeTradesCount > 0 && (
                   <span className="ml-0.5 font-mono text-xs font-semibold text-[#0B3B2E] dark:text-[#7FE85B]">
                     ({activeTradesCount})
                   </span>
@@ -95,7 +130,7 @@ export function Header({
                 )}
               </button>
             );
-          })}
+          })()}
         </nav>
 
         {/* Zone 3: Theme + Primary Auth / Account Action */}
@@ -162,7 +197,7 @@ export function Header({
       {mobileMenuOpen && (
         <div className="border-t border-[#E3E7E7] bg-white px-4 py-4 md:hidden dark:border-[#1E2726] dark:bg-[#111717]">
           <div className="flex flex-col gap-1">
-            {navItems.map((item) => {
+            {navItems.slice(0, 2).map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               return (
@@ -180,12 +215,49 @@ export function Header({
                     <Icon className="h-4 w-4" />
                     <span>{item.label}</span>
                   </span>
-                  {item.id === 'account' && activeTradesCount > 0 && (
+                </button>
+              );
+            })}
+
+            <a
+              href={BITSPEND_CARD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium text-[#394241] hover:bg-[#F3F5F5] dark:text-[#C8D2D0] dark:hover:bg-[#1A2322]"
+            >
+              <span className="flex items-center gap-2.5">
+                <CreditCard className="h-4 w-4" />
+                <span>Crypto Card</span>
+              </span>
+              <span className="text-xs text-[#64706E] dark:text-[#8E9B98]">bitspend.me</span>
+            </a>
+
+            {(() => {
+              const accountItem = navItems[2];
+              const Icon = accountItem.icon;
+              const isActive = activeTab === accountItem.id;
+              return (
+                <button
+                  key={accountItem.id}
+                  type="button"
+                  onClick={() => handleNav(accountItem.id)}
+                  className={`flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium ${
+                    isActive
+                      ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
+                      : 'text-[#394241] hover:bg-[#F3F5F5] dark:text-[#C8D2D0] dark:hover:bg-[#1A2322]'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Icon className="h-4 w-4" />
+                    <span>{accountItem.label}</span>
+                  </span>
+                  {activeTradesCount > 0 && (
                     <span className="font-mono text-xs">{activeTradesCount} active</span>
                   )}
                 </button>
               );
-            })}
+            })()}
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2.5 border-t border-[#E3E7E7] pt-4 dark:border-[#1E2726]">
             {user ? (

@@ -28,6 +28,7 @@ import { ChainIcon, CoinIcon } from './CoinIcon';
 interface CreateOfferModalProps {
   prices: MarketPrices;
   user: UserAccount | null;
+  initialSide?: OfferSide;
   onUserUpdated: (user: UserAccount) => void;
   onRequireAuth: () => void;
   onOpenWallet: () => void;
@@ -51,13 +52,14 @@ function formatSwapLimitDefault(usdTarget: number, assetPriceUsd: number, asset:
 export function CreateOfferModal({
   prices,
   user,
+  initialSide,
   onUserUpdated,
   onRequireAuth,
   onOpenWallet,
   onClose,
   onCreated,
 }: CreateOfferModalProps) {
-  const [side, setSide] = useState<OfferSide>('sell_crypto');
+  const [side, setSide] = useState<OfferSide>(initialSide ?? 'sell_crypto');
   const [crypto, setCrypto] = useState<CryptoAsset>('XMR');
   const [swapToCrypto, setSwapToCrypto] = useState<CryptoAsset>('BTC');
   const [swapMethod, setSwapMethod] = useState(SWAP_SETTLEMENT_METHODS[0]);
@@ -76,7 +78,9 @@ export function CreateOfferModal({
   const [paymentWindowMinutes, setPaymentWindowMinutes] = useState(30);
   const [selectedTags, setSelectedTags] = useState<OfferTag[]>(['No ID Required', 'Instant Release']);
   const [terms, setTerms] = useState(
-    'Zero ID verification required. Include trade reference code only if requested inside the trade chat.'
+    initialSide === 'swap_crypto'
+      ? 'Direct user-to-user BTC to XMR escrow swap. Both assets settle through BitSpend P2P multi-asset escrow with zero KYC.'
+      : 'Zero ID verification required. Include trade reference code only if requested inside the trade chat.'
   );
   const [termsTouched, setTermsTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);

@@ -184,7 +184,9 @@ function loadLocalDb(): LocalDb {
     const raw = localStorage.getItem(LOCAL_DB_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<LocalDb>;
-      const existingOffers = Array.isArray(parsed.offers) ? parsed.offers : [];
+      const existingOffers = (Array.isArray(parsed.offers) ? parsed.offers : []).filter(
+        (o) => !o.id.startsWith('off-gen-swp-')
+      );
       const existingIds = new Set(existingOffers.map((o) => o.id));
       return {
         traders: { ...SEED_TRADERS, ...(parsed.traders ?? {}) },
