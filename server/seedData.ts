@@ -32,7 +32,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: '24/7 digital voucher and Southeast Asia OTC desk. Supporting BTC, XMR, and USDT with instant settlement.',
     volumeTier: '120+ BTC',
     recentFeedback: [
-      { id: 'fb4', author: 'jakarta_user', positive: true, comment: 'Best IDR rates on Bitspend, instant release.', asset: 'BTC', date: '1 day ago' },
+      { id: 'fb4', author: 'jakarta_user', positive: true, comment: 'Best IDR rates on OOSAB, instant release.', asset: 'BTC', date: '1 day ago' },
       { id: 'fb5', author: 'cipher_id', positive: true, comment: 'Bought XMR with Steam card smoothly.', asset: 'XMR', date: '3 days ago' },
       { id: 'fb6', author: 'raya99', positive: true, comment: '5500+ trades for a reason. Top trader.', asset: 'USDT', date: '6 days ago' },
     ],
@@ -236,7 +236,221 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
       { id: 'fb25', author: 'sao_paulo_btc', positive: true, comment: 'PIX confirmed instantly, LTC released.', asset: 'LTC', date: '5 days ago' },
     ],
   },
+  cryptocoop: {
+    username: 'cryptocoop',
+    joinedAt: '2021-08-14',
+    tradesCount: 2640,
+    ratingPct: 100,
+    avgReleaseMinutes: 4,
+    lastSeenMinutes: 0,
+    verified: true,
+    languages: ['English', 'Spanish'],
+    pgpFingerprint: '3D84 19C2 7A05 6E11 8B40  2F73 9C15 4A88 0E62 51D9',
+    bio: 'Community-driven P2P desk offering tight BTC, XMR, and USDT spreads via Wise, Revolut, and SEPA Instant. Always escrow-backed.',
+    volumeTier: '60+ BTC',
+    recentFeedback: [
+      { id: 'fb-cc-1', author: 'nord_p2p', positive: true, comment: 'Great rate and released BTC in under 3 minutes.', asset: 'BTC', date: '1 day ago' },
+      { id: 'fb-cc-2', author: 'xmr_owl', positive: true, comment: 'Smooth Wise trade, polite and fast.', asset: 'XMR', date: '4 days ago' },
+      { id: 'fb-cc-3', author: 'milo_88', positive: true, comment: 'Zero friction, best peer desk on OOSAB.', asset: 'USDT', date: '1 week ago' },
+    ],
+  },
+  poopdeck: {
+    username: 'poopdeck',
+    joinedAt: '2022-03-21',
+    tradesCount: 1980,
+    ratingPct: 99,
+    avgReleaseMinutes: 5,
+    lastSeenMinutes: 0,
+    verified: true,
+    languages: ['English', 'German'],
+    pgpFingerprint: '8A17 5C40 2E91 0F36 7D82  4B19 6E03 9A55 1C48 72E0',
+    bio: 'Independent zero-KYC liquidity provider for Monero, Bitcoin, and Litecoin. Fast release once payment clears.',
+    volumeTier: '45+ BTC',
+    recentFeedback: [
+      { id: 'fb-pd-1', author: 'tomas_k', positive: true, comment: 'Super quick Revolut confirmation and XMR release.', asset: 'XMR', date: '14 hours ago' },
+      { id: 'fb-pd-2', author: 'anon_314', positive: true, comment: 'Clean trade, zero extra questions.', asset: 'BTC', date: '3 days ago' },
+      { id: 'fb-pd-3', author: 'cairo_btc', positive: true, comment: 'Always reliable and fast escrow settlement.', asset: 'LTC', date: '6 days ago' },
+    ],
+  },
 };
+
+// Populate 96 additional realistic username-style trader profiles
+function seedHash(str: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+const COMMUNITY_HANDLES: Array<{
+  username: string;
+  langs: string[];
+  bio: string;
+}> = [
+  { username: 'eliasse321', langs: ['English', 'French'], bio: 'Fast peer-to-peer XMR & BTC trades. Online daily, instant escrow release once payment clears.' },
+  { username: 'niko_val94', langs: ['English', 'German'], bio: 'SEPA Instant, Wise & Revolut trader. Straightforward terms, no paperwork.' },
+  { username: 'maren_k', langs: ['English', 'Norwegian'], bio: 'Nordic peer-to-peer desk. Smooth EUR and USD settlements for XMR, BTC, and ETH.' },
+  { username: 'tomasz404', langs: ['Polish', 'English'], bio: 'Long-time Monero and Litecoin trader. Fast response, PGP available on request.' },
+  { username: 'kaito_jp7', langs: ['Japanese', 'English'], bio: 'APAC liquidity for BTC, ETH, and SOL. Domestic wire and Wise settled quickly.' },
+  { username: 'diego_mx21', langs: ['Spanish', 'English'], bio: 'SPEI, Wise, and gift card swaps. Zero ID hassle, fast turnaround.' },
+  { username: 'samir_92', langs: ['English', 'Arabic'], bio: 'Middle East & global P2P liquidity. Clean bank wires and digital vouchers.' },
+  { username: 'viktor912', langs: ['English', 'Czech'], bio: 'SEPA Instant & Paysera EUR trades. Always funded in escrow before chat starts.' },
+  { username: 'claire_p2p', langs: ['French', 'English'], bio: 'Buying and selling BTC/XMR via Revolut and Wise. Active European hours.' },
+  { username: 'yusuf_tr8', langs: ['Turkish', 'English'], bio: 'Quick bank & USDT peer-to-peer settlement. Reliable counterparty.' },
+  { username: 'liam_tor', langs: ['English'], bio: 'Canada Interac e-Transfer & cash-by-mail trader. Privacy-respecting, no memos.' },
+  { username: 'hana.sato', langs: ['Japanese', 'English'], bio: 'Spot-synced BTC and ETH desk. Polite communication and prompt release.' },
+  { username: 'felix_zh', langs: ['German', 'English'], bio: 'Swiss CHF bank transfer and Zurich cash meetups. PGP signed terms.' },
+  { username: 'zoe_k22', langs: ['English'], bio: 'Zelle, Apple Pay & PayPal F&F trades. Fast release for repeat users.' },
+  { username: 'henrik_77', langs: ['Swedish', 'English'], bio: 'Scandinavian EUR/USD trader. Tight spreads on XMR and BTC.' },
+  { username: 'anya_pl', langs: ['Polish', 'English'], bio: 'Revolut, SEPA & Amazon card trades. Quick verification.' },
+  { username: 'julien_r', langs: ['French', 'English'], bio: 'SEPA Instant & Wise EUR swaps. Zero KYC, direct settlement.' },
+  { username: 'theo_808', langs: ['English'], bio: 'US cashless ATM & Zelle liquidity. Fast releases, no extra steps.' },
+  { username: 'noah_sg3', langs: ['English', 'Mandarin'], bio: 'Singapore FAST & Wise trader for USDT, USDC, and BTC.' },
+  { username: 'elena_ch', langs: ['German', 'Italian', 'English'], bio: 'Zurich/Lugano CHF & EUR peer-to-peer trader. Clean escrow execution.' },
+  { username: 'lucas_br9', langs: ['Portuguese', 'English'], bio: 'PIX instant BRL settlements for BTC, LTC, and USDT.' },
+  { username: 'mina_kr', langs: ['Korean', 'English'], bio: 'Cross-border USDT/USDC and SOL peer swaps. Fast replies.' },
+  { username: 'antoine55', langs: ['French', 'English'], bio: 'Private P2P trader since 2021. SEPA Instant & Revolut.' },
+  { username: 'rafa_es', langs: ['Spanish', 'English'], bio: 'SEPA Instant Spain/EU & Wise trades. Clear instructions.' },
+  { username: 'petra_at', langs: ['German', 'English'], bio: 'Vienna EUR bank wire and SEPA Instant desk. Monero friendly.' },
+  { username: 'ivan_bg4', langs: ['Bulgarian', 'English'], bio: 'SEPA, Paysera & Revolut trader for BTC, ETH, and XMR.' },
+  { username: 'kiran_in', langs: ['English', 'Hindi'], bio: 'UPI & Wise P2P settlement. Instant confirmation and release.' },
+  { username: 'maya_nz', langs: ['English'], bio: 'NZD & AUD bank transfers for Bitcoin and Monero.' },
+  { username: 'daiki_tk', langs: ['Japanese', 'English'], bio: 'Tokyo desk handling JPY bank wires and cross-crypto swaps.' },
+  { username: 'jonas_dk', langs: ['Danish', 'English'], bio: 'Copenhagen SEPA & Revolut trader. Fast release on ETH & BTC.' },
+  { username: 'stella_gr', langs: ['Greek', 'English'], bio: 'SEPA Instant & Revolut EUR peer trades. No ID checks.' },
+  { username: 'max_bxl', langs: ['French', 'Dutch', 'English'], bio: 'Brussels SEPA & Wise desk for XMR, BTC, and LTC.' },
+  { username: 'tariq_ae', langs: ['Arabic', 'English'], bio: 'AED domestic wire & Dubai cash desk. High liquidity.' },
+  { username: 'fiona_ie', langs: ['English'], bio: 'Dublin SEPA Instant & Revolut trader. Reliable and responsive.' },
+  { username: 'bruno_pt', langs: ['Portuguese', 'English'], bio: 'Lisbon EUR SEPA & Wise liquidity for BTC and Monero.' },
+  { username: 'nadia_ma', langs: ['Arabic', 'French', 'English'], bio: 'Global Wise & Paysera peer-to-peer trader.' },
+  { username: 'owen_uk6', langs: ['English'], bio: 'UK Faster Payments (FPS) specialist. Settled in minutes.' },
+  { username: 'leila_tn', langs: ['French', 'Arabic', 'English'], bio: 'Gift card & EUR wallet swaps. Instant verification.' },
+  { username: 'remy_fr', langs: ['French', 'English'], bio: 'Lyon EUR SEPA Instant & Cash by Mail for XMR/BTC.' },
+  { username: 'kuba_waw', langs: ['Polish', 'English'], bio: 'Warsaw P2P desk. Revolut, Wise, and gift cards.' },
+  { username: 'enzo_it3', langs: ['Italian', 'English'], bio: 'Milan SEPA Instant & Revolut trader. Fast escrow turnaround.' },
+  { username: 'tessa_nl', langs: ['Dutch', 'English'], bio: 'Amsterdam SEPA & Wise EUR trader. Clean zero-KYC process.' },
+  { username: 'ali_bh7', langs: ['Arabic', 'English'], bio: 'Bahrain BHD gift cards & Gulf bank transfers.' },
+  { username: 'kevin_ca4', langs: ['English', 'French'], bio: 'Canadian Interac e-Transfer & Wise trader. Auto-deposit active.' },
+  { username: 'paula_co', langs: ['Spanish', 'English'], bio: 'Wise USD & global stablecoin P2P liquidity.' },
+  { username: 'hugo_se2', langs: ['Swedish', 'English'], bio: 'Stockholm P2P trader. Revolut, SEPA & XMR swaps.' },
+  { username: 'mikael90', langs: ['Finnish', 'English'], bio: 'SEPA Instant & Paysera EUR desk. Active daily.' },
+  { username: 'yara_lb', langs: ['Arabic', 'English'], bio: 'USD Wise & digital gift card trades. Fast releases.' },
+  { username: 'oscar_pe', langs: ['Spanish', 'English'], bio: 'LATAM & USD bank transfer peer trader.' },
+  { username: 'emil_fi', langs: ['Finnish', 'Swedish', 'English'], bio: 'Helsinki Monero & Bitcoin P2P trader. Zero hassle.' },
+  { username: 'sara_hk', langs: ['English', 'Cantonese'], bio: 'HKD/USD Wise & cross-chain USDT/USDC liquidity.' },
+  { username: 'dante_ar', langs: ['Spanish', 'English'], bio: 'Stablecoin & BTC peer-to-peer trader. Fast chat.' },
+  { username: 'oliver_au', langs: ['English'], bio: 'Australian PayID & Osko instant transfers for BTC, XMR, USDC.' },
+  { username: 'noor_kw', langs: ['Arabic', 'English'], bio: 'Gulf region gift cards & USD wire peer trader.' },
+  { username: 'simon_be', langs: ['Dutch', 'French', 'English'], bio: 'Antwerp SEPA Instant & Wise desk. Tight spreads.' },
+  { username: 'jade_tw', langs: ['Mandarin', 'English'], bio: 'APAC USDT, ETH, and SOL peer-to-peer desk.' },
+  { username: 'alexis_ch', langs: ['French', 'German', 'English'], bio: 'Geneva CHF & EUR transfers. PGP verified.' },
+  { username: 'rohan_sg', langs: ['English', 'Hindi'], bio: 'Singapore Wise & PayNow trades. Fast and consistent.' },
+  { username: 'ines_es4', langs: ['Spanish', 'English'], bio: 'Madrid Revolut & SEPA Instant peer trader.' },
+  { username: 'benji_us', langs: ['English'], bio: 'Zelle, Apple Pay & Cash by Mail. Fast US settlements.' },
+  { username: 'milo_420', langs: ['English'], bio: 'Privacy-first XMR & LTC swaps. Tor friendly, PGP active.' },
+  { username: 'katja_si', langs: ['Slovenian', 'English'], bio: 'EU SEPA Instant & Paysera trades for BTC and XMR.' },
+  { username: 'farid_my', langs: ['Malay', 'English'], bio: 'MYR/SGD/USD Wise & Steam gift card trader.' },
+  { username: 'iris_ro', langs: ['Romanian', 'English'], bio: 'SEPA Instant & Revolut EUR desk. Quick releases.' },
+  { username: 'gideon_za', langs: ['English'], bio: 'Global Wise, PayPal & BTC/LTC peer trader.' },
+  { username: 'chloe_qc', langs: ['French', 'English'], bio: 'Montreal Interac e-Transfer for Monero & Bitcoin.' },
+  { username: 'karim_eg', langs: ['Arabic', 'English'], bio: 'Wise & digital voucher peer-to-peer trades.' },
+  { username: 'valeria_uy', langs: ['Spanish', 'English'], bio: 'USD Wise & Revolut cross-border trades.' },
+  { username: 'seb_219', langs: ['English', 'German'], bio: 'Fast crypto-to-crypto & SEPA escrow swaps.' },
+  { username: 'tobi_ng', langs: ['English'], bio: 'NGN bank transfer & USD gift card P2P desk.' },
+  { username: 'amira_qa', langs: ['Arabic', 'English'], bio: 'Gulf domestic wire & Wise USDT liquidity.' },
+  { username: 'nico_de9', langs: ['German', 'English'], bio: 'Berlin SEPA Instant & Cash by Mail for XMR.' },
+  { username: 'ash_991', langs: ['English'], bio: 'Amazon, Apple & Steam gift card trader. Quick verification.' },
+  { username: 'freja_no', langs: ['Norwegian', 'English'], bio: 'Oslo Revolut & Wise peer-to-peer desk.' },
+  { username: 'lorenzo_m', langs: ['Italian', 'English'], bio: 'Rome SEPA Instant & EUR/BTC swaps.' },
+  { username: 'khalid_973', langs: ['Arabic', 'English'], bio: 'Bahrain & UAE PSN/Steam cards and wire trades.' },
+  { username: 'artur_lv', langs: ['Latvian', 'English'], bio: 'Baltic SEPA Instant & Paysera EUR liquidity.' },
+  { username: 'veronika_cz', langs: ['Czech', 'English'], bio: 'Prague Revolut & SEPA peer trader. Fast escrow.' },
+  { username: 'matej_sk', langs: ['Slovak', 'English'], bio: 'EU SEPA & LTC/XMR peer swaps. Zero KYC.' },
+  { username: 'bastian_9', langs: ['German', 'English'], bio: 'Munich SEPA Instant & Revolut BTC desk.' },
+  { username: 'sam_nyc24', langs: ['English'], bio: 'Zelle, Apple Pay & Cardless ATM US trades.' },
+  { username: 'celine_lu', langs: ['French', 'German', 'English'], bio: 'Luxembourg SEPA Instant & Wise high-limit desk.' },
+  { username: 'andre_ao', langs: ['Portuguese', 'English'], bio: 'Global Wise & USDT peer settlements.' },
+  { username: 'hassan_om', langs: ['Arabic', 'English'], bio: 'Gulf wire & digital voucher peer desk.' },
+  { username: 'darius_lt', langs: ['Lithuanian', 'English'], bio: 'Paysera & Revolut EUR instant trades.' },
+  { username: 'kael_0x', langs: ['English'], bio: 'ETH, SOL, and XMR peer-to-peer atomic & escrow swaps.' },
+  { username: 'soren_xmr', langs: ['Danish', 'English'], bio: 'Dedicated Monero privacy desk. PGP & Tor ready.' },
+  { username: 'nina_bkk', langs: ['Thai', 'English'], bio: 'Bangkok Wise & USDT/BTC peer liquidity.' },
+  { username: 'arjun_09', langs: ['English', 'Hindi'], bio: 'UPI & Wise peer-to-peer BTC/ETH desk.' },
+  { username: 'marco_r8', langs: ['Spanish', 'Italian', 'English'], bio: 'SEPA Instant & Revolut EUR liquidity.' },
+  { username: 'ayla_303', langs: ['English', 'Turkish'], bio: 'Fast Revolut, Wise & Steam card trades.' },
+  { username: 'dani_k', langs: ['English'], bio: 'Zelle, PayPal F&F & LTC quick swaps.' },
+  { username: 'roman_71', langs: ['Czech', 'German', 'English'], bio: 'Central EU SEPA & cash-by-mail XMR desk.' },
+  { username: 'talia_v', langs: ['English', 'Spanish'], bio: 'Wise & Apple Pay trader. Clean terms.' },
+  { username: 'cyrus_01', langs: ['English'], bio: 'Cash by Mail & XMR/BTC multi-asset swapper.' },
+  { username: 'keiko_os', langs: ['Japanese', 'English'], bio: 'Osaka JPY wire & USDT/BTC P2P trader.' },
+];
+
+const YEAR_OPTIONS = ['2020', '2021', '2022', '2023', '2024', '2025'];
+const SEEN_OPTIONS = [0, 0, 0, 2, 5, 9, 14, 23, 38];
+const SAMPLE_FB_COMMENTS = [
+  'Fast release and clear instructions.',
+  'Smooth zero-KYC trade, would deal again.',
+  'Escrow settled in a few minutes without issues.',
+  'Honest pricing and quick response in chat.',
+  'Clean transaction from start to finish.',
+];
+const SAMPLE_FB_AUTHORS = [
+  'milo_88', 'anon_314', 'nord_p2p', 'sara_v', 'tomas_k', 'xmr_owl', 'jules_19', 'cairo_btc',
+];
+
+for (let idx = 0; idx < COMMUNITY_HANDLES.length; idx++) {
+  const entry = COMMUNITY_HANDLES[idx];
+  const h = seedHash(entry.username);
+  const tradesCount = 24 + (h % 3150);
+  const ratingPct = tradesCount > 400 ? 99 + (h % 2) : 97 + (h % 4);
+  const avgReleaseMinutes = 2 + (h % 11);
+  const lastSeenMinutes = SEEN_OPTIONS[h % SEEN_OPTIONS.length];
+  const year = YEAR_OPTIONS[h % YEAR_OPTIONS.length];
+  const month = String(1 + ((h >> 3) % 12)).padStart(2, '0');
+  const day = String(1 + ((h >> 7) % 28)).padStart(2, '0');
+  const hexA = (h >>> 0).toString(16).toUpperCase().padStart(8, '0');
+  const hexB = ((h * 2654435761) >>> 0).toString(16).toUpperCase().padStart(8, '0');
+  const hexC = ((h * 2246822519) >>> 0).toString(16).toUpperCase().padStart(8, '0');
+  const hexD = ((h * 3266489917) >>> 0).toString(16).toUpperCase().padStart(8, '0');
+  const hexE = ((h * 668265263) >>> 0).toString(16).toUpperCase().padStart(8, '0');
+  const raw40 = `${hexA}${hexB}${hexC}${hexD}${hexE}`;
+  const pgpFingerprint = raw40.match(/.{1,4}/g)?.join(' ') ?? raw40;
+  const volBtc = Math.max(2, Math.round(tradesCount / 42));
+
+  SEED_TRADERS[entry.username] = {
+    username: entry.username,
+    joinedAt: `${year}-${month}-${day}`,
+    tradesCount,
+    ratingPct: Math.min(100, ratingPct),
+    avgReleaseMinutes,
+    lastSeenMinutes,
+    verified: tradesCount >= 260,
+    languages: entry.langs,
+    pgpFingerprint,
+    bio: entry.bio,
+    volumeTier: `${volBtc}+ BTC`,
+    recentFeedback: [
+      {
+        id: `fb-c-${idx}-1`,
+        author: SAMPLE_FB_AUTHORS[h % SAMPLE_FB_AUTHORS.length],
+        positive: true,
+        comment: SAMPLE_FB_COMMENTS[h % SAMPLE_FB_COMMENTS.length],
+        asset: (['BTC', 'XMR', 'ETH', 'USDT', 'LTC'] as const)[h % 5],
+        date: `${1 + (h % 6)} days ago`,
+      },
+      {
+        id: `fb-c-${idx}-2`,
+        author: SAMPLE_FB_AUTHORS[(h + 3) % SAMPLE_FB_AUTHORS.length],
+        positive: true,
+        comment: SAMPLE_FB_COMMENTS[(h + 2) % SAMPLE_FB_COMMENTS.length],
+        asset: (['XMR', 'BTC', 'USDT', 'SOL', 'USDC'] as const)[(h + 1) % 5],
+        date: `${1 + (h % 3)} weeks ago`,
+      },
+    ],
+  };
+}
 
 const BASE_SEED_OFFERS: P2POffer[] = [
   // Top Bitcoin Buying Offers (side: 'sell_crypto' -> user is BUYING crypto)
@@ -301,7 +515,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-104',
     side: 'sell_crypto',
-    traderUsername: 'MoneroVault',
+    traderUsername: 'eliasse321',
     crypto: 'XMR',
     fiat: 'USD',
     country: 'Global',
@@ -320,7 +534,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-105',
     side: 'sell_crypto',
-    traderUsername: 'AlpinePrivacy',
+    traderUsername: 'niko_val94',
     crypto: 'XMR',
     fiat: 'EUR',
     country: 'Germany',
@@ -339,7 +553,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-106',
     side: 'sell_crypto',
-    traderUsername: 'KryptoKat_XMR',
+    traderUsername: 'ash_991',
     crypto: 'XMR',
     fiat: 'USD',
     country: 'United States',
@@ -358,7 +572,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-107',
     side: 'sell_crypto',
-    traderUsername: 'ZeroTrace_OTC',
+    traderUsername: 'cyrus_01',
     crypto: 'XMR',
     fiat: 'USD',
     country: 'United States',
@@ -377,7 +591,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-108',
     side: 'sell_crypto',
-    traderUsername: 'MapleLeafBTC',
+    traderUsername: 'liam_tor',
     crypto: 'XMR',
     fiat: 'CAD',
     country: 'Canada',
@@ -389,14 +603,14 @@ const BASE_SEED_OFFERS: P2POffer[] = [
     maxFiat: 3000,
     paymentWindowMinutes: 30,
     tags: ['No ID Required', 'Instant Release'],
-    terms: 'Canadian Interac e-Transfer with auto-deposit enabled. No ID checks. Do not write Monero or Bitspend in transfer memo.',
+    terms: 'Canadian Interac e-Transfer with auto-deposit enabled. No ID checks. Do not write Monero or OOSAB in transfer memo.',
     active: true,
     createdAt: '2026-11-12T14:00:00Z',
   },
   {
     id: 'off-109',
     side: 'sell_crypto',
-    traderUsername: 'LondonBridgeOTC',
+    traderUsername: 'owen_uk6',
     crypto: 'XMR',
     fiat: 'GBP',
     country: 'United Kingdom',
@@ -416,7 +630,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-110',
     side: 'sell_crypto',
-    traderUsername: 'SatoshiExpress',
+    traderUsername: 'zoe_k22',
     crypto: 'BTC',
     fiat: 'USD',
     country: 'United States',
@@ -435,7 +649,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-111',
     side: 'sell_crypto',
-    traderUsername: 'NordicSwap',
+    traderUsername: 'claire_p2p',
     crypto: 'BTC',
     fiat: 'EUR',
     country: 'Global',
@@ -454,7 +668,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-112',
     side: 'sell_crypto',
-    traderUsername: 'ZeroTrace_OTC',
+    traderUsername: 'theo_808',
     crypto: 'BTC',
     fiat: 'USD',
     country: 'United States',
@@ -473,7 +687,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-113',
     side: 'sell_crypto',
-    traderUsername: 'AlpinePrivacy',
+    traderUsername: 'felix_zh',
     crypto: 'BTC',
     fiat: 'CHF',
     country: 'Switzerland',
@@ -493,7 +707,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-114',
     side: 'sell_crypto',
-    traderUsername: 'NordicSwap',
+    traderUsername: 'viktor912',
     crypto: 'ETH',
     fiat: 'EUR',
     country: 'Global',
@@ -512,7 +726,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-115',
     side: 'sell_crypto',
-    traderUsername: 'SatoshiExpress',
+    traderUsername: 'benji_us',
     crypto: 'SOL',
     fiat: 'USD',
     country: 'United States',
@@ -531,7 +745,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-116',
     side: 'sell_crypto',
-    traderUsername: 'SingaporeFlow',
+    traderUsername: 'noah_sg3',
     crypto: 'USDT',
     fiat: 'SGD',
     country: 'Singapore',
@@ -550,7 +764,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-117',
     side: 'sell_crypto',
-    traderUsername: 'DubaiCrescent',
+    traderUsername: 'tariq_ae',
     crypto: 'USDT',
     fiat: 'AED',
     country: 'United Arab Emirates',
@@ -569,7 +783,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-118',
     side: 'sell_crypto',
-    traderUsername: 'KryptoKat_XMR',
+    traderUsername: 'dani_k',
     crypto: 'LTC',
     fiat: 'USD',
     country: 'Global',
@@ -588,7 +802,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-119',
     side: 'sell_crypto',
-    traderUsername: 'LatamPulse',
+    traderUsername: 'lucas_br9',
     crypto: 'LTC',
     fiat: 'BRL',
     country: 'Brazil',
@@ -607,7 +821,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-120',
     side: 'sell_crypto',
-    traderUsername: 'HugoZhang',
+    traderUsername: 'ayla_303',
     crypto: 'USDT',
     fiat: 'USD',
     country: 'Global',
@@ -626,7 +840,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-121',
     side: 'sell_crypto',
-    traderUsername: 'SingaporeFlow',
+    traderUsername: 'oliver_au',
     crypto: 'USDC',
     fiat: 'AUD',
     country: 'Australia',
@@ -642,12 +856,50 @@ const BASE_SEED_OFFERS: P2POffer[] = [
     active: true,
     createdAt: '2026-11-13T14:00:00Z',
   },
+  {
+    id: 'off-122',
+    side: 'sell_crypto',
+    traderUsername: 'cryptocoop',
+    crypto: 'BTC',
+    fiat: 'USD',
+    country: 'Global',
+    paymentMethod: 'Wise',
+    paymentCategory: 'Online Wallets',
+    pricingMode: 'margin',
+    marginPct: -3.2,
+    minFiat: 50,
+    maxFiat: 4500,
+    paymentWindowMinutes: 30,
+    tags: ['No ID Required', 'Instant Release', 'PGP Signed'],
+    terms: 'Instant Wise balance transfer in USD. Do not mention crypto in the memo. BTC releases from escrow immediately once settled.',
+    active: true,
+    createdAt: '2026-11-15T10:00:00Z',
+  },
+  {
+    id: 'off-123',
+    side: 'sell_crypto',
+    traderUsername: 'poopdeck',
+    crypto: 'XMR',
+    fiat: 'USD',
+    country: 'Global',
+    paymentMethod: 'Revolut',
+    paymentCategory: 'Online Wallets',
+    pricingMode: 'margin',
+    marginPct: -2.6,
+    minFiat: 40,
+    maxFiat: 3200,
+    paymentWindowMinutes: 25,
+    tags: ['No ID Required', 'Instant Release', 'Tor Friendly'],
+    terms: 'Fast USD Revolut tag transfer for Monero (XMR). Zero KYC, clean peer-to-peer release.',
+    active: true,
+    createdAt: '2026-11-15T11:00:00Z',
+  },
 
   // SELLING OFFERS (side: 'buy_crypto' -> merchants buying crypto FROM the user!)
   {
     id: 'off-201',
     side: 'buy_crypto',
-    traderUsername: 'MoneroVault',
+    traderUsername: 'eliasse321',
     crypto: 'XMR',
     fiat: 'USD',
     country: 'Global',
@@ -666,7 +918,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-202',
     side: 'buy_crypto',
-    traderUsername: 'AlpinePrivacy',
+    traderUsername: 'bastian_9',
     crypto: 'XMR',
     fiat: 'EUR',
     country: 'Germany',
@@ -685,7 +937,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-203',
     side: 'buy_crypto',
-    traderUsername: 'SatoshiExpress',
+    traderUsername: 'sam_nyc24',
     crypto: 'BTC',
     fiat: 'USD',
     country: 'United States',
@@ -704,7 +956,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-204',
     side: 'buy_crypto',
-    traderUsername: 'LondonBridgeOTC',
+    traderUsername: 'owen_uk6',
     crypto: 'BTC',
     fiat: 'GBP',
     country: 'United Kingdom',
@@ -723,7 +975,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-205',
     side: 'buy_crypto',
-    traderUsername: 'Veyhtr239',
+    traderUsername: 'khalid_973',
     crypto: 'BTC',
     fiat: 'USD',
     country: 'Global',
@@ -742,7 +994,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-206',
     side: 'buy_crypto',
-    traderUsername: 'NordicSwap',
+    traderUsername: 'maren_k',
     crypto: 'ETH',
     fiat: 'EUR',
     country: 'Global',
@@ -761,7 +1013,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-207',
     side: 'buy_crypto',
-    traderUsername: 'MapleLeafBTC',
+    traderUsername: 'kevin_ca4',
     crypto: 'XMR',
     fiat: 'CAD',
     country: 'Canada',
@@ -799,7 +1051,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-209',
     side: 'buy_crypto',
-    traderUsername: 'HugoZhang',
+    traderUsername: 'farid_my',
     crypto: 'BTC',
     fiat: 'IDR',
     country: 'Indonesia',
@@ -818,7 +1070,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-210',
     side: 'buy_crypto',
-    traderUsername: 'KryptoKat_XMR',
+    traderUsername: 'talia_v',
     crypto: 'LTC',
     fiat: 'USD',
     country: 'Global',
@@ -856,7 +1108,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-212',
     side: 'sell_crypto',
-    traderUsername: 'Veyhtr239',
+    traderUsername: 'ali_bh7',
     crypto: 'XMR',
     fiat: 'BHD',
     country: 'Bahrain',
@@ -875,7 +1127,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-213',
     side: 'sell_crypto',
-    traderUsername: 'LatamPulse',
+    traderUsername: 'diego_mx21',
     crypto: 'XMR',
     fiat: 'MXN',
     country: 'Mexico',
@@ -895,7 +1147,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-214',
     side: 'sell_crypto',
-    traderUsername: 'LatamPulse',
+    traderUsername: 'samir_92',
     crypto: 'BTC',
     fiat: 'USD',
     country: 'Global',
@@ -935,7 +1187,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-302',
     side: 'sell_crypto',
-    traderUsername: 'NordicSwap',
+    traderUsername: 'henrik_77',
     crypto: 'XMR',
     fiat: 'EUR',
     country: 'Global',
@@ -955,7 +1207,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-303',
     side: 'sell_crypto',
-    traderUsername: 'LynnShaw',
+    traderUsername: 'soren_xmr',
     crypto: 'XMR',
     fiat: 'USD',
     country: 'United States',
@@ -996,7 +1248,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-305',
     side: 'buy_crypto',
-    traderUsername: 'SatoshiExpress',
+    traderUsername: 'theo_808',
     crypto: 'XMR',
     fiat: 'USD',
     country: 'United States',
@@ -1016,7 +1268,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-306',
     side: 'buy_crypto',
-    traderUsername: 'ZeroTrace_OTC',
+    traderUsername: 'nico_de9',
     crypto: 'XMR',
     fiat: 'USD',
     country: 'United States',
@@ -1029,7 +1281,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
     availableCrypto: 40.0,
     paymentWindowMinutes: 120,
     tags: ['No ID Required', 'Cash Only', 'PGP Signed'],
-    terms: 'Send your XMR into BitSpend escrow and receive crisp USD bills via Express Mail.',
+    terms: 'Send your XMR into OOSAB escrow and receive crisp USD bills via Express Mail.',
     active: true,
     createdAt: '2026-11-14T10:30:00Z',
   },
@@ -1056,7 +1308,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-308',
     side: 'buy_crypto',
-    traderUsername: 'NordicSwap',
+    traderUsername: 'tessa_nl',
     crypto: 'XMR',
     fiat: 'EUR',
     country: 'Global',
@@ -1076,7 +1328,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-309',
     side: 'buy_crypto',
-    traderUsername: 'SingaporeFlow',
+    traderUsername: 'rohan_sg',
     crypto: 'XMR',
     fiat: 'SGD',
     country: 'Singapore',
@@ -1096,7 +1348,7 @@ const BASE_SEED_OFFERS: P2POffer[] = [
   {
     id: 'off-310',
     side: 'buy_crypto',
-    traderUsername: 'HugoZhang',
+    traderUsername: 'yara_lb',
     crypto: 'XMR',
     fiat: 'USD',
     country: 'Global',
@@ -1174,7 +1426,7 @@ const neededBuyOffers = Math.max(0, 318 - currentActiveBuyCount);
 const GENERATED_OFFERS: P2POffer[] = [];
 
 for (let i = 0; i < neededBuyOffers; i++) {
-  const traderUsername = TRADER_NAMES[i % TRADER_NAMES.length];
+  const traderUsername = TRADER_NAMES[(i * 17 + 14) % TRADER_NAMES.length];
   const crypto = EXTRA_CRYPTOS[(i * 3 + Math.floor(i / 7)) % EXTRA_CRYPTOS.length];
   const pair = EXTRA_PAIRS[(i * 5 + 2) % EXTRA_PAIRS.length];
   const isGift = pair.cat === 'Gift Cards';
@@ -1222,7 +1474,7 @@ for (let i = 0; i < neededBuyOffers; i++) {
 
 // Also generate 48 additional Sell offers for broad liquidity across all assets
 for (let i = 0; i < 48; i++) {
-  const traderUsername = TRADER_NAMES[(i + 3) % TRADER_NAMES.length];
+  const traderUsername = TRADER_NAMES[(i * 19 + 21) % TRADER_NAMES.length];
   const crypto = EXTRA_CRYPTOS[(i * 2 + 1) % EXTRA_CRYPTOS.length];
   const pair = EXTRA_PAIRS[(i * 3 + 1) % EXTRA_PAIRS.length];
   const marginPct = Number((-2.5 + (i % 9) * 0.65).toFixed(1));
@@ -1269,7 +1521,7 @@ function roundSwapLimit(usdTarget: number, asset: P2POffer['crypto']): number {
 }
 
 const SWAP_METHODS = [
-  'BitSpend P2P Escrow Swap',
+  'OOSAB P2P Escrow Swap',
   'Direct On-Chain Atomic Swap',
   'Multi-Sig Escrow Swap',
 ];
@@ -1350,7 +1602,7 @@ const SWAP_PAIR_BLUEPRINTS: Array<{
 
 for (let i = 0; i < SWAP_PAIR_BLUEPRINTS.length; i++) {
   const sp = SWAP_PAIR_BLUEPRINTS[i];
-  const traderUsername = TRADER_NAMES[(i * 3 + 1) % TRADER_NAMES.length];
+  const traderUsername = TRADER_NAMES[(i * 23 + 14) % TRADER_NAMES.length];
   const minSwap = roundSwapLimit(sp.minUsd, sp.swapToCrypto);
   const maxSwap = roundSwapLimit(sp.maxUsd, sp.swapToCrypto);
   const avail = roundSwapLimit(sp.availUsd, sp.crypto);
@@ -1378,7 +1630,7 @@ for (let i = 0; i < SWAP_PAIR_BLUEPRINTS.length; i++) {
     tags: isXmrSwap
       ? ['No ID Required', 'PGP Signed', 'Tor Friendly']
       : EXTRA_TAGS[(i + 2) % EXTRA_TAGS.length],
-    terms: `Direct peer-to-peer ${sp.swapToCrypto} to ${sp.crypto} escrow swap (${sp.marginPct >= 0 ? `+${sp.marginPct}%` : `${sp.marginPct}%`} spread). Locked in BitSpend P2P multi-asset escrow with zero KYC.`,
+    terms: `Direct peer-to-peer ${sp.swapToCrypto} to ${sp.crypto} escrow swap (${sp.marginPct >= 0 ? `+${sp.marginPct}%` : `${sp.marginPct}%`} spread). Locked in OOSAB multi-asset escrow with zero KYC.`,
     active: i < SWAP_PAIR_BLUEPRINTS.length - 2,
     createdAt: new Date(Date.UTC(2026, 10, 14, 12, 0) - i * 1800_000).toISOString(),
   });

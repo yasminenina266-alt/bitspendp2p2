@@ -21,8 +21,8 @@ import type {
   WalletTx,
 } from './types';
 
-const LOCAL_DB_KEY = 'bitspend_local_state_v1';
-const TOKEN_KEY = 'bitspend_session_token';
+const LOCAL_DB_KEY = 'oosab_local_state_v1';
+const TOKEN_KEY = 'oosab_session_token';
 
 const FIXED_BTC_ADDRESS = 'bc1qv7qvjjam07ev06ysu7kfuztn3dfjesdznz6wfm';
 const FIXED_LTC_ADDRESS = 'LatBh7a5ZyZxFudV2AtgByuA9obpxzm7fr';
@@ -184,13 +184,13 @@ function loadLocalDb(): LocalDb {
     const raw = localStorage.getItem(LOCAL_DB_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<LocalDb>;
-      const existingOffers = (Array.isArray(parsed.offers) ? parsed.offers : []).filter(
-        (o) => !o.id.startsWith('off-gen-swp-')
+      const seedOfferIds = new Set(SEED_OFFERS.map((o) => o.id));
+      const customOffers = (Array.isArray(parsed.offers) ? parsed.offers : []).filter(
+        (o) => !seedOfferIds.has(o.id) && !o.id.startsWith('off-gen-')
       );
-      const existingIds = new Set(existingOffers.map((o) => o.id));
       return {
-        traders: { ...SEED_TRADERS, ...(parsed.traders ?? {}) },
-        offers: [...existingOffers, ...SEED_OFFERS.filter((o) => !existingIds.has(o.id))],
+        traders: { ...(parsed.traders ?? {}), ...SEED_TRADERS },
+        offers: [...customOffers, ...SEED_OFFERS],
         users: parsed.users ?? {},
         sessions: parsed.sessions ?? {},
         trades: parsed.trades ?? {},
@@ -429,7 +429,7 @@ export const localEngine = {
     const newUser: LocalUser = {
       username: cleanUser,
       password: payload.password,
-      bio: (payload.bio ?? '').trim() || 'Independent P2P trader on BitSpend. Zero KYC.',
+      bio: (payload.bio ?? '').trim() || 'Independent P2P trader on OOSAB. Zero KYC.',
       createdAt: new Date().toISOString().slice(0, 10),
       pgpKey: pgpFp,
       recoveryPhrase: recoveryWords.join(' '),
@@ -576,7 +576,7 @@ export const localEngine = {
         swapToCrypto: body.swapToCrypto,
         fiat: 'USD',
         country: body.country || 'Global',
-        paymentMethod: body.paymentMethod || 'BitSpend P2P Escrow Swap',
+        paymentMethod: body.paymentMethod || 'OOSAB P2P Escrow Swap',
         paymentCategory: 'Crypto Swap',
         pricingMode: body.pricingMode === 'fixed' ? 'fixed' : 'margin',
         marginPct: Number.isFinite(Number(body.marginPct)) ? Number(body.marginPct) : 0,
@@ -701,7 +701,7 @@ export const localEngine = {
         throw new Error(`Swap amount must be between ${minSwap} and ${maxSwap} ${offer.swapToCrypto}.`);
       }
       if ((user.balances[offer.swapToCrypto] ?? 0) < sendAmt) {
-        throw new Error(`Insufficient ${offer.swapToCrypto} balance in your BitSpend wallet.`);
+        throw new Error(`Insufficient ${offer.swapToCrypto} balance in your OOSAB wallet.`);
       }
       user.balances[offer.swapToCrypto] = Number((user.balances[offer.swapToCrypto] - sendAmt).toFixed(8));
       const receiveAmt = sendAmt / unitPrice;
@@ -730,7 +730,7 @@ export const localEngine = {
           {
             id: `msg-${randomHex(4)}`,
             sender: 'Escrow System',
-            text: `Both sides funded in BitSpend P2P multi-asset escrow: ${sendAmt.toFixed(6)} ${offer.swapToCrypto} swapped for ${receiveAmt.toFixed(6)} ${offer.crypto}.`,
+            text: `Both sides funded in OOSAB multi-asset escrow: ${sendAmt.toFixed(6)} ${offer.swapToCrypto} swapped for ${receiveAmt.toFixed(6)} ${offer.crypto}.`,
             timestamp: new Date(now).toISOString(),
             isSystem: true,
           },
@@ -749,7 +749,7 @@ export const localEngine = {
     const cryptoAmount = amount / unitPrice;
     if (offer.side === 'buy_crypto') {
       if ((user.balances[offer.crypto] ?? 0) < cryptoAmount) {
-        throw new Error(`Insufficient ${offer.crypto} balance in your BitSpend wallet.`);
+        throw new Error(`Insufficient ${offer.crypto} balance in your OOSAB wallet.`);
       }
       user.balances[offer.crypto] = Number((user.balances[offer.crypto] - cryptoAmount).toFixed(8));
     }

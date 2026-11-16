@@ -222,13 +222,13 @@ export function SwapView({
 
           <div>
             <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
-              Destination {toCrypto} Wallet Address (optional for internal BitSpend wallet)
+              Destination {toCrypto} Wallet Address (optional for internal OOSAB wallet)
             </label>
             <input
               type="text"
               value={destinationAddress}
               onChange={(e) => setDestinationAddress(e.target.value)}
-              placeholder={`Leave blank to credit your BitSpend ${toCrypto} balance`}
+              placeholder={`Leave blank to credit your OOSAB ${toCrypto} balance`}
               className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3.5 font-mono text-xs text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
             />
           </div>

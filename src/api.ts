@@ -12,7 +12,7 @@ import type {
   VirtualCard,
 } from './types';
 
-const TOKEN_KEY = 'bitspend_session_token';
+const TOKEN_KEY = 'oosab_session_token';
 
 export function getToken(): string | null {
   try {

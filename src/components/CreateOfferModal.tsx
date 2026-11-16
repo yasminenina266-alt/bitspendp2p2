@@ -34,7 +34,7 @@ interface CreateOfferModalProps {
 }
 
 const SWAP_SETTLEMENT_METHODS = [
-  'BitSpend P2P Escrow Swap',
+  'OOSAB P2P Escrow Swap',
   'Direct On-Chain Atomic Swap',
 ];
 
@@ -75,7 +75,7 @@ export function CreateOfferModal({
   const [selectedTags, setSelectedTags] = useState<OfferTag[]>(['No ID Required', 'Instant Release']);
   const [terms, setTerms] = useState(
     initialSide === 'swap_crypto'
-      ? 'Direct user-to-user BTC to XMR escrow swap. Both assets settle through BitSpend P2P multi-asset escrow with zero KYC.'
+      ? 'Direct user-to-user BTC to XMR escrow swap. Both assets settle through OOSAB multi-asset escrow with zero KYC.'
       : 'Zero ID verification required. Include trade reference code only if requested inside the trade chat.'
   );
   const [termsTouched, setTermsTouched] = useState(false);
@@ -141,7 +141,7 @@ export function CreateOfferModal({
       syncSwapLimitsForAsset(target);
       if (!termsTouched) {
         setTerms(
-          `Direct user-to-user ${target} to ${crypto} escrow swap. Both assets settle through BitSpend P2P multi-asset escrow with zero KYC.`
+          `Direct user-to-user ${target} to ${crypto} escrow swap. Both assets settle through OOSAB multi-asset escrow with zero KYC.`
         );
       }
     } else if (!termsTouched) {
@@ -170,7 +170,7 @@ export function CreateOfferModal({
     syncSwapLimitsForAsset(nextWant);
     if (isSwap && !termsTouched) {
       setTerms(
-        `Direct user-to-user ${nextWant} to ${nextWant === crypto ? 'XMR' : crypto} escrow swap. Both assets settle through BitSpend P2P multi-asset escrow with zero KYC.`
+        `Direct user-to-user ${nextWant} to ${nextWant === crypto ? 'XMR' : crypto} escrow swap. Both assets settle through OOSAB multi-asset escrow with zero KYC.`
       );
     }
   };
@@ -184,7 +184,7 @@ export function CreateOfferModal({
     syncSwapLimitsForAsset(prevOffer);
     if (!termsTouched) {
       setTerms(
-        `Direct user-to-user ${prevOffer} to ${prevWant} escrow swap. Both assets settle through BitSpend P2P multi-asset escrow with zero KYC.`
+        `Direct user-to-user ${prevOffer} to ${prevWant} escrow swap. Both assets settle through OOSAB multi-asset escrow with zero KYC.`
       );
     }
   };

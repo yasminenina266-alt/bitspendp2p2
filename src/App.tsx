@@ -107,7 +107,7 @@ function normalizePrices(raw?: Partial<MarketPrices> | null): MarketPrices {
 export default function App() {
   const [darkMode, setDarkMode] = useState(() => {
     try {
-      return localStorage.getItem('bitspend_theme') === 'dark';
+      return (localStorage.getItem('oosab_theme') ?? localStorage.getItem('bitspend_theme')) === 'dark';
     } catch {
       return false;
     }
@@ -147,7 +147,7 @@ export default function App() {
     if (darkMode) root.classList.add('dark');
     else root.classList.remove('dark');
     try {
-      localStorage.setItem('bitspend_theme', darkMode ? 'dark' : 'light');
+      localStorage.setItem('oosab_theme', darkMode ? 'dark' : 'light');
     } catch {
       // ignore
     }
@@ -566,7 +566,7 @@ export default function App() {
                       Register to view all {filteredOffers.length} offers
                     </h2>
                     <p className="mx-auto mt-1.5 max-w-md text-sm text-[#5C6665] dark:text-[#98A4A2]">
-                      Guests can preview the top 10 listings. Create a free anonymous BitSpend P2P account in seconds to unlock all {filteredOffers.length} offers — no KYC or ID required.
+                      Guests can preview the top 10 listings. Create a free anonymous OOSAB account in seconds to unlock all {filteredOffers.length} offers — no KYC or ID required.
                     </p>
                     <div className="mt-5 grid grid-cols-1 gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-3">
                       <button
@@ -630,10 +630,10 @@ export default function App() {
       <footer className="border-t border-[#E3E7E7] bg-white py-6 dark:border-[#1E2726] dark:bg-[#111717]">
         <div className="mx-auto flex max-w-[1380px] flex-col items-center justify-between gap-4 px-4 text-center text-xs text-[#5C6665] sm:flex-row sm:px-6 sm:text-left lg:px-8 dark:text-[#8E9B98]">
           <div>
-            <span className="font-display font-bold text-[#0E1715] dark:text-white mr-2">
-              BitSpend P2P
+            <span className="font-display font-bold tracking-[0.08em] text-[#0E1715] dark:text-white mr-2">
+              OOSAB
             </span>
-            <span>Peer-to-peer escrow marketplace · Part of BitSpend</span>
+            <span>Peer-to-peer multi-asset escrow marketplace</span>
           </div>
           <div className="grid w-full max-w-xs grid-cols-2 gap-x-6 gap-y-2.5 sm:flex sm:w-auto sm:max-w-none sm:flex-wrap sm:items-center sm:gap-5">
             <button
@@ -666,7 +666,7 @@ export default function App() {
               P2P Swap Ads
             </button>
             <a
-              href="https://bitspend.me"
+              href="https://card.oosab.com"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-[#0E1715] dark:hover:text-white"

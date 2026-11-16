@@ -27,7 +27,7 @@ import type {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
-const DB_PATH = path.join(__dirname, 'data', 'bitspend-db.json');
+const DB_PATH = path.join(__dirname, 'data', 'oosab-db.json');
 
 interface StoredUser extends UserAccount {
   passwordHash: string;
@@ -101,7 +101,7 @@ async function fetchJsonWithTimeout(url: string, timeoutMs = 4500) {
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
-        'User-Agent': 'BitSpend-P2P/1.0',
+        'User-Agent': 'OOSAB-P2P/1.0',
       },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -370,17 +370,14 @@ async function loadDb() {
   try {
     const raw = await fs.readFile(DB_PATH, 'utf8');
     const parsed = JSON.parse(raw) as Partial<DatabaseSchema>;
-    const existingOffers = (Array.isArray(parsed.offers) ? parsed.offers : []).filter(
-      (o) => !o.id.startsWith('off-gen-swp-')
+    const seedOfferIds = new Set(SEED_OFFERS.map((o) => o.id));
+    const customOffers = (Array.isArray(parsed.offers) ? parsed.offers : []).filter(
+      (o) => !seedOfferIds.has(o.id) && !o.id.startsWith('off-gen-')
     );
-    const existingIds = new Set(existingOffers.map((o) => o.id));
-    const mergedOffers = [
-      ...existingOffers,
-      ...SEED_OFFERS.filter((o) => !existingIds.has(o.id)),
-    ];
+    const mergedOffers = [...customOffers, ...SEED_OFFERS];
 
     db = {
-      traders: { ...SEED_TRADERS, ...(parsed.traders ?? {}) },
+      traders: { ...(parsed.traders ?? {}), ...SEED_TRADERS },
       offers: mergedOffers.length > 0 ? mergedOffers : [...SEED_OFFERS],
       users: parsed.users ?? {},
       sessions: parsed.sessions ?? {},
@@ -543,7 +540,7 @@ async function startServer() {
     const nowIso = new Date().toISOString();
     const user: StoredUser = {
       username: cleanName,
-      bio: (bio ?? '').trim() || 'Privacy-focused P2P trader on BitSpend P2P. Zero KYC.',
+      bio: (bio ?? '').trim() || 'Privacy-focused P2P trader on OOSAB. Zero KYC.',
       createdAt: nowIso,
       pgpKey: (pgpKey ?? '').trim() || generatePgpFingerprint(),
       recoveryPhrase: generateRecoveryPhrase(),
@@ -747,7 +744,7 @@ async function startServer() {
         swapToCrypto: body.swapToCrypto,
         fiat: 'USD',
         country: body.country || 'Global',
-        paymentMethod: body.paymentMethod || 'BitSpend P2P Escrow Swap',
+        paymentMethod: body.paymentMethod || 'OOSAB P2P Escrow Swap',
         paymentCategory: 'Crypto Swap',
         pricingMode: body.pricingMode === 'fixed' ? 'fixed' : 'margin',
         marginPct: Number.isFinite(Number(body.marginPct)) ? Number(body.marginPct) : 0,
@@ -903,7 +900,7 @@ async function startServer() {
       }
       if ((user.balances[offer.swapToCrypto] ?? 0) < sendAmt) {
         return res.status(400).json({
-          error: `Insufficient ${offer.swapToCrypto} balance in your BitSpend wallet. Deposit ${offer.swapToCrypto} in Profile & Wallet first.`,
+          error: `Insufficient ${offer.swapToCrypto} balance in your OOSAB wallet. Deposit ${offer.swapToCrypto} in Profile & Wallet first.`,
         });
       }
       user.balances[offer.swapToCrypto] = Number(
@@ -937,7 +934,7 @@ async function startServer() {
           {
             id: `msg-${crypto.randomBytes(4).toString('hex')}`,
             sender: 'Escrow System',
-            text: `Both sides funded in BitSpend P2P multi-asset escrow: ${sendAmt.toFixed(6)} ${offer.swapToCrypto} swapped for ${receiveAmt.toFixed(6)} ${offer.crypto} at 1 ${offer.crypto} = ${unitPrice.toFixed(6)} ${offer.swapToCrypto}.`,
+            text: `Both sides funded in OOSAB multi-asset escrow: ${sendAmt.toFixed(6)} ${offer.swapToCrypto} swapped for ${receiveAmt.toFixed(6)} ${offer.crypto} at 1 ${offer.crypto} = ${unitPrice.toFixed(6)} ${offer.swapToCrypto}.`,
             timestamp: new Date(now).toISOString(),
             isSystem: true,
           },
@@ -969,7 +966,7 @@ async function startServer() {
     if (offer.side === 'buy_crypto') {
       if ((user.balances[offer.crypto] ?? 0) < cryptoAmount) {
         return res.status(400).json({
-          error: `Insufficient ${offer.crypto} balance in your BitSpend wallet. Deposit ${offer.crypto} in Profile & Wallet first.`,
+          error: `Insufficient ${offer.crypto} balance in your OOSAB wallet. Deposit ${offer.crypto} in Profile & Wallet first.`,
         });
       }
       user.balances[offer.crypto] = Number((user.balances[offer.crypto] - cryptoAmount).toFixed(8));
@@ -1006,7 +1003,7 @@ async function startServer() {
         {
           id: `msg-${crypto.randomBytes(4).toString('hex')}`,
           sender: 'Escrow System',
-          text: `${cryptoAmount.toFixed(6)} ${offer.crypto} is now locked in BitSpend multi-sig escrow at ${unitPrice.toFixed(2)} ${offer.fiat}/${offer.crypto}.`,
+          text: `${cryptoAmount.toFixed(6)} ${offer.crypto} is now locked in OOSAB multi-sig escrow at ${unitPrice.toFixed(2)} ${offer.fiat}/${offer.crypto}.`,
           timestamp: new Date(now).toISOString(),
           isSystem: true,
         },
@@ -1144,7 +1141,7 @@ async function startServer() {
       trade.messages.push({
         id: `msg-${crypto.randomBytes(4).toString('hex')}`,
         sender: 'Escrow System',
-        text: `Dispute opened. An independent BitSpend arbitrator has frozen the ${trade.crypto} in escrow and joined the chat.`,
+        text: `Dispute opened. An independent OOSAB arbitrator has frozen the ${trade.crypto} in escrow and joined the chat.`,
         timestamp: new Date().toISOString(),
         isSystem: true,
       });
@@ -1420,7 +1417,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`BitSpend server running on http://0.0.0.0:${PORT}`);
+    console.log(`OOSAB server running on http://0.0.0.0:${PORT}`);
   });
 }
 

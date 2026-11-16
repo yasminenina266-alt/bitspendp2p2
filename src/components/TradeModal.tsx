@@ -297,7 +297,7 @@ export function TradeModal({
                   </div>
                 )}
                 <div className="flex items-center justify-between">
-                  <span className="text-[#5C6665] dark:text-[#98A4A2]">BitSpend P2P Escrow Fee</span>
+                  <span className="text-[#5C6665] dark:text-[#98A4A2]">OOSAB Escrow Fee</span>
                   <span className="font-mono font-semibold text-[#0D6832] dark:text-[#7FE85B]">
                     0.00% (Included)
                   </span>
@@ -330,7 +330,7 @@ export function TradeModal({
                     ) : (
                       <>
                         <li>· Complete {offer.paymentMethod} transfer within {offer.paymentWindowMinutes} minutes.</li>
-                        <li>· Do not mention BitSpend, Bitcoin, Monero, or crypto in payment memos.</li>
+                        <li>· Do not mention OOSAB, Bitcoin, Monero, or crypto in payment memos.</li>
                         <li>· {offer.crypto} stays locked in 2-of-3 multi-sig escrow until release.</li>
                       </>
                     )}
@@ -374,7 +374,7 @@ export function TradeModal({
                         ? `${formatCrypto(parsedSend, swapTargetAsset)} → ${formatCrypto(cryptoAmt, offer.crypto)}`
                         : formatCrypto(cryptoAmt, offer.crypto)}
                     </strong>{' '}
-                    in BitSpend P2P escrow.
+                    in OOSAB escrow.
                   </span>
                 </label>
               )}

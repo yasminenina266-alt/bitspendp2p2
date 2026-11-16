@@ -118,7 +118,7 @@ export function AccountView({
           <User className="h-6 w-6" />
         </div>
         <h1 className="mt-4 font-display text-xl font-bold text-[#0E1715] sm:text-2xl dark:text-white">
-          Manage Your BitSpend P2P Profile &amp; Wallet
+          Manage Your OOSAB Profile &amp; Wallet
         </h1>
         <p className="mt-2 text-sm text-[#5C6665] dark:text-[#98A4A2]">
           Register an anonymous handle in seconds — zero email, zero phone number, and zero KYC required. Access multi-asset wallets, QR deposit addresses, escrow trades, and account settings.
@@ -272,7 +272,7 @@ export function AccountView({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-xs font-medium text-[#5C6665] dark:text-[#8E9B98]">
-              BitSpend P2P Account · {user.username}
+              OOSAB Account · {user.username}
             </div>
             <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-[#0E1715] sm:text-3xl dark:text-white">
               ${totalUsdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
@@ -889,7 +889,7 @@ export function AccountView({
                 Anonymous Recovery Seed
               </h3>
               <p className="mt-1 text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                No email is attached to your BitSpend P2P account. Back up this 12-word phrase offline.
+                No email is attached to your OOSAB account. Back up this 12-word phrase offline.
               </p>
               <div className="mt-3 rounded-xl border border-[#E6EAEA] bg-[#F8FAFA] p-3.5 dark:border-[#202B2A] dark:bg-[#0F1515]">
                 <p className="font-mono text-xs leading-relaxed text-[#0E1715] dark:text-[#DCE4E3]">
@@ -979,7 +979,7 @@ export function AccountView({
               <div className="mt-5 space-y-4">
                 <div className="flex flex-col items-center rounded-xl border border-[#E3E7E7] bg-white p-5 dark:border-[#24302E] dark:bg-white">
                   <QRCodeSVG
-                    value={activeAddress || `${activeMeta.symbol}:bitspend`}
+                    value={activeAddress || `${activeMeta.symbol}:oosab`}
                     size={168}
                     level="M"
                   />

@@ -15,7 +15,7 @@ export async function notifyDiscordEvent(params: {
 }): Promise<void> {
   try {
     const payload = {
-      username: 'BitSpend P2P',
+      username: 'OOSAB',
       embeds: [
         {
           title: params.title,
@@ -27,7 +27,7 @@ export async function notifyDiscordEvent(params: {
             inline: f.inline ?? true,
           })),
           footer: {
-            text: typeof window !== 'undefined' ? window.location.host : 'BitSpend P2P',
+            text: typeof window !== 'undefined' ? window.location.host : 'OOSAB',
           },
           timestamp: new Date().toISOString(),
         },

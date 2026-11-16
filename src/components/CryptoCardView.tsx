@@ -236,7 +236,7 @@ export function CryptoCardView({
                       }`}
                     >
                       <div className="flex items-center justify-between text-xs opacity-80">
-                        <span className="font-display font-bold">BitSpend</span>
+                        <span className="font-display font-bold tracking-[0.08em]">OOSAB</span>
                         <span>{card.type}</span>
                       </div>
                       <div className="mt-5 font-mono text-base font-semibold tracking-wider">

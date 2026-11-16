@@ -1,4 +1,4 @@
-import { ArrowLeftRight, CreditCard, Menu, Moon, Sun, Tag, User, X } from 'lucide-react';
+import { ArrowLeftRight, CreditCard, ExternalLink, Menu, Moon, Sun, Tag, User, X } from 'lucide-react';
 import { useState } from 'react';
 import type { UserAccount } from '../types';
 
@@ -15,7 +15,7 @@ interface HeaderProps {
   onLogout: () => void;
 }
 
-const BITSPEND_CARD_URL = 'https://bitspend.me';
+const CRYPTO_CARD_URL = 'https://card.oosab.com';
 
 export function Header({
   activeTab,
@@ -50,21 +50,37 @@ export function Header({
           className="flex items-center gap-2.5 whitespace-nowrap shrink-0 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B3B2E] rounded-md"
         >
           <svg
-            width="28"
-            height="28"
+            width="30"
+            height="30"
             viewBox="0 0 32 32"
             fill="none"
             aria-hidden="true"
             className="shrink-0"
           >
-            <rect x="3" y="8" width="9" height="9" rx="1.5" fill="#0B3B2E" className="dark:fill-[#7FE85B]" />
-            <rect x="13" y="3" width="9" height="9" rx="1.5" fill="#5EE048" />
-            <rect x="13" y="14" width="9" height="9" rx="1.5" fill="#0B3B2E" className="dark:fill-[#E5EFEA]" />
-            <rect x="20" y="9" width="9" height="9" rx="1.5" fill="#1F6F54" />
-            <rect x="8" y="19" width="9" height="9" rx="1.5" fill="#5EE048" />
+            <path
+              d="M 6.33 20.10 A 10.5 10.5 0 0 1 20.10 6.33"
+              className="stroke-[#0B3B2E] dark:stroke-[#7FE85B]"
+              strokeWidth="4.4"
+              strokeLinecap="round"
+            />
+            <path
+              d="M 25.67 11.90 A 10.5 10.5 0 0 1 11.90 25.67"
+              stroke="#5EE048"
+              strokeWidth="4.4"
+              strokeLinecap="round"
+            />
+            <rect
+              x="16"
+              y="11.6"
+              width="6.2"
+              height="6.2"
+              rx="1.5"
+              transform="rotate(45 16 11.6)"
+              className="fill-[#1F6F54] dark:fill-[#E5EFEA]"
+            />
           </svg>
-          <span className="font-display text-lg font-bold tracking-tight text-[#0E1715] sm:text-[21px] dark:text-[#F1F5F4]">
-            BitSpend <span className="font-semibold text-[#0B3B2E] dark:text-[#7FE85B]">P2P</span>
+          <span className="font-display text-lg font-bold tracking-[0.12em] text-[#0E1715] sm:text-[21px] dark:text-[#F1F5F4]">
+            OOSAB
           </span>
         </button>
 
@@ -94,7 +110,7 @@ export function Header({
           })}
 
           <a
-            href={BITSPEND_CARD_URL}
+            href={CRYPTO_CARD_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="relative flex h-full items-center gap-2 whitespace-nowrap shrink-0 text-sm font-medium text-[#5C6665] hover:text-[#0E1715] dark:text-[#98A4A2] dark:hover:text-white transition-colors"
@@ -220,7 +236,7 @@ export function Header({
             })}
 
             <a
-              href={BITSPEND_CARD_URL}
+              href={CRYPTO_CARD_URL}
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setMobileMenuOpen(false)}
@@ -230,7 +246,7 @@ export function Header({
                 <CreditCard className="h-4 w-4" />
                 <span>Crypto Card</span>
               </span>
-              <span className="text-xs text-[#64706E] dark:text-[#8E9B98]">bitspend.me</span>
+              <ExternalLink className="h-3.5 w-3.5 text-[#64706E] dark:text-[#8E9B98]" />
             </a>
 
             {(() => {

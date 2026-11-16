@@ -1,15 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
   <style>
-    .tile-primary { fill: #0B3B2E; }
-    .tile-secondary { fill: #0B3B2E; }
+    .arc-primary { stroke: #0B3B2E; }
+    .core-gem { fill: #1F6F54; }
     @media (prefers-color-scheme: dark) {
-      .tile-primary { fill: #7FE85B; }
-      .tile-secondary { fill: #E5EFEA; }
+      .arc-primary { stroke: #7FE85B; }
+      .core-gem { fill: #E5EFEA; }
     }
   </style>
-  <rect x="3" y="8" width="9" height="9" rx="1.5" class="tile-primary" />
-  <rect x="13" y="3" width="9" height="9" rx="1.5" fill="#5EE048" />
-  <rect x="13" y="14" width="9" height="9" rx="1.5" class="tile-secondary" />
-  <rect x="20" y="9" width="9" height="9" rx="1.5" fill="#1F6F54" />
-  <rect x="8" y="19" width="9" height="9" rx="1.5" fill="#5EE048" />
+  <path
+    d="M 6.33 20.10 A 10.5 10.5 0 0 1 20.10 6.33"
+    class="arc-primary"
+    stroke-width="4.4"
+    stroke-linecap="round"
+  />
+  <path
+    d="M 25.67 11.90 A 10.5 10.5 0 0 1 11.90 25.67"
+    stroke="#5EE048"
+    stroke-width="4.4"
+    stroke-linecap="round"
+  />
+  <rect
+    x="16"
+    y="11.6"
+    width="6.2"
+    height="6.2"
+    rx="1.5"
+    transform="rotate(45 16 11.6)"
+    class="core-gem"
+  />
 </svg>

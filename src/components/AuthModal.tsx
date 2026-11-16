@@ -238,7 +238,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
 
           <div className="mt-5 space-y-3">
             <p className="text-sm text-[#394241] dark:text-[#C5D1CF]">
-              BitSpend P2P requires zero email, phone number, or ID. Save your 12-word recovery phrase below to recover your account if needed:
+              OOSAB requires zero email, phone number, or ID. Save your 12-word recovery phrase below to recover your account if needed:
             </p>
 
             <div className="rounded-xl border border-[#DCE2E1] bg-[#F6F8F8] p-4 dark:border-[#24302E] dark:bg-[#0D1313]">
@@ -264,7 +264,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
             }}
             className="mt-6 w-full rounded-xl bg-[#7FE85B] py-3 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] transition-colors"
           >
-            Enter BitSpend P2P
+            Enter OOSAB
           </button>
         </div>
       </div>
@@ -277,7 +277,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-display text-xl font-bold text-[#0E1715] dark:text-white">
-              {mode === 'register' ? 'Register on BitSpend P2P' : 'Sign in to BitSpend P2P'}
+              {mode === 'register' ? 'Register on OOSAB' : 'Sign in to OOSAB'}
             </h2>
             <p className="mt-0.5 text-xs text-[#5C6665] dark:text-[#98A4A2]">
               No email · No phone · No KYC or identification required
