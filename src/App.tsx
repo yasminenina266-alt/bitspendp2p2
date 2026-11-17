@@ -986,6 +986,10 @@ export default function App() {
             onViewOffer={(offer) => setTradeModalState({ offer })}
             onOpenCreateOffer={() => handleOpenCreateOffer('Account Dashboard')}
             onUserUpdated={setUser}
+            onProfileUpdated={(updatedTrader) => {
+              setTraders((prev) => ({ ...prev, [updatedTrader.username]: updatedTrader }));
+              setProfileRefreshKey((k) => k + 1);
+            }}
             onOfferUpdated={(updated) =>
               setOffers((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
             }
@@ -1003,6 +1007,7 @@ export default function App() {
             offers={offers}
             prices={prices}
             currentUsername={user?.username}
+            currentUser={user}
             onlineUsers={onlineUsers}
             refreshKey={profileRefreshKey}
             onBackToMarketplace={() => handleHeaderTabSelect('offers')}
@@ -1016,6 +1021,7 @@ export default function App() {
             onTraderLoaded={(loaded) =>
               setTraders((prev) => ({ ...prev, [loaded.username]: loaded }))
             }
+            onUserUpdated={setUser}
           />
         )}
       </main>
@@ -1127,7 +1133,13 @@ export default function App() {
             tradeModalState.offer
               ? traders[tradeModalState.offer.traderUsername]
               : tradeModalState.existingTrade
-                ? traders[tradeModalState.existingTrade.traderUsername]
+                ? traders[
+                    user && tradeModalState.existingTrade.buyerUsername === user.username
+                      ? tradeModalState.existingTrade.sellerUsername
+                      : user && tradeModalState.existingTrade.sellerUsername === user.username
+                        ? tradeModalState.existingTrade.buyerUsername
+                        : tradeModalState.existingTrade.traderUsername
+                  ]
                 : undefined
           }
           existingTrade={tradeModalState.existingTrade}
@@ -1157,6 +1169,7 @@ export default function App() {
       {messagesOpen && user && (
         <MessagesModal
           trades={trades}
+          traders={traders}
           currentUsername={user.username}
           onlineUsers={onlineUsers}
           onClose={() => setMessagesOpen(false)}

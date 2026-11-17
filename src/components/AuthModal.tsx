@@ -1,8 +1,10 @@
-import { Check, Copy, ShieldCheck, X } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Check, Copy, ShieldCheck, Upload, X } from 'lucide-react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { api, setToken } from '../api';
-import { notifyDiscordEvent } from '../utils/discordWebhook';
 import type { UserAccount } from '../types';
+import { notifyDiscordEvent } from '../utils/discordWebhook';
+import { AVATAR_PRESETS, processImageFile } from '../utils/profileMedia';
+import { TraderAvatar } from './TraderAvatar';
 
 interface AuthModalProps {
   initialMode: 'login' | 'register';
@@ -17,13 +19,16 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [tagline, setTagline] = useState('');
   const [bio, setBio] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [pgpKey, setPgpKey] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [provisioningStep, setProvisioningStep] = useState<number | null>(null);
   const [registeredUser, setRegisteredUser] = useState<UserAccount | null>(null);
   const [copiedPhrase, setCopiedPhrase] = useState(false);
+  const avatarFileRef = useRef<HTMLInputElement>(null);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -88,6 +93,8 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
             confirmPassword,
             pgpKey,
             bio,
+            avatarUrl,
+            tagline,
           }),
           sleep(registrationSteps[0].delayMs),
         ]);
@@ -133,6 +140,23 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
       setTimeout(() => setCopiedPhrase(false), 2000);
     } catch {
       // ignore clipboard errors
+    }
+  };
+
+  const handleAvatarPicked = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const processed = await processImageFile(file, {
+        maxWidth: 256,
+        maxHeight: 256,
+        square: true,
+        quality: 0.85,
+      });
+      setAvatarUrl(processed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load image');
     }
   };
 
@@ -369,6 +393,81 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Re-enter your password"
+                  className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3.5 text-sm text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0D1313] dark:text-white dark:focus:border-[#7FE85B]"
+                />
+              </div>
+
+              <div className="rounded-xl border border-[#E6EAEA] bg-[#F8FAFA] p-3 dark:border-[#222C2B] dark:bg-[#0F1515]">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <TraderAvatar
+                      username={username.trim() || 'OO'}
+                      avatarUrl={avatarUrl}
+                      size={44}
+                      rounded="xl"
+                    />
+                    <div>
+                      <div className="text-xs font-semibold text-[#0E1715] dark:text-white">
+                        Profile Picture (optional)
+                      </div>
+                      <div className="text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                        Upload a photo or pick an icon
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      ref={avatarFileRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarPicked}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => avatarFileRef.current?.click()}
+                      className="inline-flex items-center gap-1 rounded-lg border border-[#DCE2E1] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#0E1715] hover:bg-[#EEF6F2] dark:border-[#263130] dark:bg-[#16201F] dark:text-white"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>Upload</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                  {AVATAR_PRESETS.slice(0, 5).map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setAvatarUrl(p.url)}
+                      className={`rounded-lg p-0.5 ${
+                        avatarUrl === p.url ? 'ring-2 ring-[#0B3B2E] dark:ring-[#7FE85B]' : 'opacity-80 hover:opacity-100'
+                      }`}
+                    >
+                      <img src={p.url} alt={p.label} className="h-7 w-7 rounded-md object-cover" />
+                    </button>
+                  ))}
+                  {avatarUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setAvatarUrl('')}
+                      className="ml-auto text-[11px] font-medium text-[#5C6665] hover:text-red-600 dark:text-[#8E9B98]"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
+                  Headline / Tagline (optional)
+                </label>
+                <input
+                  type="text"
+                  maxLength={90}
+                  value={tagline}
+                  onChange={(e) => setTagline(e.target.value)}
+                  placeholder="e.g. Instant Zelle & Monero Desk"
                   className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3.5 text-sm text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0D1313] dark:text-white dark:focus:border-[#7FE85B]"
                 />
               </div>

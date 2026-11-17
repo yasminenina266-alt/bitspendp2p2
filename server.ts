@@ -20,6 +20,7 @@ import type {
   FiatCurrency,
   MarketPrices,
   P2POffer,
+  ProfileThemeId,
   SwapOrder,
   TradeOrder,
   TraderProfile,
@@ -29,6 +30,38 @@ import type {
   VirtualCard,
   WalletTx,
 } from './src/types.ts';
+
+const ALLOWED_PROFILE_THEMES = new Set<ProfileThemeId>([
+  'emerald',
+  'midnight',
+  'amber',
+  'violet',
+  'slate',
+]);
+
+function sanitizeImageField(val: unknown): string | undefined {
+  if (typeof val !== 'string') return undefined;
+  const trimmed = val.trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\/\S+$/i.test(trimmed) && trimmed.length <= 1024) {
+    return trimmed;
+  }
+  if (
+    /^data:image\/(png|jpeg|jpg|webp|gif|svg\+xml);base64,[a-zA-Z0-9+/=]+$/i.test(trimmed) &&
+    trimmed.length <= 450_000
+  ) {
+    return trimmed;
+  }
+  return undefined;
+}
+
+function sanitizeStringArray(val: unknown, maxItems = 8, maxLen = 36): string[] | undefined {
+  if (!Array.isArray(val)) return undefined;
+  const cleaned = val
+    .map((item) => (typeof item === 'string' ? item.trim().slice(0, maxLen) : ''))
+    .filter(Boolean);
+  return Array.from(new Set(cleaned)).slice(0, maxItems);
+}
 
 const ALLOWED_ASSET_CHAINS: Partial<Record<CryptoAsset, ChainId[]>> = {
   USDT: ['ETH', 'SOL', 'TRX', 'BSC', 'POLYGON'],
@@ -359,6 +392,15 @@ function ensureUserFields(u: StoredUser): StoredUser {
   if (!u.settings) {
     u.settings = { ...DEFAULT_SETTINGS };
   }
+  if (!Array.isArray(u.languages) || u.languages.length === 0) {
+    u.languages = ['English'];
+  }
+  if (!Array.isArray(u.preferredMethods)) {
+    u.preferredMethods = [];
+  }
+  if (!u.accentTheme || !ALLOWED_PROFILE_THEMES.has(u.accentTheme)) {
+    u.accentTheme = 'emerald';
+  }
   return u;
 }
 
@@ -367,6 +409,14 @@ function sanitizeUser(u: StoredUser): UserAccount {
   return {
     username: u.username,
     bio: u.bio,
+    avatarUrl: u.avatarUrl,
+    bannerUrl: u.bannerUrl,
+    tagline: u.tagline,
+    location: u.location,
+    accentTheme: u.accentTheme,
+    languages: u.languages,
+    preferredMethods: u.preferredMethods,
+    tradingHours: u.tradingHours,
     createdAt: u.createdAt,
     pgpKey: u.pgpKey,
     recoveryPhrase: u.recoveryPhrase,
@@ -421,7 +471,8 @@ async function loadDb() {
     };
     const users = parsed.users ?? {};
     for (const u of Object.values(users)) {
-      if (u?.username && !mergedTraders[u.username]) {
+      if (!u?.username) continue;
+      if (!mergedTraders[u.username]) {
         mergedTraders[u.username] = {
           username: u.username,
           joinedAt: (u.createdAt ?? new Date().toISOString()).slice(0, 10),
@@ -430,13 +481,33 @@ async function loadDb() {
           avgReleaseMinutes: 5,
           lastSeenMinutes: 0,
           verified: false,
-          languages: ['English'],
+          languages: u.languages && u.languages.length > 0 ? u.languages : ['English'],
           pgpFingerprint: (u.pgpKey ?? '').slice(0, 49),
           bio: u.bio || 'Privacy-focused P2P trader on OOSAB. Zero KYC.',
+          avatarUrl: u.avatarUrl,
+          bannerUrl: u.bannerUrl,
+          tagline: u.tagline,
+          location: u.location,
+          accentTheme: u.accentTheme,
+          preferredMethods: u.preferredMethods,
+          tradingHours: u.tradingHours,
           volumeTier: 'Starter',
           recentFeedback: [],
           tradeHistory: [],
         };
+      } else {
+        const t = mergedTraders[u.username];
+        if (u.avatarUrl !== undefined && t.avatarUrl === undefined) t.avatarUrl = u.avatarUrl;
+        if (u.bannerUrl !== undefined && t.bannerUrl === undefined) t.bannerUrl = u.bannerUrl;
+        if (u.tagline !== undefined && t.tagline === undefined) t.tagline = u.tagline;
+        if (u.location !== undefined && t.location === undefined) t.location = u.location;
+        if (u.accentTheme !== undefined && t.accentTheme === undefined) t.accentTheme = u.accentTheme;
+        if (u.preferredMethods !== undefined && t.preferredMethods === undefined) {
+          t.preferredMethods = u.preferredMethods;
+        }
+        if (u.tradingHours !== undefined && t.tradingHours === undefined) {
+          t.tradingHours = u.tradingHours;
+        }
       }
     }
 
@@ -535,7 +606,7 @@ async function startServer() {
   getLivePrices().catch(() => undefined);
 
   const app = express();
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: '2mb' }));
 
   const httpServer = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
@@ -753,12 +824,14 @@ async function startServer() {
 
   // Zero-KYC Auth
   app.post('/api/auth/register', async (req, res) => {
-    const { username, password, confirmPassword, pgpKey, bio } = req.body as {
+    const { username, password, confirmPassword, pgpKey, bio, avatarUrl, tagline } = req.body as {
       username?: string;
       password?: string;
       confirmPassword?: string;
       pgpKey?: string;
       bio?: string;
+      avatarUrl?: string;
+      tagline?: string;
     };
     const cleanName = (username ?? '').trim();
     if (!/^[a-zA-Z0-9_]{3,24}$/.test(cleanName)) {
@@ -779,12 +852,19 @@ async function startServer() {
       return res.status(409).json({ error: 'That username is already taken.' });
     }
 
+    const safeAvatar = sanitizeImageField(avatarUrl);
+    const cleanTagline = (tagline ?? '').trim().slice(0, 90);
     const salt = crypto.randomBytes(16).toString('hex');
     const passwordHash = hashPassword(password, salt);
     const nowIso = new Date().toISOString();
     const user: StoredUser = {
       username: cleanName,
       bio: (bio ?? '').trim() || 'Privacy-focused P2P trader on OOSAB. Zero KYC.',
+      avatarUrl: safeAvatar || undefined,
+      tagline: cleanTagline || undefined,
+      accentTheme: 'emerald',
+      languages: ['English'],
+      preferredMethods: [],
       createdAt: nowIso,
       pgpKey: (pgpKey ?? '').trim() || generatePgpFingerprint(),
       recoveryPhrase: generateRecoveryPhrase(),
@@ -816,8 +896,13 @@ async function startServer() {
       languages: ['English'],
       pgpFingerprint: user.pgpKey.slice(0, 49),
       bio: user.bio,
+      avatarUrl: user.avatarUrl,
+      tagline: user.tagline,
+      accentTheme: 'emerald',
+      preferredMethods: [],
       volumeTier: 'Starter',
       recentFeedback: [],
+      tradeHistory: [],
     };
     db.trades[cleanName] = [];
     db.swaps[cleanName] = [];
@@ -865,19 +950,94 @@ async function startServer() {
   app.patch('/api/auth/profile', async (req, res) => {
     const user = getAuthUser(req);
     if (!user) return res.status(401).json({ error: 'Authentication required' });
-    const { bio, pgpKey } = req.body as { bio?: string; pgpKey?: string };
+    const {
+      bio,
+      pgpKey,
+      avatarUrl,
+      bannerUrl,
+      tagline,
+      location,
+      accentTheme,
+      languages,
+      preferredMethods,
+      tradingHours,
+    } = req.body as {
+      bio?: string;
+      pgpKey?: string;
+      avatarUrl?: string;
+      bannerUrl?: string;
+      tagline?: string;
+      location?: string;
+      accentTheme?: ProfileThemeId;
+      languages?: string[];
+      preferredMethods?: string[];
+      tradingHours?: string;
+    };
+
     if (typeof bio === 'string') {
-      user.bio = bio.trim().slice(0, 280);
+      user.bio = bio.trim().slice(0, 320);
     }
     if (typeof pgpKey === 'string' && pgpKey.trim()) {
       user.pgpKey = pgpKey.trim().slice(0, 120);
     }
-    if (db.traders[user.username]) {
-      db.traders[user.username].bio = user.bio;
-      db.traders[user.username].pgpFingerprint = user.pgpKey.slice(0, 49);
+    if (avatarUrl !== undefined) {
+      const safe = sanitizeImageField(avatarUrl);
+      if (safe === undefined) {
+        return res.status(400).json({ error: 'Invalid avatar image URL or format.' });
+      }
+      user.avatarUrl = safe || undefined;
     }
+    if (bannerUrl !== undefined) {
+      const safe = sanitizeImageField(bannerUrl);
+      if (safe === undefined) {
+        return res.status(400).json({ error: 'Invalid banner image URL or format.' });
+      }
+      user.bannerUrl = safe || undefined;
+    }
+    if (typeof tagline === 'string') {
+      user.tagline = tagline.trim().slice(0, 90) || undefined;
+    }
+    if (typeof location === 'string') {
+      user.location = location.trim().slice(0, 60) || undefined;
+    }
+    if (typeof tradingHours === 'string') {
+      user.tradingHours = tradingHours.trim().slice(0, 60) || undefined;
+    }
+    if (accentTheme && ALLOWED_PROFILE_THEMES.has(accentTheme)) {
+      user.accentTheme = accentTheme;
+    }
+    const cleanLangs = sanitizeStringArray(languages, 6, 24);
+    if (cleanLangs && cleanLangs.length > 0) {
+      user.languages = cleanLangs;
+    }
+    const cleanMethods = sanitizeStringArray(preferredMethods, 6, 36);
+    if (cleanMethods) {
+      user.preferredMethods = cleanMethods;
+    }
+
+    if (db.traders[user.username]) {
+      const t = db.traders[user.username];
+      t.bio = user.bio;
+      t.pgpFingerprint = user.pgpKey.slice(0, 49);
+      t.avatarUrl = user.avatarUrl;
+      t.bannerUrl = user.bannerUrl;
+      t.tagline = user.tagline;
+      t.location = user.location;
+      t.accentTheme = user.accentTheme;
+      t.tradingHours = user.tradingHours;
+      if (user.languages && user.languages.length > 0) t.languages = user.languages;
+      t.preferredMethods = user.preferredMethods ?? [];
+    }
+
+    const sanitized = sanitizeUser(user);
+    sendToUser(user.username, { type: 'user:updated', user: sanitized });
     await saveDb();
-    return res.json({ user: sanitizeUser(user), trader: db.traders[user.username] });
+    return res.json({
+      user: sanitized,
+      trader: db.traders[user.username]
+        ? buildTraderDetails(db.traders[user.username], db.offers)
+        : undefined,
+    });
   });
 
   app.patch('/api/auth/settings', async (req, res) => {

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { AppNotification, UserAccount } from '../types';
+import { TraderAvatar } from './TraderAvatar';
 
 export type AppTab = 'offers' | 'swap' | 'account' | 'profile';
 
@@ -338,13 +339,19 @@ export function Header({
                 type="button"
                 onClick={onViewMyProfile}
                 title={`View public profile /${user.username}`}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold whitespace-nowrap shrink-0 transition-colors ${
+                className={`flex items-center gap-2 rounded-lg border pl-2 pr-3 py-1.5 text-sm font-semibold whitespace-nowrap shrink-0 transition-colors ${
                   activeTab === 'profile'
                     ? 'border-[#0B3B2E] bg-[#EEF6F2] text-[#0B3B2E] dark:border-[#7FE85B] dark:bg-[#152B20] dark:text-[#7FE85B]'
                     : 'border-[#DCE2E1] bg-[#F8FAFA] text-[#111917] hover:bg-[#EEF2F1] dark:border-[#263130] dark:bg-[#182120] dark:text-[#EDF3F2] dark:hover:bg-[#1F2B2A]'
                 }`}
               >
-                <User className="h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                <TraderAvatar
+                  username={user.username}
+                  avatarUrl={user.avatarUrl}
+                  accentTheme={user.accentTheme}
+                  size={22}
+                  rounded="lg"
+                />
                 <span>/{user.username}</span>
               </button>
               <button

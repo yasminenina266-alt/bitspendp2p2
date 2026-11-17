@@ -52,6 +52,8 @@ export interface TraderTradeRecord {
   completedAt: string;
 }
 
+export type ProfileThemeId = 'emerald' | 'midnight' | 'amber' | 'violet' | 'slate';
+
 export interface TraderProfile {
   username: string;
   joinedAt: string;
@@ -63,6 +65,13 @@ export interface TraderProfile {
   languages: string[];
   pgpFingerprint: string;
   bio: string;
+  avatarUrl?: string;
+  bannerUrl?: string;
+  tagline?: string;
+  location?: string;
+  accentTheme?: ProfileThemeId;
+  preferredMethods?: string[];
+  tradingHours?: string;
   volumeTier: string;
   totalVolumeUsd?: number;
   completionRatePct?: number;
@@ -232,6 +241,14 @@ export interface UserSettings {
 export interface UserAccount {
   username: string;
   bio: string;
+  avatarUrl?: string;
+  bannerUrl?: string;
+  tagline?: string;
+  location?: string;
+  accentTheme?: ProfileThemeId;
+  languages?: string[];
+  preferredMethods?: string[];
+  tradingHours?: string;
   createdAt: string;
   pgpKey: string;
   recoveryPhrase: string;

@@ -5,6 +5,7 @@ import type {
   FiatCurrency,
   MarketPrices,
   P2POffer,
+  ProfileThemeId,
   SwapOrder,
   TradeOrder,
   TraderFeedback,
@@ -13,6 +14,19 @@ import type {
   UserAccount,
   VirtualCard,
 } from './types';
+
+export interface ProfileUpdatePayload {
+  bio?: string;
+  pgpKey?: string;
+  avatarUrl?: string;
+  bannerUrl?: string;
+  tagline?: string;
+  location?: string;
+  accentTheme?: ProfileThemeId;
+  languages?: string[];
+  preferredMethods?: string[];
+  tradingHours?: string;
+}
 
 export interface DirectoryUser {
   username: string;
@@ -149,6 +163,8 @@ export const api = {
     confirmPassword: string;
     pgpKey?: string;
     bio?: string;
+    avatarUrl?: string;
+    tagline?: string;
   }) =>
     apiFetch<{ token: string; user: UserAccount }>(
       '/api/auth/register',
@@ -171,7 +187,7 @@ export const api = {
 
   getMe: () => apiFetch<{ user: UserAccount }>('/api/auth/me', {}, () => localEngine.getMe()),
 
-  updateProfile: (payload: { bio?: string; pgpKey?: string }) =>
+  updateProfile: (payload: ProfileUpdatePayload) =>
     apiFetch<{ user: UserAccount; trader: TraderProfile }>(
       '/api/auth/profile',
       {

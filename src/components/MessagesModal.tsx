@@ -1,11 +1,13 @@
 import { MessageSquare, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { formatCrypto, formatFiat } from '../constants/market';
-import type { TradeOrder } from '../types';
+import type { TradeOrder, TraderProfile } from '../types';
 import { CoinIcon } from './CoinIcon';
+import { TraderAvatar } from './TraderAvatar';
 
 interface MessagesModalProps {
   trades: TradeOrder[];
+  traders?: Record<string, TraderProfile>;
   currentUsername: string;
   onlineUsers: string[];
   onClose: () => void;
@@ -24,6 +26,7 @@ export function getTradeUnreadCount(trade: TradeOrder, currentUsername?: string)
 
 export function MessagesModal({
   trades,
+  traders = {},
   currentUsername,
   onlineUsers,
   onClose,
@@ -124,6 +127,7 @@ export function MessagesModal({
                 trade.buyerUsername === currentUsername
                   ? trade.sellerUsername
                   : trade.buyerUsername;
+              const counterpartyTrader = traders[counterparty];
               const unread = getTradeUnreadCount(trade, currentUsername);
               const lastMsg = trade.messages[trade.messages.length - 1];
               const isOnline =
@@ -143,13 +147,26 @@ export function MessagesModal({
                   }`}
                 >
                   <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <div className="relative mt-0.5 shrink-0">
-                      <CoinIcon symbol={trade.crypto} size={28} />
-                      {isOnline && (
-                        <span
-                          title={`${counterparty} is online`}
-                          className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#16A34A] dark:border-[#131A1A] dark:bg-[#7FE85B]"
+                    <div className="mt-0.5 shrink-0">
+                      {counterpartyTrader ? (
+                        <TraderAvatar
+                          username={counterparty}
+                          avatarUrl={counterpartyTrader.avatarUrl}
+                          accentTheme={counterpartyTrader.accentTheme}
+                          size={34}
+                          rounded="xl"
+                          online={isOnline}
                         />
+                      ) : (
+                        <div className="relative">
+                          <CoinIcon symbol={trade.crypto} size={28} />
+                          {isOnline && (
+                            <span
+                              title={`${counterparty} is online`}
+                              className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#16A34A] dark:border-[#131A1A] dark:bg-[#7FE85B]"
+                            />
+                          )}
+                        </div>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">

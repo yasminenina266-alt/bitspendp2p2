@@ -30,11 +30,21 @@ import {
   formatFiat,
   type ChainId,
 } from '../constants/market';
-import type { CryptoAsset, FiatCurrency, MarketPrices, P2POffer, TradeOrder, UserAccount } from '../types';
+import type {
+  CryptoAsset,
+  FiatCurrency,
+  MarketPrices,
+  P2POffer,
+  TradeOrder,
+  TraderProfile,
+  UserAccount,
+} from '../types';
 import { notifyDiscordEvent } from '../utils/discordWebhook';
 import { ChainIcon, CoinIcon } from './CoinIcon';
 import { getTradeUnreadCount } from './MessagesModal';
 import { getOfferUnitPrice } from './OfferRow';
+import { ProfileEditorForm } from './ProfileEditorForm';
+import { TraderAvatar } from './TraderAvatar';
 
 interface AccountViewProps {
   user: UserAccount | null;
@@ -48,6 +58,7 @@ interface AccountViewProps {
   onViewOffer: (offer: P2POffer) => void;
   onOpenCreateOffer: () => void;
   onUserUpdated: (user: UserAccount) => void;
+  onProfileUpdated?: (trader: TraderProfile) => void;
   onOfferUpdated: (offer: P2POffer) => void;
   onOfferDeleted: (offerId: string) => void;
   onViewPublicProfile?: (username: string) => void;
@@ -65,6 +76,7 @@ export function AccountView({
   onViewOffer,
   onOpenCreateOffer,
   onUserUpdated,
+  onProfileUpdated,
   onOfferUpdated,
   onOfferDeleted,
   onViewPublicProfile,
@@ -77,11 +89,7 @@ export function AccountView({
     }
   }, [depositNotice]);
 
-  // Profile & Settings state
-  const [bioInput, setBioInput] = useState(user?.bio ?? '');
-  const [pgpInput, setPgpInput] = useState(user?.pgpKey ?? '');
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [profileSaved, setProfileSaved] = useState(false);
+  // Settings state
 
   const [preferredCurrency, setPreferredCurrency] = useState<FiatCurrency>(
     user?.settings?.preferredCurrency ?? 'USD'
@@ -153,20 +161,6 @@ export function AccountView({
   const totalUsdValue = CRYPTO_ASSETS.reduce((acc, c) => {
     return acc + (user.balances[c.symbol] ?? 0) * (prices.usdPrices[c.symbol] ?? 0);
   }, 0);
-
-  const handleSaveProfile = async (e: FormEvent) => {
-    e.preventDefault();
-    setSavingProfile(true);
-    setProfileSaved(false);
-    try {
-      const res = await api.updateProfile({ bio: bioInput, pgpKey: pgpInput });
-      onUserUpdated(res.user);
-      setProfileSaved(true);
-      setTimeout(() => setProfileSaved(false), 2500);
-    } finally {
-      setSavingProfile(false);
-    }
-  };
 
   const handleSaveSettings = async (e: FormEvent) => {
     e.preventDefault();
@@ -277,49 +271,58 @@ export function AccountView({
       {/* Header Portfolio Summary & Sub-Tabs */}
       <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-[#5C6665] dark:text-[#8E9B98]">
-              <span>OOSAB Account · {user.username}</span>
-              {onViewPublicProfile && (
+          <div className="flex items-center gap-3.5">
+            <TraderAvatar
+              username={user.username}
+              avatarUrl={user.avatarUrl}
+              accentTheme={user.accentTheme}
+              size={48}
+              rounded="xl"
+            />
+            <div>
+              <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-[#5C6665] dark:text-[#8E9B98]">
+                <span>OOSAB Account · {user.username}</span>
+                {onViewPublicProfile && (
+                  <button
+                    type="button"
+                    onClick={() => onViewPublicProfile(user.username)}
+                    className="inline-flex items-center gap-1 rounded-md border border-[#DCE2E1] bg-[#F8FAFA] px-2 py-0.5 font-mono text-[11px] font-semibold text-[#0B3B2E] hover:bg-[#EEF6F2] dark:border-[#263130] dark:bg-[#0F1515] dark:text-[#7FE85B] dark:hover:bg-[#16271F]"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    <span>/{user.username}</span>
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => onViewPublicProfile(user.username)}
-                  className="inline-flex items-center gap-1 rounded-md border border-[#DCE2E1] bg-[#F8FAFA] px-2 py-0.5 font-mono text-[11px] font-semibold text-[#0B3B2E] hover:bg-[#EEF6F2] dark:border-[#263130] dark:bg-[#0F1515] dark:text-[#7FE85B] dark:hover:bg-[#16271F]"
+                  onClick={async () => {
+                    try {
+                      const url = `${window.location.origin}/${encodeURIComponent(user.username)}`;
+                      await navigator.clipboard.writeText(url);
+                      setCopiedProfileLink(true);
+                      setTimeout(() => setCopiedProfileLink(false), 2000);
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md border border-[#DCE2E1] px-2 py-0.5 text-[11px] font-medium text-[#4B5554] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#A4B0AE] dark:hover:bg-[#1B2524]"
                 >
-                  <ExternalLink className="h-3 w-3" />
-                  <span>/{user.username}</span>
+                  {copiedProfileLink ? (
+                    <>
+                      <Check className="h-3 w-3 text-[#0D6832] dark:text-[#7FE85B]" />
+                      <span className="text-[#0D6832] dark:text-[#7FE85B]">Copied URL</span>
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="h-3 w-3" />
+                      <span>Copy Profile URL</span>
+                    </>
+                  )}
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    const url = `${window.location.origin}/${encodeURIComponent(user.username)}`;
-                    await navigator.clipboard.writeText(url);
-                    setCopiedProfileLink(true);
-                    setTimeout(() => setCopiedProfileLink(false), 2000);
-                  } catch {
-                    // ignore
-                  }
-                }}
-                className="inline-flex items-center gap-1 rounded-md border border-[#DCE2E1] px-2 py-0.5 text-[11px] font-medium text-[#4B5554] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#A4B0AE] dark:hover:bg-[#1B2524]"
-              >
-                {copiedProfileLink ? (
-                  <>
-                    <Check className="h-3 w-3 text-[#0D6832] dark:text-[#7FE85B]" />
-                    <span className="text-[#0D6832] dark:text-[#7FE85B]">Copied URL</span>
-                  </>
-                ) : (
-                  <>
-                    <Link2 className="h-3 w-3" />
-                    <span>Copy Profile URL</span>
-                  </>
-                )}
-              </button>
-            </div>
-            <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-[#0E1715] sm:text-3xl dark:text-white">
-              ${totalUsdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-              <span className="text-sm font-normal text-[#5C6665]">USD total</span>
+              </div>
+              <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-[#0E1715] sm:text-3xl dark:text-white">
+                ${totalUsdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                <span className="text-sm font-normal text-[#5C6665]">USD total</span>
+              </div>
             </div>
           </div>
 
@@ -768,25 +771,58 @@ export function AccountView({
         </div>
       )}
 
-      {/* TAB 3: User Profile & Settings */}
+      {/* TAB 3: User Profile Personalization & Account Settings */}
       {subTab === 'settings' && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          {/* Left: Account Settings & Security */}
-          <form
-            onSubmit={handleSaveSettings}
-            className="space-y-5 rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 lg:col-span-7 dark:border-[#202B2A] dark:bg-[#131A1A]"
-          >
-            <div className="flex items-center gap-2.5 border-b border-[#ECEFEF] pb-4 dark:border-[#202B2A]">
-              <Shield className="h-5 w-5 shrink-0 text-[#0B3B2E] dark:text-[#7FE85B]" />
+          {/* Left: Public Profile Personalization & Avatar */}
+          <div className="space-y-4 rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 lg:col-span-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ECEFEF] pb-3.5 dark:border-[#202B2A]">
               <div>
                 <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
-                  Account &amp; Privacy Settings
+                  Public Profile &amp; Media
                 </h2>
                 <p className="text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                  Configure defaults, anonymity preferences, and credentials
+                  Customize your avatar photo, cover image, headline, theme, and preferred payment methods
                 </p>
               </div>
+              {onViewPublicProfile && (
+                <button
+                  type="button"
+                  onClick={() => onViewPublicProfile(user.username)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#DCE2E1] px-2.5 py-1.5 text-xs font-semibold text-[#0B3B2E] hover:bg-[#EEF6F2] dark:border-[#263130] dark:text-[#7FE85B] dark:hover:bg-[#152B20]"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>View /{user.username}</span>
+                </button>
+              )}
             </div>
+            <ProfileEditorForm
+              user={user}
+              compact
+              onSaved={(updatedUser, updatedTrader) => {
+                onUserUpdated(updatedUser);
+                if (updatedTrader) onProfileUpdated?.(updatedTrader);
+              }}
+            />
+          </div>
+
+          {/* Right: Account Security Settings & Recovery Seed */}
+          <div className="space-y-6 lg:col-span-6">
+            <form
+              onSubmit={handleSaveSettings}
+              className="space-y-5 rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]"
+            >
+              <div className="flex items-center gap-2.5 border-b border-[#ECEFEF] pb-4 dark:border-[#202B2A]">
+                <Shield className="h-5 w-5 shrink-0 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                <div>
+                  <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
+                    Account &amp; Privacy Settings
+                  </h2>
+                  <p className="text-xs text-[#5C6665] dark:text-[#98A4A2]">
+                    Configure defaults, anonymity preferences, and credentials
+                  </p>
+                </div>
+              </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
@@ -914,58 +950,6 @@ export function AccountView({
                 {savingSettings ? 'Saving...' : 'Save Settings'}
               </button>
             </div>
-          </form>
-
-          {/* Right: Public Trader Bio & Recovery Seed */}
-          <div className="space-y-6 lg:col-span-5">
-            <form
-              onSubmit={handleSaveProfile}
-              className="space-y-4 rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]"
-            >
-              <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
-                Public Trader Bio &amp; PGP
-              </h2>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
-                  Bio
-                </label>
-                <textarea
-                  rows={3}
-                  value={bioInput}
-                  onChange={(e) => setBioInput(e.target.value)}
-                  className="w-full rounded-xl border border-[#DCE2E1] bg-white p-3 text-sm text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
-                  PGP Fingerprint
-                </label>
-                <input
-                  type="text"
-                  value={pgpInput}
-                  onChange={(e) => setPgpInput(e.target.value)}
-                  className="h-10 w-full rounded-xl border border-[#DCE2E1] bg-white px-3 font-mono text-xs text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                {profileSaved ? (
-                  <span className="text-xs font-semibold text-[#0D6832] dark:text-[#7FE85B]">
-                    Profile updated
-                  </span>
-                ) : (
-                  <span />
-                )}
-                <button
-                  type="submit"
-                  disabled={savingProfile}
-                  className="min-h-[44px] w-full rounded-xl bg-[#0B3B2E] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#082B21] sm:w-auto dark:bg-[#E8EFEA] dark:text-[#082213]"
-                >
-                  {savingProfile ? 'Saving...' : 'Update Bio'}
-                </button>
-              </div>
             </form>
 
             <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">

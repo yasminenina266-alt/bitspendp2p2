@@ -27,6 +27,7 @@ import type {
 } from '../types';
 import { ChainIcon, CoinIcon } from './CoinIcon';
 import { getOfferUnitPrice } from './OfferRow';
+import { TraderAvatar } from './TraderAvatar';
 
 interface TradeModalProps {
   offer?: P2POffer;
@@ -235,17 +236,24 @@ export function TradeModal({
                       : `Sell ${offer.crypto} via ${offer.paymentMethod}`}
                 </h2>
                 <p className="flex flex-wrap items-center gap-1.5 text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                  <span>
-                    Offer by{' '}
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>Offer by</span>
                     <button
                       type="button"
                       onClick={() => {
                         onClose();
                         onSelectTrader?.(offer.traderUsername);
                       }}
-                      className="font-semibold text-[#0E1715] hover:underline dark:text-white"
+                      className="inline-flex items-center gap-1.5 font-semibold text-[#0E1715] hover:underline dark:text-white"
                     >
-                      /{offer.traderUsername}
+                      <TraderAvatar
+                        username={offer.traderUsername}
+                        avatarUrl={trader?.avatarUrl}
+                        accentTheme={trader?.accentTheme}
+                        size={18}
+                        rounded="lg"
+                      />
+                      <span>/{offer.traderUsername}</span>
                     </button>{' '}
                     · {trader?.ratingPct ?? 100}% Trust ({trader?.tradesCount ?? 0} trades) ·{' '}
                     {offer.paymentWindowMinutes}m escrow
@@ -658,7 +666,19 @@ export function TradeModal({
         {/* Top Bar */}
         <div className="flex items-start justify-between gap-3 border-b border-[#ECEFEF] px-4 py-3.5 sm:items-center sm:px-6 sm:py-4 dark:border-[#202B2A]">
           <div className="flex min-w-0 items-center gap-3">
-            <CoinIcon symbol={trade.crypto} size={28} />
+            <div className="relative shrink-0">
+              <TraderAvatar
+                username={counterparty}
+                avatarUrl={trader?.avatarUrl}
+                accentTheme={trader?.accentTheme}
+                size={36}
+                online={counterpartyOnline}
+                rounded="xl"
+              />
+              <span className="absolute -bottom-1 -left-1 rounded-full bg-white p-0.5 shadow-sm dark:bg-[#131A1A]">
+                <CoinIcon symbol={trade.crypto} size={14} />
+              </span>
+            </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <h2 className="font-display text-base font-bold text-[#0E1715] sm:text-lg dark:text-white">

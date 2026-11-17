@@ -1,23 +1,31 @@
 import {
   ArrowLeft,
+  CalendarClock,
+  Camera,
   Check,
   CheckCircle2,
   Clock,
   Copy,
   KeyRound,
   Link2,
+  MapPin,
+  Pencil,
   Plus,
   Settings,
   Star,
   ThumbsDown,
   ThumbsUp,
+  X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { CHAIN_OPTIONS, formatCrypto, formatFiat } from '../constants/market';
-import type { MarketPrices, P2POffer, TraderProfile } from '../types';
+import type { MarketPrices, P2POffer, TraderProfile, UserAccount } from '../types';
+import { PROFILE_THEMES, isSafeImageUrl } from '../utils/profileMedia';
 import { ChainIcon, CoinIcon } from './CoinIcon';
 import { getOfferUnitPrice } from './OfferRow';
+import { ProfileEditorForm } from './ProfileEditorForm';
+import { TraderAvatar } from './TraderAvatar';
 
 interface ProfileViewProps {
   username: string;
@@ -25,6 +33,7 @@ interface ProfileViewProps {
   offers: P2POffer[];
   prices: MarketPrices;
   currentUsername?: string;
+  currentUser?: UserAccount | null;
   onlineUsers?: string[];
   refreshKey?: number;
   onBackToMarketplace: () => void;
@@ -32,6 +41,7 @@ interface ProfileViewProps {
   onOpenAccountSettings: () => void;
   onOpenCreateOffer: () => void;
   onTraderLoaded?: (trader: TraderProfile) => void;
+  onUserUpdated?: (user: UserAccount) => void;
 }
 
 export function ProfileView({
@@ -40,6 +50,7 @@ export function ProfileView({
   offers,
   prices,
   currentUsername,
+  currentUser,
   onlineUsers = [],
   refreshKey = 0,
   onBackToMarketplace,
@@ -47,6 +58,7 @@ export function ProfileView({
   onOpenAccountSettings,
   onOpenCreateOffer,
   onTraderLoaded,
+  onUserUpdated,
 }: ProfileViewProps) {
   const [trader, setTrader] = useState<TraderProfile | null>(initialTrader ?? null);
   const [traderOffers, setTraderOffers] = useState<P2POffer[]>([]);
@@ -60,6 +72,12 @@ export function ProfileView({
   const [loadingMoreFeedback, setLoadingMoreFeedback] = useState(false);
   const [copiedProfileUrl, setCopiedProfileUrl] = useState(false);
   const [copiedOfferId, setCopiedOfferId] = useState<string | null>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [bannerError, setBannerError] = useState(false);
+
+  useEffect(() => {
+    setBannerError(false);
+  }, [trader?.bannerUrl]);
 
   useEffect(() => {
     let mounted = true;
@@ -245,13 +263,23 @@ export function ProfileView({
 
           {isOwnProfile && (
             <>
+              {currentUser && (
+                <button
+                  type="button"
+                  onClick={() => setEditingProfile(true)}
+                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-[#0B3B2E] bg-[#EEF6F2] px-3.5 py-2 text-xs font-semibold text-[#0B3B2E] hover:bg-[#DFF0E6] dark:border-[#7FE85B]/50 dark:bg-[#152B20] dark:text-[#7FE85B] dark:hover:bg-[#1B3729]"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span>Customize Profile</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onOpenAccountSettings}
                 className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-[#DCE2E1] bg-white px-3.5 py-2 text-xs font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3] dark:hover:bg-[#1B2423]"
               >
                 <Settings className="h-3.5 w-3.5" />
-                <span>Edit Profile &amp; Wallet</span>
+                <span>Wallet &amp; Settings</span>
               </button>
               <button
                 type="button"
@@ -266,55 +294,120 @@ export function ProfileView({
         </div>
       </div>
 
-      {/* Main Profile Header Card */}
-      <div className="rounded-2xl border border-[#E3E7E7] bg-white p-5 sm:p-7 dark:border-[#202B2A] dark:bg-[#131A1A]">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#0B3B2E] font-display text-xl font-bold uppercase text-[#7FE85B] dark:bg-[#163427]">
-              {trader.username.slice(0, 2)}
+      {/* Main Profile Header Card with Cover Banner + Avatar */}
+      {(() => {
+        const themeCfg = PROFILE_THEMES[trader.accentTheme ?? 'emerald'] ?? PROFILE_THEMES.emerald;
+        const showBanner = !bannerError && isSafeImageUrl(trader.bannerUrl);
+        return (
+          <div className="overflow-hidden rounded-2xl border border-[#E3E7E7] bg-white dark:border-[#202B2A] dark:bg-[#131A1A]">
+            {/* Cover Banner */}
+            <div className={`relative h-32 w-full sm:h-40 bg-gradient-to-r ${themeCfg.bannerGradient}`}>
+              {showBanner && (
+                <img
+                  src={trader.bannerUrl}
+                  alt={`${trader.username} banner`}
+                  onError={() => setBannerError(true)}
+                  className="h-full w-full object-cover"
+                />
+              )}
+              {isOwnProfile && currentUser && (
+                <button
+                  type="button"
+                  onClick={() => setEditingProfile(true)}
+                  className="absolute right-4 top-3 inline-flex items-center gap-1.5 rounded-lg bg-black/50 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-xs hover:bg-black/70"
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                  <span>Edit Cover &amp; Photo</span>
+                </button>
+              )}
             </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="font-display text-2xl font-bold tracking-tight text-[#0E1715] sm:text-3xl dark:text-white">
-                  {trader.username}
-                </h1>
-                {trader.verified && (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#0D6832] dark:text-[#7FE85B]">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span>Verified High-Volume</span>
-                  </span>
-                )}
-                {isOwnProfile && (
-                  <span className="text-xs font-semibold text-[#0B3B2E] dark:text-[#7FE85B]">
-                    · Your Public Profile
-                  </span>
-                )}
-              </div>
 
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                <span className="inline-flex items-center gap-1.5 font-medium">
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      isLiveOnline ? 'bg-[#16A34A] dark:bg-[#7FE85B]' : 'bg-[#9CA8A6]'
-                    }`}
-                  />
-                  <span>
-                    {isLiveOnline
-                      ? 'Online now'
-                      : `Last seen ${trader.lastSeenMinutes}m ago`}
-                  </span>
-                </span>
-                <span>· Joined {trader.joinedAt}</span>
-                <span>· Languages: {trader.languages.join(', ')}</span>
-                {isRegisteredUser && <span>· Member Account</span>}
-              </div>
+            <div className="p-5 sm:p-7">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <div className="-mt-14 relative self-start rounded-2xl ring-4 ring-white dark:ring-[#131A1A] sm:-mt-16">
+                    <TraderAvatar
+                      username={trader.username}
+                      avatarUrl={trader.avatarUrl}
+                      accentTheme={trader.accentTheme}
+                      size={88}
+                      rounded="2xl"
+                      online={isLiveOnline}
+                    />
+                    {isOwnProfile && currentUser && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingProfile(true)}
+                        title="Change profile image"
+                        className="absolute -bottom-1.5 -right-1.5 flex h-8 w-8 items-center justify-center rounded-full border border-[#DCE2E1] bg-white text-[#0B3B2E] shadow-xs hover:bg-[#EEF6F2] dark:border-[#2A3735] dark:bg-[#172120] dark:text-[#7FE85B]"
+                      >
+                        <Camera className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
 
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#2D3635] dark:text-[#D1DCDA]">
-                {trader.bio}
-              </p>
-            </div>
-          </div>
-        </div>
+                  <div className="min-w-0 pt-0.5">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h1 className="font-display text-2xl font-bold tracking-tight text-[#0E1715] sm:text-3xl dark:text-white">
+                        {trader.username}
+                      </h1>
+                      {trader.verified && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#0D6832] dark:text-[#7FE85B]">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span>Verified High-Volume</span>
+                        </span>
+                      )}
+                      {isOwnProfile && (
+                        <span className="text-xs font-semibold text-[#0B3B2E] dark:text-[#7FE85B]">
+                          · Your Public Profile
+                        </span>
+                      )}
+                    </div>
+
+                    {trader.tagline && (
+                      <p className="mt-1 text-sm font-medium text-[#0B3B2E] dark:text-[#7FE85B]">
+                        {trader.tagline}
+                      </p>
+                    )}
+
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#5C6665] dark:text-[#98A4A2]">
+                      <span className="font-medium text-[#1E2726] dark:text-[#DCE4E3]">
+                        {isLiveOnline
+                          ? 'Online now'
+                          : `Last seen ${trader.lastSeenMinutes}m ago`}
+                      </span>
+                      <span>· Joined {trader.joinedAt}</span>
+                      <span>· Languages: {trader.languages.join(', ')}</span>
+                      {trader.location && (
+                        <span className="inline-flex items-center gap-1">
+                          · <MapPin className="h-3.5 w-3.5" />
+                          <span>{trader.location}</span>
+                        </span>
+                      )}
+                      {trader.tradingHours && (
+                        <span className="inline-flex items-center gap-1">
+                          · <CalendarClock className="h-3.5 w-3.5" />
+                          <span>{trader.tradingHours}</span>
+                        </span>
+                      )}
+                      {isRegisteredUser && <span>· Member Account</span>}
+                    </div>
+
+                    <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#2D3635] dark:text-[#D1DCDA]">
+                      {trader.bio}
+                    </p>
+
+                    {trader.preferredMethods && trader.preferredMethods.length > 0 && (
+                      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#4F5A58] dark:text-[#98A4A2]">
+                        <span className="font-semibold text-[#0E1715] dark:text-white">
+                          Preferred Payment Rails:
+                        </span>
+                        <span>{trader.preferredMethods.join(' · ')}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
         {/* Key Stats Row */}
         <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-5 sm:gap-3">
@@ -366,7 +459,10 @@ export function ProfileView({
             </span>
           </div>
         </div>
-      </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Tabs Card: Active Offers | Trade History | Feedback */}
       <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
@@ -619,6 +715,44 @@ export function ProfileView({
           </div>
         )}
       </div>
+
+      {/* Inline Profile Customization Modal */}
+      {editingProfile && currentUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 backdrop-blur-[2px] sm:p-4">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-4 shadow-xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
+            <div className="mb-4 flex items-center justify-between border-b border-[#ECEFEF] pb-3.5 dark:border-[#202B2A]">
+              <div>
+                <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
+                  Customize Your Public Profile
+                </h2>
+                <p className="text-xs text-[#5C6665] dark:text-[#98A4A2]">
+                  Add a profile photo, cover banner, headline, theme, and preferred payment methods
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingProfile(false)}
+                aria-label="Close profile editor"
+                className="rounded-lg p-1.5 text-[#5C6665] hover:bg-[#F1F4F3] dark:text-[#98A4A2] dark:hover:bg-[#1E2927]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <ProfileEditorForm
+              user={currentUser}
+              onSaved={(updatedUser, updatedTrader) => {
+                onUserUpdated?.(updatedUser);
+                if (updatedTrader) {
+                  setTrader(updatedTrader);
+                  onTraderLoaded?.(updatedTrader);
+                }
+                setEditingProfile(false);
+              }}
+              onCancel={() => setEditingProfile(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

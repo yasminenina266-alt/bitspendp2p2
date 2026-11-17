@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { CHAIN_OPTIONS, formatCrypto, formatFiat } from '../constants/market';
 import type { MarketPrices, P2POffer, TraderProfile } from '../types';
 import { ChainIcon, CoinIcon } from './CoinIcon';
+import { TraderAvatar } from './TraderAvatar';
 
 interface OfferRowProps {
   offer: P2POffer;
@@ -123,22 +124,38 @@ export function OfferRow({
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1.15fr_1.15fr_0.9fr_1.35fr] lg:items-center lg:gap-5">
         {/* Column 1: Trader Profile & Conditions */}
         <div className="min-w-0 space-y-1.5 border-b border-[#F0F3F3] pb-3 lg:border-b-0 lg:pb-0 dark:border-[#1E2726]">
-          <div className="flex items-center justify-between gap-2 lg:flex-wrap lg:justify-start">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={() => onSelectTrader(offer.traderUsername)}
-              className="truncate text-left text-base font-bold text-[#0E1715] hover:text-[#0B3B2E] hover:underline dark:text-[#F1F5F4] dark:hover:text-[#7FE85B]"
+              className="shrink-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B3B2E]"
+              aria-label={`View ${offer.traderUsername} profile`}
             >
-              {offer.traderUsername}
+              <TraderAvatar
+                username={offer.traderUsername}
+                avatarUrl={trader?.avatarUrl}
+                accentTheme={trader?.accentTheme}
+                size={36}
+                rounded="xl"
+              />
             </button>
-            <span className="shrink-0 text-xs text-[#64706E] dark:text-[#8E9B98]">
-              {trader?.lastSeenMinutes === 0
-                ? 'Active now'
-                : trader
-                  ? `Seen ${trader.lastSeenMinutes}m ago`
-                  : 'Active'}
-            </span>
-          </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2 lg:flex-wrap lg:justify-start">
+                <button
+                  type="button"
+                  onClick={() => onSelectTrader(offer.traderUsername)}
+                  className="truncate text-left text-base font-bold text-[#0E1715] hover:text-[#0B3B2E] hover:underline dark:text-[#F1F5F4] dark:hover:text-[#7FE85B]"
+                >
+                  {offer.traderUsername}
+                </button>
+                <span className="shrink-0 text-xs text-[#64706E] dark:text-[#8E9B98]">
+                  {trader?.lastSeenMinutes === 0
+                    ? 'Active now'
+                    : trader
+                      ? `Seen ${trader.lastSeenMinutes}m ago`
+                      : 'Active'}
+                </span>
+              </div>
 
           <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#4F5A58] dark:text-[#98A4A2] tabular-nums">
             <Star className="h-3.5 w-3.5 fill-[#16A34A] text-[#16A34A] dark:fill-[#7FE85B] dark:text-[#7FE85B]" />
@@ -159,6 +176,8 @@ export function OfferRow({
                 <span className="font-medium text-amber-700 dark:text-amber-400">Paused</span>
               </>
             )}
+          </div>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-0.5">
