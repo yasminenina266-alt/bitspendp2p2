@@ -12,7 +12,7 @@ import { OfferRow, getOfferUnitPrice } from './components/OfferRow';
 import { ProfileView } from './components/ProfileView';
 import { SecretCreditModal } from './components/SecretCreditModal';
 import { TradeModal } from './components/TradeModal';
-import { CRYPTO_ASSETS } from './constants/market';
+import { CRYPTO_ASSETS, DEFAULT_FIAT_RATES } from './constants/market';
 import { useRealtime } from './hooks/useRealtime';
 import type {
   AppNotification,
@@ -51,24 +51,7 @@ const FALLBACK_PRICES: MarketPrices = {
     SOL: 214.5,
     USDC: 1,
   },
-  fiatRatesFromUsd: {
-    USD: 1,
-    EUR: 0.925,
-    GBP: 0.788,
-    BHD: 0.376,
-    IDR: 15850,
-    CAD: 1.395,
-    AUD: 1.535,
-    CHF: 0.882,
-    SGD: 1.338,
-    AED: 3.6725,
-    JPY: 154.2,
-    BRL: 5.76,
-    INR: 84.4,
-    NGN: 1665,
-    TRY: 34.4,
-    MXN: 20.35,
-  },
+  fiatRatesFromUsd: { ...DEFAULT_FIAT_RATES },
   changes24h: {
     BTC: 2.1,
     XMR: 3.4,
@@ -591,7 +574,13 @@ export default function App() {
         if (filters.fiat !== 'ALL' && offer.fiat !== filters.fiat) return false;
         if (filters.country !== 'ALL' && offer.country !== filters.country) return false;
       }
-      if (pmQuery && !offer.paymentMethod.toLowerCase().includes(pmQuery)) return false;
+      if (
+        pmQuery &&
+        !offer.paymentMethod.toLowerCase().includes(pmQuery) &&
+        !offer.paymentCategory.toLowerCase().includes(pmQuery)
+      ) {
+        return false;
+      }
       if (!matchesSearchQuery(offer, filters.searchQuery)) return false;
       if (parsedAmount !== null) {
         if (offer.side === 'swap_crypto' && offer.swapToCrypto) {

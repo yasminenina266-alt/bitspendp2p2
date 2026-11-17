@@ -18,7 +18,36 @@ export type FiatCurrency =
   | 'INR'
   | 'NGN'
   | 'TRY'
-  | 'MXN';
+  | 'MXN'
+  | 'ZAR'
+  | 'KES'
+  | 'GHS'
+  | 'EGP'
+  | 'MAD'
+  | 'PHP'
+  | 'THB'
+  | 'VND'
+  | 'MYR'
+  | 'PKR'
+  | 'BDT'
+  | 'KRW'
+  | 'HKD'
+  | 'TWD'
+  | 'NZD'
+  | 'PLN'
+  | 'SEK'
+  | 'NOK'
+  | 'DKK'
+  | 'CZK'
+  | 'HUF'
+  | 'RON'
+  | 'ARS'
+  | 'COP'
+  | 'CLP'
+  | 'PEN'
+  | 'SAR'
+  | 'QAR'
+  | 'KWD';
 
 export type OfferSide = 'sell_crypto' | 'buy_crypto' | 'swap_crypto';
 
@@ -93,6 +122,7 @@ export interface P2POffer {
   paymentMethod: string;
   paymentCategory:
     | 'Gift Cards'
+    | 'Debit & Virtual Cards'
     | 'Bank & Wire'
     | 'Online Wallets'
     | 'Cash & In-Person'

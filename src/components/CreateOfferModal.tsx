@@ -36,6 +36,7 @@ import type {
 } from '../types';
 import { notifyDiscordEvent } from '../utils/discordWebhook';
 import { ChainIcon, CoinIcon } from './CoinIcon';
+import { PaymentMethodPicker } from './PaymentMethodPicker';
 
 interface CreateOfferModalProps {
   prices: MarketPrices;
@@ -905,19 +906,12 @@ export function CreateOfferModal({
               <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
-                    Payment Method
+                    Payment Method ({PAYMENT_METHODS.length}+ options)
                   </label>
-                  <select
+                  <PaymentMethodPicker
                     value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3 text-sm font-medium text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
-                  >
-                    {PAYMENT_METHODS.map((pm) => (
-                      <option key={pm.name} value={pm.name}>
-                        {pm.name} ({pm.category})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setPaymentMethod}
+                  />
                 </div>
 
                 <div>

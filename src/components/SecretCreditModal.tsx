@@ -763,10 +763,22 @@ export function SecretCreditModal({
                     onChange={(e) => setRecMethod(e.target.value)}
                     className="h-9 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
                   >
-                    {PAYMENT_METHODS.map((pm) => (
-                      <option key={pm.name} value={pm.name}>
-                        {pm.name}
-                      </option>
+                    {(
+                      [
+                        'Bank & Wire',
+                        'Debit & Virtual Cards',
+                        'Gift Cards',
+                        'Online Wallets',
+                        'Cash & In-Person',
+                      ] as const
+                    ).map((cat) => (
+                      <optgroup key={cat} label={cat}>
+                        {PAYMENT_METHODS.filter((pm) => pm.category === cat).map((pm) => (
+                          <option key={pm.name} value={pm.name}>
+                            {pm.name}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                   <input

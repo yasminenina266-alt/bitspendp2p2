@@ -19,7 +19,22 @@ interface ProfileEditorFormProps {
   compact?: boolean;
 }
 
-const POPULAR_RAILS = PAYMENT_METHODS.slice(0, 14).map((m) => m.name);
+const POPULAR_RAILS = [
+  'Bank Transfer',
+  'SEPA Instant',
+  'Zelle',
+  'Wise',
+  'Revolut',
+  'PayPal',
+  'Apple Pay',
+  'Virtual Visa Card',
+  'Amazon Gift Card',
+  'Steam Gift Card',
+  'M-Pesa',
+  'PIX',
+  'UPI',
+  'GCash',
+];
 
 export function ProfileEditorForm({
   user,
@@ -41,6 +56,7 @@ export function ProfileEditorForm({
   );
   const [bio, setBio] = useState(user.bio ?? '');
   const [pgpKey, setPgpKey] = useState(user.pgpKey ?? '');
+  const [methodSearch, setMethodSearch] = useState('');
 
   const [busyAvatar, setBusyAvatar] = useState(false);
   const [busyBanner, setBusyBanner] = useState(false);
@@ -459,8 +475,27 @@ export function ProfileEditorForm({
         <label className="mb-1.5 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
           Preferred Payment Methods ({preferredMethods.length}/6)
         </label>
-        <div className="flex flex-wrap gap-1.5">
-          {POPULAR_RAILS.map((pm) => {
+        <input
+          type="text"
+          value={methodSearch}
+          onChange={(e) => setMethodSearch(e.target.value)}
+          placeholder={`Search ${PAYMENT_METHODS.length}+ methods (e.g. Virtual Visa, M-Pesa, Steam, BLIK)...`}
+          className="mb-2 h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-3 text-xs text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+        />
+        <div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto pr-1">
+          {(methodSearch.trim()
+            ? PAYMENT_METHODS.filter((m) => {
+                const q = methodSearch.trim().toLowerCase();
+                return (
+                  m.name.toLowerCase().includes(q) ||
+                  m.category.toLowerCase().includes(q) ||
+                  (m.region ?? '').toLowerCase().includes(q)
+                );
+              })
+                .slice(0, 24)
+                .map((m) => m.name)
+            : Array.from(new Set([...preferredMethods, ...POPULAR_RAILS]))
+          ).map((pm) => {
             const active = preferredMethods.includes(pm);
             return (
               <button

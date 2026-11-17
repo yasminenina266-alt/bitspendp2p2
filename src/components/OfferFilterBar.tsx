@@ -6,6 +6,7 @@ import {
   FIAT_CURRENCIES,
   OFFER_TAGS,
   PAYMENT_METHODS,
+  type PaymentMethodCategory,
 } from '../constants/market';
 import type { CryptoAsset, FiatCurrency, MarketPrices, OfferTag } from '../types';
 import { CoinIcon } from './CoinIcon';
@@ -33,6 +34,7 @@ interface OfferFilterBarProps {
 
 export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilterBarProps) {
   const [openMenu, setOpenMenu] = useState<'crypto' | 'payment' | 'advanced' | 'tags' | null>(null);
+  const [paymentTab, setPaymentTab] = useState<'ALL' | PaymentMethodCategory>('ALL');
   const barRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,9 +49,17 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
 
   const selectedCryptoMeta = CRYPTO_ASSETS.find((c) => c.symbol === filters.crypto);
 
-  const filteredPayments = PAYMENT_METHODS.filter((pm) =>
-    pm.name.toLowerCase().includes(filters.paymentMethod.trim().toLowerCase())
-  );
+  const paymentQuery = filters.paymentMethod.trim().toLowerCase();
+  const filteredPayments = PAYMENT_METHODS.filter((pm) => {
+    if (paymentTab !== 'ALL' && pm.category !== paymentTab) return false;
+    if (!paymentQuery) return true;
+    return (
+      pm.name.toLowerCase().includes(paymentQuery) ||
+      pm.category.toLowerCase().includes(paymentQuery) ||
+      pm.group.toLowerCase().includes(paymentQuery) ||
+      (pm.region ?? '').toLowerCase().includes(paymentQuery)
+    );
+  });
 
   const toggleTag = (tag: OfferTag) => {
     const exists = filters.selectedTags.includes(tag);
@@ -223,7 +233,7 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
                 onChange({ ...filters, paymentMethod: e.target.value });
                 setOpenMenu('payment');
               }}
-              placeholder="Search 30+ Payment Methods"
+              placeholder="Search 300+ Payment Methods"
               className="w-full bg-transparent text-sm text-[#111917] placeholder-[#7B8684] focus:outline-none dark:text-[#EDF3F2] dark:placeholder-[#71807D]"
             />
             {filters.paymentMethod ? (
@@ -241,30 +251,77 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
           </div>
 
           {openMenu === 'payment' && (
-            <div className="absolute left-0 top-12 z-30 max-h-72 w-full overflow-y-auto rounded-xl border border-[#DCE2E1] bg-white p-2 shadow-lg sm:w-80 dark:border-[#263130] dark:bg-[#151D1C]">
-              <div className="px-2 py-1 text-xs font-semibold text-[#6C7775]">
-                Popular payment methods
-              </div>
-              {filteredPayments.length === 0 ? (
-                <div className="px-3 py-3 text-xs text-[#6C7775]">
-                  No matching methods. Press Esc or clear to view all.
+            <div className="absolute left-0 top-12 z-30 w-full overflow-hidden rounded-xl border border-[#DCE2E1] bg-white shadow-lg sm:w-96 dark:border-[#263130] dark:bg-[#151D1C]">
+              <div className="border-b border-[#ECEFEF] p-2 dark:border-[#202B2A]">
+                <div className="flex items-center justify-between px-1 pb-1.5 text-[11px] font-semibold text-[#6C7775]">
+                  <span>{filteredPayments.length} payment methods</span>
+                  {filters.paymentMethod && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChange({ ...filters, paymentMethod: '' });
+                        setOpenMenu(null);
+                      }}
+                      className="text-[#0B3B2E] hover:underline dark:text-[#7FE85B]"
+                    >
+                      Show all
+                    </button>
+                  )}
                 </div>
-              ) : (
-                filteredPayments.map((pm) => (
-                  <button
-                    key={pm.name}
-                    type="button"
-                    onClick={() => {
-                      onChange({ ...filters, paymentMethod: pm.name });
-                      setOpenMenu(null);
-                    }}
-                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-[#1E2726] hover:bg-[#F5F7F7] dark:text-[#DCE4E3] dark:hover:bg-[#1C2625]"
-                  >
-                    <span>{pm.name}</span>
-                    <span className="text-xs text-[#7B8684]">{pm.category}</span>
-                  </button>
-                ))
-              )}
+                <div className="flex flex-wrap gap-1">
+                  {(
+                    [
+                      ['ALL', 'All'],
+                      ['Gift Cards', 'Gift Cards'],
+                      ['Debit & Virtual Cards', 'Cards'],
+                      ['Bank & Wire', 'Bank'],
+                      ['Online Wallets', 'Wallets'],
+                      ['Cash & In-Person', 'Cash'],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setPaymentTab(key)}
+                      className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
+                        paymentTab === key
+                          ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
+                          : 'bg-[#F2F5F4] text-[#4B5554] hover:bg-[#E7ECEB] dark:bg-[#1C2625] dark:text-[#98A4A2]'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="max-h-72 overflow-y-auto p-1.5">
+                {filteredPayments.length === 0 ? (
+                  <div className="px-3 py-4 text-center text-xs text-[#6C7775]">
+                    No matching methods. Try searching a country, gift card, or virtual card.
+                  </div>
+                ) : (
+                  filteredPayments.map((pm) => (
+                    <button
+                      key={pm.name}
+                      type="button"
+                      onClick={() => {
+                        onChange({ ...filters, paymentMethod: pm.name });
+                        setOpenMenu(null);
+                      }}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-[#1E2726] hover:bg-[#F5F7F7] dark:text-[#DCE4E3] dark:hover:bg-[#1C2625]"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{pm.name}</div>
+                        <div className="truncate text-[11px] text-[#7B8684]">
+                          {pm.group}
+                          {pm.region ? ` · ${pm.region}` : ''}
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-[11px] text-[#7B8684]">{pm.category}</span>
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
           )}
         </div>

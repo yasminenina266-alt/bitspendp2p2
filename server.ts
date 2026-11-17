@@ -13,6 +13,7 @@ import {
   generateTraderFeedbackPage,
   generateTraderTradesPage,
 } from './server/seedData.ts';
+import { DEFAULT_FIAT_RATES } from './src/constants/market.ts';
 import type {
   AppNotification,
   ChainId,
@@ -116,25 +117,6 @@ const DEFAULT_24H_CHANGES: Record<CryptoAsset, number> = {
   LTC: 0.94,
   SOL: 4.18,
   USDC: 0.0,
-};
-
-const DEFAULT_FIAT_RATES: Record<FiatCurrency, number> = {
-  USD: 1.0,
-  EUR: 0.925,
-  GBP: 0.788,
-  BHD: 0.376,
-  IDR: 15850.0,
-  CAD: 1.395,
-  AUD: 1.535,
-  CHF: 0.882,
-  SGD: 1.338,
-  AED: 3.6725,
-  JPY: 154.2,
-  BRL: 5.76,
-  INR: 84.4,
-  NGN: 1665.0,
-  TRY: 34.4,
-  MXN: 20.35,
 };
 
 let priceCache: MarketPrices = {
@@ -1391,11 +1373,13 @@ async function startServer() {
     const paymentDetails =
       offer.paymentCategory === 'Gift Cards'
         ? `Submit unused ${offer.fiat} ${offer.paymentMethod} claim code in the trade chat below.`
-        : offer.paymentCategory === 'Bank & Wire'
-          ? `Account Holder: ${offer.traderUsername} Desk · Reference: ${tradeId}`
-          : offer.paymentCategory === 'Cash & In-Person'
-            ? `PGP-encrypted meetup/drop coordinates available in trade chat · Ref: ${tradeId}`
-            : `Recipient Handle: @${offer.traderUsername.toLowerCase()}_pay · Note: ${tradeId}`;
+        : offer.paymentCategory === 'Debit & Virtual Cards'
+          ? `Share ${offer.paymentMethod} virtual/prepaid card transfer or voucher details securely in trade chat · Ref: ${tradeId}`
+          : offer.paymentCategory === 'Bank & Wire'
+            ? `Account Holder: ${offer.traderUsername} Desk · Reference: ${tradeId}`
+            : offer.paymentCategory === 'Cash & In-Person'
+              ? `PGP-encrypted meetup/drop coordinates available in trade chat · Ref: ${tradeId}`
+              : `Recipient Handle: @${offer.traderUsername.toLowerCase()}_pay · Note: ${tradeId}`;
 
     const messages: TradeOrder['messages'] = [
       {
