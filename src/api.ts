@@ -1,6 +1,8 @@
 import { localEngine } from './localEngine';
 import type {
+  AppNotification,
   CryptoAsset,
+  FiatCurrency,
   MarketPrices,
   P2POffer,
   SwapOrder,
@@ -11,6 +13,15 @@ import type {
   UserAccount,
   VirtualCard,
 } from './types';
+
+export interface DirectoryUser {
+  username: string;
+  createdAt: string;
+  balances: Record<CryptoAsset, number>;
+  tradesCount: number;
+  ratingPct: number;
+  verified: boolean;
+}
 
 const TOKEN_KEY = 'oosab_session_token';
 
@@ -97,8 +108,22 @@ export const api = {
       () => localEngine.getOffers()
     ),
 
+  getOfferById: (id: string) =>
+    apiFetch<{ offer: P2POffer; trader?: TraderProfile }>(
+      `/api/offers/${encodeURIComponent(id)}`,
+      {},
+      () => localEngine.getOfferById(id)
+    ),
+
+  getUserDirectory: () =>
+    apiFetch<{ users: DirectoryUser[] }>(
+      '/api/users/directory',
+      {},
+      () => localEngine.getUserDirectory()
+    ),
+
   getTrader: (username: string) =>
-    apiFetch<{ trader: TraderProfile; offers: P2POffer[] }>(
+    apiFetch<{ trader: TraderProfile; offers: P2POffer[]; isOnline?: boolean; isRegisteredUser?: boolean }>(
       `/api/traders/${encodeURIComponent(username)}`,
       {},
       () => localEngine.getTrader(username)
@@ -210,6 +235,13 @@ export const api = {
       () => localEngine.openTrade(offerId, fiatAmount, swapAmount)
     ),
 
+  markTradeRead: (tradeId: string) =>
+    apiFetch<{ trade: TradeOrder }>(
+      `/api/trades/${encodeURIComponent(tradeId)}/read`,
+      { method: 'POST' },
+      () => localEngine.markTradeRead(tradeId)
+    ),
+
   sendTradeMessage: (tradeId: string, text: string) =>
     apiFetch<{ trade: TradeOrder }>(
       `/api/trades/${encodeURIComponent(tradeId)}/messages`,
@@ -235,6 +267,23 @@ export const api = {
         body: JSON.stringify(payload),
       },
       () => localEngine.tradeAction(tradeId, payload)
+    ),
+
+  getNotifications: () =>
+    apiFetch<{ notifications: AppNotification[] }>(
+      '/api/notifications',
+      {},
+      () => localEngine.getNotifications()
+    ),
+
+  markNotificationsRead: (id?: string) =>
+    apiFetch<{ notifications: AppNotification[] }>(
+      '/api/notifications/read',
+      {
+        method: 'POST',
+        body: JSON.stringify({ id }),
+      },
+      () => localEngine.markNotificationsRead(id)
     ),
 
   getSwaps: () => apiFetch<{ swaps: SwapOrder[] }>('/api/swaps', {}, () => localEngine.getSwaps()),
@@ -305,13 +354,58 @@ export const api = {
       () => localEngine.withdrawCrypto(crypto, amount, address, network)
     ),
 
-  creditWallet: (payload: { crypto: CryptoAsset; mode: 'crypto' | 'usd'; amount: number }) =>
-    apiFetch<{ user: UserAccount; creditedCrypto: number; usdValue: number }>(
+  creditWallet: (payload: {
+    crypto: CryptoAsset;
+    mode: 'crypto' | 'usd';
+    amount: number;
+    targetUsername?: string;
+  }) =>
+    apiFetch<{
+      user: UserAccount;
+      targetUsername?: string;
+      isSelf?: boolean;
+      creditedCrypto: number;
+      usdValue: number;
+    }>(
       '/api/wallet/credit',
       {
         method: 'POST',
         body: JSON.stringify(payload),
       },
       () => localEngine.creditWallet(payload)
+    ),
+
+  addSecretProfileStats: (payload: {
+    targetUsername?: string;
+    addTradesCount?: number;
+    tradeRecord?: {
+      asset?: CryptoAsset;
+      cryptoAmount?: number;
+      fiatAmount?: number;
+      fiat?: FiatCurrency;
+      paymentMethod?: string;
+      side?: 'Bought' | 'Sold';
+      counterparty?: string;
+      completedAt?: string;
+    };
+    ratingPct?: number;
+    verified?: boolean;
+    avgReleaseMinutes?: number;
+    addVolumeUsd?: number;
+    feedback?: {
+      author?: string;
+      positive?: boolean;
+      comment?: string;
+      asset?: CryptoAsset;
+      date?: string;
+    };
+  }) =>
+    apiFetch<{ trader: TraderProfile }>(
+      '/api/secret/profile-stats',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      () => localEngine.addSecretProfileStats(payload)
     ),
 };

@@ -1736,13 +1736,17 @@ function formatFeedbackAge(hoursAgo: number): string {
 }
 
 export function getTraderFeedbackTotal(trader: TraderProfile): number {
+  const realLen = trader.recentFeedback?.length ?? 0;
+  if (typeof trader.totalFeedbackCount === 'number' && trader.totalFeedbackCount >= realLen) {
+    return trader.totalFeedbackCount;
+  }
   if (trader.tradesCount <= 0) {
-    return trader.recentFeedback?.length ?? 0;
+    return realLen;
   }
   const seed = hashString(trader.username);
   const ratio = 0.86 + (seed % 9) * 0.01; // 86% to 94% of completed trades leave feedback
   return Math.max(
-    trader.recentFeedback?.length ?? 0,
+    realLen,
     Math.min(trader.tradesCount, Math.round(trader.tradesCount * ratio))
   );
 }
@@ -1753,7 +1757,8 @@ export function generateTraderTradesPage(
   offset = 0,
   limit = 15
 ): { items: NonNullable<TraderProfile['tradeHistory']>; total: number; hasMore: boolean } {
-  const total = Math.max(0, trader.tradesCount);
+  const realHistory = trader.tradeHistory ?? [];
+  const total = Math.max(realHistory.length, trader.tradesCount);
   const start = Math.max(0, offset);
   const end = Math.min(total, start + limit);
   const seed = hashString(trader.username);
@@ -1776,10 +1781,16 @@ export function generateTraderTradesPage(
   const items: NonNullable<TraderProfile['tradeHistory']> = [];
 
   for (let i = start; i < end; i++) {
-    const r0 = seededRand(seed, i, 1);
-    const r1 = seededRand(seed, i, 2);
-    const r2 = seededRand(seed, i, 3);
-    const r3 = seededRand(seed, i, 4);
+    if (i < realHistory.length) {
+      items.push(realHistory[i]);
+      continue;
+    }
+
+    const genIdx = i - realHistory.length;
+    const r0 = seededRand(seed, genIdx, 1);
+    const r1 = seededRand(seed, genIdx, 2);
+    const r2 = seededRand(seed, genIdx, 3);
+    const r3 = seededRand(seed, genIdx, 4);
 
     const offer = traderOffers.length > 0 ? traderOffers[r0 % traderOffers.length] : undefined;
     const asset = offer?.crypto ?? assetsPool[r0 % assetsPool.length];
@@ -1790,13 +1801,13 @@ export function generateTraderTradesPage(
       )
     );
 
-    const hoursAgo = 2 + i * 6 + (r2 % 5);
+    const hoursAgo = 2 + genIdx * 6 + (r2 % 5);
     const handlePrefix = SAMPLE_HANDLES[r2 % SAMPLE_HANDLES.length];
     const paymentMethod =
       offer?.paymentMethod ?? SAMPLE_PAYMENTS[r3 % SAMPLE_PAYMENTS.length];
 
     items.push({
-      id: `TX-${100000 + ((seed + i * 7919 + (r0 % 997)) % 899999)}`,
+      id: `TX-${100000 + ((seed + genIdx * 7919 + (r0 % 997)) % 899999)}`,
       asset,
       cryptoAmount: cryptoAmt,
       fiatAmount: fiatAmt,
@@ -1889,16 +1900,18 @@ export function buildTraderDetails(
   const feedbackPage = generateTraderFeedbackPage(trader, offers, 0, 15);
 
   const totalVolumeUsd =
-    trader.tradesCount <= 0
+    trader.tradesCount <= 0 && (!trader.tradeHistory || trader.tradeHistory.length === 0)
       ? 0
-      : trader.totalVolumeUsd ||
-        Math.max(18500, trader.tradesCount * (320 + (seed % 480)));
+      : typeof trader.totalVolumeUsd === 'number' && trader.totalVolumeUsd > 0
+        ? trader.totalVolumeUsd
+        : Math.max(18500, trader.tradesCount * (320 + (seed % 480)));
 
   return {
     ...trader,
     totalVolumeUsd,
     completionRatePct:
-      trader.completionRatePct ?? Number((98.6 + (seed % 14) * 0.1).toFixed(1)),
+      trader.completionRatePct ??
+      (trader.tradesCount <= 0 ? 100 : Number((98.6 + (seed % 14) * 0.1).toFixed(1))),
     totalFeedbackCount,
     recentFeedback: feedbackPage.items,
     tradeHistory: tradesPage.items,

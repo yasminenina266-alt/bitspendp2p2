@@ -3,7 +3,9 @@ import {
   ArrowUpRight,
   Check,
   Copy,
+  ExternalLink,
   Eye,
+  Link2,
   MessageSquare,
   Pause,
   Play,
@@ -31,6 +33,7 @@ import {
 import type { CryptoAsset, FiatCurrency, MarketPrices, P2POffer, TradeOrder, UserAccount } from '../types';
 import { notifyDiscordEvent } from '../utils/discordWebhook';
 import { ChainIcon, CoinIcon } from './CoinIcon';
+import { getTradeUnreadCount } from './MessagesModal';
 import { getOfferUnitPrice } from './OfferRow';
 
 interface AccountViewProps {
@@ -47,6 +50,7 @@ interface AccountViewProps {
   onUserUpdated: (user: UserAccount) => void;
   onOfferUpdated: (offer: P2POffer) => void;
   onOfferDeleted: (offerId: string) => void;
+  onViewPublicProfile?: (username: string) => void;
 }
 
 export function AccountView({
@@ -63,6 +67,7 @@ export function AccountView({
   onUserUpdated,
   onOfferUpdated,
   onOfferDeleted,
+  onViewPublicProfile,
 }: AccountViewProps) {
   const [subTab, setSubTab] = useState<'wallet' | 'trades' | 'settings'>('wallet');
 
@@ -110,6 +115,8 @@ export function AccountView({
   const [walletError, setWalletError] = useState('');
   const [copiedAddr, setCopiedAddr] = useState(false);
   const [copiedPhrase, setCopiedPhrase] = useState(false);
+  const [copiedProfileLink, setCopiedProfileLink] = useState(false);
+  const [copiedOfferId, setCopiedOfferId] = useState<string | null>(null);
 
   if (!user) {
     return (
@@ -271,8 +278,44 @@ export function AccountView({
       <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="text-xs font-medium text-[#5C6665] dark:text-[#8E9B98]">
-              OOSAB Account · {user.username}
+            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-[#5C6665] dark:text-[#8E9B98]">
+              <span>OOSAB Account · {user.username}</span>
+              {onViewPublicProfile && (
+                <button
+                  type="button"
+                  onClick={() => onViewPublicProfile(user.username)}
+                  className="inline-flex items-center gap-1 rounded-md border border-[#DCE2E1] bg-[#F8FAFA] px-2 py-0.5 font-mono text-[11px] font-semibold text-[#0B3B2E] hover:bg-[#EEF6F2] dark:border-[#263130] dark:bg-[#0F1515] dark:text-[#7FE85B] dark:hover:bg-[#16271F]"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  <span>/{user.username}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const url = `${window.location.origin}/${encodeURIComponent(user.username)}`;
+                    await navigator.clipboard.writeText(url);
+                    setCopiedProfileLink(true);
+                    setTimeout(() => setCopiedProfileLink(false), 2000);
+                  } catch {
+                    // ignore
+                  }
+                }}
+                className="inline-flex items-center gap-1 rounded-md border border-[#DCE2E1] px-2 py-0.5 text-[11px] font-medium text-[#4B5554] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#A4B0AE] dark:hover:bg-[#1B2524]"
+              >
+                {copiedProfileLink ? (
+                  <>
+                    <Check className="h-3 w-3 text-[#0D6832] dark:text-[#7FE85B]" />
+                    <span className="text-[#0D6832] dark:text-[#7FE85B]">Copied URL</span>
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="h-3 w-3" />
+                    <span>Copy Profile URL</span>
+                  </>
+                )}
+              </button>
             </div>
             <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-[#0E1715] sm:text-3xl dark:text-white">
               ${totalUsdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
@@ -345,14 +388,14 @@ export function AccountView({
                   </div>
                   <div className="text-xs leading-relaxed text-[#1E3B2B] dark:text-[#D1DCDA]">
                     <div className="font-bold text-[#0D6832] dark:text-[#7FE85B]">
-                      Minimum $5.00 USD balance needed to post an ad
+                      Minimum $5.00 USD balance needed to post Sell or Swap ads
                     </div>
                     <p className="mt-0.5">
                       Press <strong className="font-semibold text-[#0E1715] dark:text-white">Deposit</strong> on{' '}
                       <strong className="font-semibold text-[#0E1715] dark:text-white">{depositNotice.asset}</strong> (or any supported crypto) below
                       {depositNotice.requiredAmount
-                        ? ` to add at least ${formatCrypto(depositNotice.requiredAmount, depositNotice.asset)} ($5.00 minimum) before publishing your offer.`
-                        : ' to hold at least $5.00 before publishing your offer.'}
+                        ? ` to add at least ${formatCrypto(depositNotice.requiredAmount, depositNotice.asset)} ($5.00 minimum) before publishing your sell/swap offer. (Buy Crypto ads like Zelle require $0 balance.)`
+                        : ' to hold at least $5.00 before publishing a sell/swap offer. (Buy Crypto ads require $0 balance.)'}
                     </p>
                   </div>
                 </div>
@@ -544,43 +587,57 @@ export function AccountView({
               </p>
             ) : (
               <div className="mt-4 space-y-2.5">
-                {trades.map((trade) => (
-                  <button
-                    key={trade.id}
-                    type="button"
-                    onClick={() => onOpenTrade(trade)}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#E6EAEA] p-3.5 text-left hover:border-[#B6C4C1] sm:p-4 dark:border-[#202B2A] dark:hover:border-[#344643]"
-                  >
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <CoinIcon symbol={trade.crypto} size={24} />
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-bold text-[#0E1715] dark:text-white">
-                          {trade.id} ·{' '}
-                          {trade.side === 'swap_crypto' && trade.swapToCrypto && trade.swapToAmount
-                            ? `Swap ${formatCrypto(trade.swapToAmount, trade.swapToCrypto)} → ${formatCrypto(trade.cryptoAmount, trade.crypto)}`
-                            : `${trade.side === 'sell_crypto' ? 'Buy' : 'Sell'} ${formatCrypto(trade.cryptoAmount, trade.crypto)}`}
-                        </div>
-                        <div className="truncate text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                          {trade.side === 'swap_crypto'
-                            ? `${trade.paymentMethod} · with ${trade.traderUsername}`
-                            : `${formatFiat(trade.fiatAmount, trade.fiat)} via ${trade.paymentMethod} · with ${trade.traderUsername}`}
+                {trades.map((trade) => {
+                  const counterparty =
+                    trade.buyerUsername === user.username
+                      ? trade.sellerUsername
+                      : trade.buyerUsername;
+                  const unread = getTradeUnreadCount(trade, user.username);
+                  return (
+                    <button
+                      key={trade.id}
+                      type="button"
+                      onClick={() => onOpenTrade(trade)}
+                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#E6EAEA] p-3.5 text-left hover:border-[#B6C4C1] sm:p-4 dark:border-[#202B2A] dark:hover:border-[#344643]"
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <CoinIcon symbol={trade.crypto} size={24} />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 truncate text-sm font-bold text-[#0E1715] dark:text-white">
+                            <span className="truncate">
+                              {trade.id} ·{' '}
+                              {trade.side === 'swap_crypto' && trade.swapToCrypto && trade.swapToAmount
+                                ? `Swap ${formatCrypto(trade.swapToAmount, trade.swapToCrypto)} → ${formatCrypto(trade.cryptoAmount, trade.crypto)}`
+                                : `${trade.buyerUsername === user.username ? 'Buy' : 'Sell'} ${formatCrypto(trade.cryptoAmount, trade.crypto)}`}
+                            </span>
+                            {unread > 0 && (
+                              <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-[#16A34A] px-1.5 font-mono text-[10px] font-bold text-white dark:bg-[#7FE85B] dark:text-[#082213]">
+                                {unread} new
+                              </span>
+                            )}
+                          </div>
+                          <div className="truncate text-xs text-[#5C6665] dark:text-[#98A4A2]">
+                            {trade.side === 'swap_crypto'
+                              ? `${trade.paymentMethod} · with ${counterparty}`
+                              : `${formatFiat(trade.fiatAmount, trade.fiat)} via ${trade.paymentMethod} · with ${counterparty}`}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <span
-                      className={`shrink-0 font-mono text-xs font-semibold ${
-                        trade.status === 'completed'
-                          ? 'text-[#0D6832] dark:text-[#7FE85B]'
-                          : trade.status === 'cancelled'
-                            ? 'text-[#64706E]'
-                            : 'text-amber-700 dark:text-amber-400'
-                      }`}
-                    >
-                      {trade.status.replace('_', ' ')}
-                    </span>
-                  </button>
-                ))}
+                      <span
+                        className={`shrink-0 font-mono text-xs font-semibold ${
+                          trade.status === 'completed'
+                            ? 'text-[#0D6832] dark:text-[#7FE85B]'
+                            : trade.status === 'cancelled'
+                              ? 'text-[#64706E]'
+                              : 'text-amber-700 dark:text-amber-400'
+                        }`}
+                      >
+                        {trade.status.replace('_', ' ')}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -634,7 +691,34 @@ export function AccountView({
                         </div>
                       </button>
 
-                      <div className="grid w-full grid-cols-[1fr_1fr_auto] gap-2 sm:flex sm:w-auto sm:items-center">
+                      <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const shareUrl = `${window.location.origin}/offer/${encodeURIComponent(offer.id)}`;
+                              await navigator.clipboard.writeText(shareUrl);
+                              setCopiedOfferId(offer.id);
+                              setTimeout(() => setCopiedOfferId(null), 2000);
+                            } catch {
+                              // ignore
+                            }
+                          }}
+                          title={`Copy share link /offer/${offer.id}`}
+                          className="inline-flex min-h-[38px] items-center justify-center gap-1 rounded-lg border border-[#DCE2E1] px-2.5 py-1.5 text-xs font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#DCE4E3] dark:hover:bg-[#1C2625]"
+                        >
+                          {copiedOfferId === offer.id ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 text-[#0D6832] dark:text-[#7FE85B]" />
+                              <span className="text-[#0D6832] dark:text-[#7FE85B]">Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <Link2 className="h-3.5 w-3.5" />
+                              <span>Share</span>
+                            </>
+                          )}
+                        </button>
                         <button
                           type="button"
                           onClick={() => onViewOffer(offer)}

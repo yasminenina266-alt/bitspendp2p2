@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Star } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Link2, Star } from 'lucide-react';
 import { useState } from 'react';
 import { CHAIN_OPTIONS, formatCrypto, formatFiat } from '../constants/market';
 import type { MarketPrices, P2POffer, TraderProfile } from '../types';
@@ -39,7 +39,19 @@ export function OfferRow({
   onSelectTrader,
 }: OfferRowProps) {
   const [tagsExpanded, setTagsExpanded] = useState(false);
+  const [copiedShare, setCopiedShare] = useState(false);
   const isOwnOffer = Boolean(currentUsername && offer.traderUsername === currentUsername);
+
+  const handleCopyShareLink = async () => {
+    const shareUrl = `${window.location.origin}/offer/${encodeURIComponent(offer.id)}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedShare(true);
+      setTimeout(() => setCopiedShare(false), 1800);
+    } catch {
+      // ignore
+    }
+  };
 
   const isSwap = offer.side === 'swap_crypto' && !!offer.swapToCrypto;
   const unitPrice = getOfferUnitPrice(offer, prices);
@@ -149,8 +161,8 @@ export function OfferRow({
             )}
           </div>
 
-          {offer.tags.length > 0 && (
-            <div className="pt-0.5">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-0.5">
+            {offer.tags.length > 0 && (
               <button
                 type="button"
                 onClick={() => setTagsExpanded((v) => !v)}
@@ -163,12 +175,30 @@ export function OfferRow({
                   <ChevronDown className="h-3.5 w-3.5" />
                 )}
               </button>
-              {tagsExpanded && (
-                <p className="mt-1 text-xs text-[#5C6665] dark:text-[#8E9B98]">
-                  {offer.tags.join(' · ')}
-                </p>
+            )}
+            <button
+              type="button"
+              onClick={handleCopyShareLink}
+              title={`Copy share link /offer/${offer.id}`}
+              className="inline-flex items-center gap-1 font-mono text-[11px] font-medium text-[#5C6665] hover:text-[#0B3B2E] dark:text-[#8E9B98] dark:hover:text-[#7FE85B]"
+            >
+              {copiedShare ? (
+                <>
+                  <Check className="h-3 w-3 text-[#0D6832] dark:text-[#7FE85B]" />
+                  <span className="text-[#0D6832] dark:text-[#7FE85B]">Copied Link</span>
+                </>
+              ) : (
+                <>
+                  <Link2 className="h-3 w-3" />
+                  <span>{offer.id}</span>
+                </>
               )}
-            </div>
+            </button>
+          </div>
+          {tagsExpanded && offer.tags.length > 0 && (
+            <p className="mt-1 text-xs text-[#5C6665] dark:text-[#8E9B98]">
+              {offer.tags.join(' · ')}
+            </p>
           )}
         </div>
 

@@ -2,8 +2,10 @@ import 'dotenv/config';
 import express from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
+import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { WebSocketServer, type WebSocket } from 'ws';
 import {
   SEED_OFFERS,
   SEED_TRADERS,
@@ -12,6 +14,7 @@ import {
   generateTraderTradesPage,
 } from './server/seedData.ts';
 import type {
+  AppNotification,
   ChainId,
   CryptoAsset,
   FiatCurrency,
@@ -20,6 +23,7 @@ import type {
   SwapOrder,
   TradeOrder,
   TraderProfile,
+  TraderTradeRecord,
   UserAccount,
   UserSettings,
   VirtualCard,
@@ -54,7 +58,9 @@ interface DatabaseSchema {
   offers: P2POffer[];
   users: Record<string, StoredUser>;
   sessions: Record<string, string>; // token -> username
-  trades: Record<string, TradeOrder[]>; // username -> trades
+  trades: Record<string, TradeOrder[]>; // legacy per-user trades index
+  tradeRooms: Record<string, TradeOrder>; // shared tradeId -> TradeOrder
+  notifications: Record<string, AppNotification[]>; // username -> notifications
   swaps: Record<string, SwapOrder[]>; // username -> swaps
   cards: Record<string, VirtualCard[]>; // username -> cards
 }
@@ -377,9 +383,27 @@ let db: DatabaseSchema = {
   users: {},
   sessions: {},
   trades: {},
+  tradeRooms: {},
+  notifications: {},
   swaps: {},
   cards: {},
 };
+
+function findUserByUsername(username: string): StoredUser | undefined {
+  const clean = username.trim();
+  if (!clean) return undefined;
+  if (db.users[clean]) return ensureUserFields(db.users[clean]);
+  const key = Object.keys(db.users).find((k) => k.toLowerCase() === clean.toLowerCase());
+  return key ? ensureUserFields(db.users[key]) : undefined;
+}
+
+function findTraderByUsername(username: string): TraderProfile | undefined {
+  const clean = username.trim();
+  if (!clean) return undefined;
+  if (db.traders[clean]) return db.traders[clean];
+  const key = Object.keys(db.traders).find((k) => k.toLowerCase() === clean.toLowerCase());
+  return key ? db.traders[key] : undefined;
+}
 
 async function loadDb() {
   try {
@@ -391,12 +415,50 @@ async function loadDb() {
     );
     const mergedOffers = [...customOffers, ...SEED_OFFERS];
 
+    const mergedTraders: Record<string, TraderProfile> = {
+      ...SEED_TRADERS,
+      ...(parsed.traders ?? {}),
+    };
+    const users = parsed.users ?? {};
+    for (const u of Object.values(users)) {
+      if (u?.username && !mergedTraders[u.username]) {
+        mergedTraders[u.username] = {
+          username: u.username,
+          joinedAt: (u.createdAt ?? new Date().toISOString()).slice(0, 10),
+          tradesCount: 0,
+          ratingPct: 100,
+          avgReleaseMinutes: 5,
+          lastSeenMinutes: 0,
+          verified: false,
+          languages: ['English'],
+          pgpFingerprint: (u.pgpKey ?? '').slice(0, 49),
+          bio: u.bio || 'Privacy-focused P2P trader on OOSAB. Zero KYC.',
+          volumeTier: 'Starter',
+          recentFeedback: [],
+          tradeHistory: [],
+        };
+      }
+    }
+
+    const tradeRooms: Record<string, TradeOrder> = { ...(parsed.tradeRooms ?? {}) };
+    const legacyTrades = parsed.trades ?? {};
+    for (const list of Object.values(legacyTrades)) {
+      if (!Array.isArray(list)) continue;
+      for (const t of list) {
+        if (t?.id && !tradeRooms[t.id]) {
+          tradeRooms[t.id] = t;
+        }
+      }
+    }
+
     db = {
-      traders: { ...(parsed.traders ?? {}), ...SEED_TRADERS },
+      traders: mergedTraders,
       offers: mergedOffers.length > 0 ? mergedOffers : [...SEED_OFFERS],
-      users: parsed.users ?? {},
+      users,
       sessions: parsed.sessions ?? {},
-      trades: parsed.trades ?? {},
+      trades: legacyTrades,
+      tradeRooms,
+      notifications: parsed.notifications ?? {},
       swaps: parsed.swaps ?? {},
       cards: parsed.cards ?? {},
     };
@@ -475,6 +537,142 @@ async function startServer() {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
 
+  const httpServer = http.createServer(app);
+  const wss = new WebSocketServer({ noServer: true });
+  const userSockets = new Map<string, Set<WebSocket>>();
+
+  const sendToUser = (username: string, payload: unknown) => {
+    const set = userSockets.get(username);
+    if (!set || set.size === 0) return;
+    const raw = JSON.stringify(payload);
+    for (const sock of set) {
+      if (sock.readyState === 1) {
+        sock.send(raw);
+      }
+    }
+  };
+
+  const broadcastPresence = () => {
+    const onlineUsers = Array.from(userSockets.keys());
+    const raw = JSON.stringify({ type: 'presence:update', onlineUsers });
+    for (const set of userSockets.values()) {
+      for (const sock of set) {
+        if (sock.readyState === 1) sock.send(raw);
+      }
+    }
+  };
+
+  const isUserOnline = (username: string) => {
+    const set = userSockets.get(username);
+    return Boolean(set && set.size > 0);
+  };
+
+  const pushNotification = (
+    username: string,
+    input: Omit<AppNotification, 'id' | 'read' | 'createdAt'>
+  ) => {
+    const notif: AppNotification = {
+      id: `ntf-${crypto.randomBytes(4).toString('hex')}`,
+      ...input,
+      read: false,
+      createdAt: new Date().toISOString(),
+    };
+    if (!db.notifications[username]) db.notifications[username] = [];
+    db.notifications[username].unshift(notif);
+    if (db.notifications[username].length > 60) {
+      db.notifications[username] = db.notifications[username].slice(0, 60);
+    }
+    const unreadCount = db.notifications[username].filter((n) => !n.read).length;
+    sendToUser(username, { type: 'notification:new', notification: notif, unreadCount });
+    return notif;
+  };
+
+  const formatTradeForViewer = (trade: TradeOrder, viewerUsername: string): TradeOrder => {
+    const other =
+      trade.buyerUsername === viewerUsername ? trade.sellerUsername : trade.buyerUsername;
+    return {
+      ...trade,
+      counterpartyIsReal: Boolean(findUserByUsername(other)),
+      feedbackGiven: trade.feedbackBy?.[viewerUsername] ?? trade.feedbackGiven,
+    };
+  };
+
+  httpServer.on('upgrade', (req, socket, head) => {
+    const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    if (parsedUrl.pathname !== '/ws') {
+      return;
+    }
+    const token = parsedUrl.searchParams.get('token') ?? '';
+    const username = db.sessions[token];
+    if (!username || !db.users[username]) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      if (!userSockets.has(username)) userSockets.set(username, new Set());
+      userSockets.get(username)!.add(ws);
+      if (db.traders[username]) {
+        db.traders[username].lastSeenMinutes = 0;
+      }
+
+      ws.send(
+        JSON.stringify({
+          type: 'connected',
+          username,
+          onlineUsers: Array.from(userSockets.keys()),
+        })
+      );
+      broadcastPresence();
+
+      ws.on('message', async (raw) => {
+        try {
+          const msg = JSON.parse(String(raw)) as {
+            type?: string;
+            tradeId?: string;
+            isTyping?: boolean;
+          };
+          if (msg.type === 'ping') {
+            ws.send(JSON.stringify({ type: 'pong' }));
+            return;
+          }
+          if (msg.type === 'typing' && msg.tradeId) {
+            const trade = db.tradeRooms[msg.tradeId];
+            if (!trade) return;
+            if (trade.buyerUsername !== username && trade.sellerUsername !== username) return;
+            const other =
+              trade.buyerUsername === username ? trade.sellerUsername : trade.buyerUsername;
+            sendToUser(other, {
+              type: 'trade:typing',
+              tradeId: trade.id,
+              username,
+              isTyping: Boolean(msg.isTyping),
+            });
+          } else if (msg.type === 'trade:read' && msg.tradeId) {
+            const trade = db.tradeRooms[msg.tradeId];
+            if (!trade) return;
+            if (trade.buyerUsername !== username && trade.sellerUsername !== username) return;
+            if (!trade.lastReadAtBy) trade.lastReadAtBy = {};
+            trade.lastReadAtBy[username] = new Date().toISOString();
+            await saveDb();
+          }
+        } catch {
+          // ignore malformed ws message
+        }
+      });
+
+      ws.on('close', () => {
+        const set = userSockets.get(username);
+        if (set) {
+          set.delete(ws);
+          if (set.size === 0) userSockets.delete(username);
+        }
+        broadcastPresence();
+      });
+    });
+  });
+
   // Live Market Prices
   app.get('/api/prices', async (req, res) => {
     const force = req.query.refresh === '1';
@@ -490,8 +688,33 @@ async function startServer() {
     });
   });
 
+  app.get('/api/offers/:id', (req, res) => {
+    const cleanId = req.params.id.trim().toLowerCase();
+    const offer = db.offers.find((o) => o.id.toLowerCase() === cleanId);
+    if (!offer) return res.status(404).json({ error: 'Offer not found' });
+    const rawTrader = findTraderByUsername(offer.traderUsername);
+    const trader = rawTrader ? buildTraderDetails(rawTrader, db.offers) : undefined;
+    return res.json({ offer, trader });
+  });
+
+  app.get('/api/users/directory', (_req, res) => {
+    const users = Object.values(db.users).map((raw) => {
+      const u = ensureUserFields(raw);
+      const t = db.traders[u.username];
+      return {
+        username: u.username,
+        createdAt: u.createdAt,
+        balances: u.balances,
+        tradesCount: t?.tradesCount ?? 0,
+        ratingPct: t?.ratingPct ?? 100,
+        verified: t?.verified ?? false,
+      };
+    });
+    return res.json({ users });
+  });
+
   app.get('/api/traders/:username', (req, res) => {
-    const rawTrader = db.traders[req.params.username];
+    const rawTrader = findTraderByUsername(req.params.username);
     if (!rawTrader) {
       return res.status(404).json({ error: 'Trader profile not found' });
     }
@@ -499,11 +722,17 @@ async function startServer() {
     const activeOffers = db.offers.filter(
       (o) => o.traderUsername === enriched.username && o.active
     );
-    return res.json({ trader: enriched, offers: activeOffers });
+    const online = isUserOnline(enriched.username) || enriched.lastSeenMinutes === 0;
+    return res.json({
+      trader: { ...enriched, lastSeenMinutes: isUserOnline(enriched.username) ? 0 : enriched.lastSeenMinutes },
+      offers: activeOffers,
+      isOnline: online,
+      isRegisteredUser: Boolean(findUserByUsername(enriched.username)),
+    });
   });
 
   app.get('/api/traders/:username/trades', (req, res) => {
-    const rawTrader = db.traders[req.params.username];
+    const rawTrader = findTraderByUsername(req.params.username);
     if (!rawTrader) {
       return res.status(404).json({ error: 'Trader profile not found' });
     }
@@ -513,7 +742,7 @@ async function startServer() {
   });
 
   app.get('/api/traders/:username/feedback', (req, res) => {
-    const rawTrader = db.traders[req.params.username];
+    const rawTrader = findTraderByUsername(req.params.username);
     if (!rawTrader) {
       return res.status(404).json({ error: 'Trader profile not found' });
     }
@@ -718,25 +947,30 @@ async function startServer() {
     }
 
     const prices = await getLivePrices();
-    const totalUsdBalance = (Object.keys(user.balances) as CryptoAsset[]).reduce((sum, sym) => {
-      const bal = user.balances[sym] ?? 0;
-      const usd = prices.usdPrices[sym] ?? DEFAULT_USD_PRICES[sym] ?? 0;
-      return sum + bal * usd;
-    }, 0);
-    const MIN_AD_USD = 5;
-    if (totalUsdBalance < MIN_AD_USD - 0.01) {
-      const shortfallUsd = Math.max(0, MIN_AD_USD - totalUsdBalance);
-      const assetUsd = prices.usdPrices[body.crypto] ?? DEFAULT_USD_PRICES[body.crypto] ?? 1;
-      const requiredCrypto = Number((shortfallUsd / assetUsd).toFixed(8));
-      return res.status(400).json({
-        error: `You need at least $${MIN_AD_USD.toFixed(2)} worth of any cryptocurrency in your account to post an ad (current balance: $${totalUsdBalance.toFixed(2)}).`,
-        code: 'INSUFFICIENT_FUNDS',
-        asset: body.crypto,
-        requiredCrypto,
-        requiredUsd: MIN_AD_USD,
-        currentUsdBalance: Number(totalUsdBalance.toFixed(2)),
-        availableBalance: user.balances[body.crypto] ?? 0,
-      });
+    // Buy Crypto (paying fiat like Zelle/Bank to buy crypto) requires $0 crypto wallet balance.
+    // Sell Crypto and Swap Crypto ads require at least $5.00 USD in crypto.
+    const requiresCryptoFunding = body.side === 'sell_crypto' || body.side === 'swap_crypto';
+    if (requiresCryptoFunding) {
+      const totalUsdBalance = (Object.keys(user.balances) as CryptoAsset[]).reduce((sum, sym) => {
+        const bal = user.balances[sym] ?? 0;
+        const usd = prices.usdPrices[sym] ?? DEFAULT_USD_PRICES[sym] ?? 0;
+        return sum + bal * usd;
+      }, 0);
+      const MIN_AD_USD = 5;
+      if (totalUsdBalance < MIN_AD_USD - 0.01) {
+        const shortfallUsd = Math.max(0, MIN_AD_USD - totalUsdBalance);
+        const assetUsd = prices.usdPrices[body.crypto] ?? DEFAULT_USD_PRICES[body.crypto] ?? 1;
+        const requiredCrypto = Number((shortfallUsd / assetUsd).toFixed(8));
+        return res.status(400).json({
+          error: `You need at least $${MIN_AD_USD.toFixed(2)} worth of any cryptocurrency in your account to post a Sell or Swap ad (current balance: $${totalUsdBalance.toFixed(2)}).`,
+          code: 'INSUFFICIENT_FUNDS',
+          asset: body.crypto,
+          requiredCrypto,
+          requiredUsd: MIN_AD_USD,
+          currentUsdBalance: Number(totalUsdBalance.toFixed(2)),
+          availableBalance: user.balances[body.crypto] ?? 0,
+        });
+      }
     }
 
     const isSwap = body.side === 'swap_crypto';
@@ -854,11 +1088,15 @@ async function startServer() {
     return res.json({ ok: true });
   });
 
-  // P2P Escrow Trades
+  // P2P Escrow Trades (Shared Two-Party Rooms + Live WebSocket Events)
   app.get('/api/trades', (req, res) => {
     const user = getAuthUser(req);
     if (!user) return res.status(401).json({ error: 'Authentication required' });
-    return res.json({ trades: db.trades[user.username] ?? [] });
+    const list = Object.values(db.tradeRooms)
+      .filter((t) => t.buyerUsername === user.username || t.sellerUsername === user.username)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .map((t) => formatTradeForViewer(t, user.username));
+    return res.json({ trades: list });
   });
 
   app.post('/api/trades', async (req, res) => {
@@ -872,7 +1110,7 @@ async function startServer() {
     };
     const offer = db.offers.find((o) => o.id === offerId);
     if (!offer) return res.status(404).json({ error: 'Offer not found' });
-    if (offer.traderUsername === user.username) {
+    if (offer.traderUsername.toLowerCase() === user.username.toLowerCase()) {
       return res.status(400).json({ error: 'You cannot place a trade on your own offer.' });
     }
 
@@ -880,6 +1118,8 @@ async function startServer() {
     const unitPrice = computeOfferUnitPrice(offer, prices);
     const now = Date.now();
     const tradeId = `TRD-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+    const makerUser = findUserByUsername(offer.traderUsername);
+    const counterpartyIsReal = Boolean(makerUser);
 
     if (offer.side === 'swap_crypto' && offer.swapToCrypto) {
       const sendAmt = Number(swapAmount ?? fiatAmount);
@@ -901,6 +1141,24 @@ async function startServer() {
       const receiveAmt = sendAmt / unitPrice;
       const usdVal = Number((sendAmt * (prices.usdPrices[offer.swapToCrypto] ?? 1)).toFixed(2));
       const paymentDetails = `Multi-Asset Escrow Lock · ${sendAmt.toFixed(6)} ${offer.swapToCrypto} ↔ ${receiveAmt.toFixed(6)} ${offer.crypto} · Ref: ${tradeId}`;
+
+      const messages: TradeOrder['messages'] = [
+        {
+          id: `msg-${crypto.randomBytes(4).toString('hex')}`,
+          sender: 'Escrow System',
+          text: `Both sides funded in OOSAB multi-asset escrow: ${sendAmt.toFixed(6)} ${offer.swapToCrypto} swapped for ${receiveAmt.toFixed(6)} ${offer.crypto} at 1 ${offer.crypto} = ${unitPrice.toFixed(6)} ${offer.swapToCrypto}.`,
+          timestamp: new Date(now).toISOString(),
+          isSystem: true,
+        },
+      ];
+      if (!counterpartyIsReal) {
+        messages.push({
+          id: `msg-${crypto.randomBytes(4).toString('hex')}`,
+          sender: offer.traderUsername,
+          text: `Hello ${user.username}, my ${receiveAmt.toFixed(6)} ${offer.crypto} is locked in escrow for swap ${tradeId}. Press "Confirm Swap Deposit" to trigger automatic atomic release.`,
+          timestamp: new Date(now + 1000).toISOString(),
+        });
+      }
 
       const trade: TradeOrder = {
         id: tradeId,
@@ -924,27 +1182,31 @@ async function startServer() {
         status: 'escrow_funded',
         createdAt: new Date(now).toISOString(),
         expiresAt: new Date(now + offer.paymentWindowMinutes * 60_000).toISOString(),
-        messages: [
-          {
-            id: `msg-${crypto.randomBytes(4).toString('hex')}`,
-            sender: 'Escrow System',
-            text: `Both sides funded in OOSAB multi-asset escrow: ${sendAmt.toFixed(6)} ${offer.swapToCrypto} swapped for ${receiveAmt.toFixed(6)} ${offer.crypto} at 1 ${offer.crypto} = ${unitPrice.toFixed(6)} ${offer.swapToCrypto}.`,
-            timestamp: new Date(now).toISOString(),
-            isSystem: true,
-          },
-          {
-            id: `msg-${crypto.randomBytes(4).toString('hex')}`,
-            sender: offer.traderUsername,
-            text: `Hello ${user.username}, my ${receiveAmt.toFixed(6)} ${offer.crypto} is locked in escrow for swap ${tradeId}. Press "Confirm Swap Deposit" to trigger automatic atomic release.`,
-            timestamp: new Date(now + 1000).toISOString(),
-          },
-        ],
+        messages,
+        counterpartyIsReal,
+        lastReadAtBy: { [user.username]: new Date(now).toISOString() },
       };
 
-      if (!db.trades[user.username]) db.trades[user.username] = [];
-      db.trades[user.username].unshift(trade);
+      db.tradeRooms[trade.id] = trade;
+      if (makerUser) {
+        pushNotification(makerUser.username, {
+          type: 'trade_opened',
+          title: `New swap trade ${trade.id}`,
+          body: `${user.username} opened a ${sendAmt.toFixed(4)} ${offer.swapToCrypto} → ${receiveAmt.toFixed(4)} ${offer.crypto} trade.`,
+          tradeId: trade.id,
+          offerId: offer.id,
+          fromUsername: user.username,
+        });
+        sendToUser(makerUser.username, {
+          type: 'trade:created',
+          trade: formatTradeForViewer(trade, makerUser.username),
+        });
+      }
       await saveDb();
-      return res.status(201).json({ trade, user: sanitizeUser(user) });
+      return res.status(201).json({
+        trade: formatTradeForViewer(trade, user.username),
+        user: sanitizeUser(user),
+      });
     }
 
     const amount = Number(fiatAmount);
@@ -956,7 +1218,7 @@ async function startServer() {
 
     const cryptoAmount = amount / unitPrice;
 
-    // If user is selling crypto (offer.side === 'buy_crypto'), verify user has enough wallet balance
+    // If taker is selling crypto to maker (offer.side === 'buy_crypto'), verify taker has enough balance
     if (offer.side === 'buy_crypto') {
       if ((user.balances[offer.crypto] ?? 0) < cryptoAmount) {
         return res.status(400).json({
@@ -974,6 +1236,27 @@ async function startServer() {
           : offer.paymentCategory === 'Cash & In-Person'
             ? `PGP-encrypted meetup/drop coordinates available in trade chat · Ref: ${tradeId}`
             : `Recipient Handle: @${offer.traderUsername.toLowerCase()}_pay · Note: ${tradeId}`;
+
+    const messages: TradeOrder['messages'] = [
+      {
+        id: `msg-${crypto.randomBytes(4).toString('hex')}`,
+        sender: 'Escrow System',
+        text: `${cryptoAmount.toFixed(6)} ${offer.crypto} is now locked in OOSAB multi-sig escrow at ${unitPrice.toFixed(2)} ${offer.fiat}/${offer.crypto}.`,
+        timestamp: new Date(now).toISOString(),
+        isSystem: true,
+      },
+    ];
+    if (!counterpartyIsReal) {
+      messages.push({
+        id: `msg-${crypto.randomBytes(4).toString('hex')}`,
+        sender: offer.traderUsername,
+        text:
+          offer.side === 'sell_crypto'
+            ? `Hello ${user.username}, escrow is funded for trade ${tradeId}. Please send ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${offer.fiat} via ${offer.paymentMethod}. Payment instruction: ${paymentDetails}`
+            : `Hello ${user.username}, escrow is funded. Share your ${offer.paymentMethod} receiving details here so I can transfer ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${offer.fiat}.`,
+        timestamp: new Date(now + 1000).toISOString(),
+      });
+    }
 
     const trade: TradeOrder = {
       id: tradeId,
@@ -994,50 +1277,92 @@ async function startServer() {
       status: 'escrow_funded',
       createdAt: new Date(now).toISOString(),
       expiresAt: new Date(now + offer.paymentWindowMinutes * 60_000).toISOString(),
-      messages: [
-        {
-          id: `msg-${crypto.randomBytes(4).toString('hex')}`,
-          sender: 'Escrow System',
-          text: `${cryptoAmount.toFixed(6)} ${offer.crypto} is now locked in OOSAB multi-sig escrow at ${unitPrice.toFixed(2)} ${offer.fiat}/${offer.crypto}.`,
-          timestamp: new Date(now).toISOString(),
-          isSystem: true,
-        },
-        {
-          id: `msg-${crypto.randomBytes(4).toString('hex')}`,
-          sender: offer.traderUsername,
-          text:
-            offer.side === 'sell_crypto'
-              ? `Hello ${user.username}, escrow is funded for trade ${tradeId}. Please send ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${offer.fiat} via ${offer.paymentMethod}. Payment instruction: ${paymentDetails}`
-              : `Hello ${user.username}, escrow is funded. Share your ${offer.paymentMethod} receiving details here so I can transfer ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${offer.fiat}.`,
-          timestamp: new Date(now + 1000).toISOString(),
-        },
-      ],
+      messages,
+      counterpartyIsReal,
+      lastReadAtBy: { [user.username]: new Date(now).toISOString() },
     };
 
-    if (!db.trades[user.username]) db.trades[user.username] = [];
-    db.trades[user.username].unshift(trade);
+    db.tradeRooms[trade.id] = trade;
+    if (makerUser) {
+      pushNotification(makerUser.username, {
+        type: 'trade_opened',
+        title: `New trade ${trade.id} opened`,
+        body: `${user.username} opened a ${amount.toLocaleString('en-US')} ${offer.fiat} (${cryptoAmount.toFixed(5)} ${offer.crypto}) trade via ${offer.paymentMethod}.`,
+        tradeId: trade.id,
+        offerId: offer.id,
+        fromUsername: user.username,
+      });
+      sendToUser(makerUser.username, {
+        type: 'trade:created',
+        trade: formatTradeForViewer(trade, makerUser.username),
+      });
+    }
     await saveDb();
 
-    return res.status(201).json({ trade, user: sanitizeUser(user) });
+    return res.status(201).json({
+      trade: formatTradeForViewer(trade, user.username),
+      user: sanitizeUser(user),
+    });
+  });
+
+  app.post('/api/trades/:id/read', async (req, res) => {
+    const user = getAuthUser(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
+    const trade = db.tradeRooms[req.params.id];
+    if (!trade || (trade.buyerUsername !== user.username && trade.sellerUsername !== user.username)) {
+      return res.status(404).json({ error: 'Trade not found' });
+    }
+    if (!trade.lastReadAtBy) trade.lastReadAtBy = {};
+    trade.lastReadAtBy[user.username] = new Date().toISOString();
+    await saveDb();
+    return res.json({ trade: formatTradeForViewer(trade, user.username) });
   });
 
   app.post('/api/trades/:id/messages', async (req, res) => {
     const user = getAuthUser(req);
     if (!user) return res.status(401).json({ error: 'Authentication required' });
-    const trade = (db.trades[user.username] ?? []).find((t) => t.id === req.params.id);
-    if (!trade) return res.status(404).json({ error: 'Trade not found' });
+    const trade = db.tradeRooms[req.params.id];
+    if (!trade || (trade.buyerUsername !== user.username && trade.sellerUsername !== user.username)) {
+      return res.status(404).json({ error: 'Trade not found' });
+    }
 
     const text = String(req.body.text ?? '').trim();
     if (!text) return res.status(400).json({ error: 'Message cannot be empty' });
 
-    trade.messages.push({
+    const nowIso = new Date().toISOString();
+    const message = {
       id: `msg-${crypto.randomBytes(4).toString('hex')}`,
       sender: user.username,
       text,
-      timestamp: new Date().toISOString(),
-    });
+      timestamp: nowIso,
+    };
+    trade.messages.push(message);
+    if (!trade.lastReadAtBy) trade.lastReadAtBy = {};
+    trade.lastReadAtBy[user.username] = nowIso;
 
-    if (trade.status === 'escrow_funded' || trade.status === 'payment_sent') {
+    const otherUsername =
+      trade.buyerUsername === user.username ? trade.sellerUsername : trade.buyerUsername;
+    const otherUser = findUserByUsername(otherUsername);
+
+    if (otherUser) {
+      pushNotification(otherUser.username, {
+        type: 'trade_message',
+        title: `Message from ${user.username}`,
+        body: text.length > 90 ? `${text.slice(0, 87)}...` : text,
+        tradeId: trade.id,
+        fromUsername: user.username,
+      });
+      sendToUser(otherUser.username, {
+        type: 'trade:message',
+        tradeId: trade.id,
+        message,
+        trade: formatTradeForViewer(trade, otherUser.username),
+      });
+      sendToUser(user.username, {
+        type: 'trade:updated',
+        trade: formatTradeForViewer(trade, user.username),
+      });
+    } else if (trade.status === 'escrow_funded' || trade.status === 'payment_sent') {
       const lower = text.toLowerCase();
       let reply = `Received. Keeping an eye on ${trade.paymentMethod} for trade ${trade.id}.`;
       if (
@@ -1060,20 +1385,29 @@ async function startServer() {
     }
 
     await saveDb();
-    return res.json({ trade });
+    return res.json({ trade: formatTradeForViewer(trade, user.username) });
   });
 
   app.post('/api/trades/:id/action', async (req, res) => {
     const user = getAuthUser(req);
     if (!user) return res.status(401).json({ error: 'Authentication required' });
-    const trade = (db.trades[user.username] ?? []).find((t) => t.id === req.params.id);
-    if (!trade) return res.status(404).json({ error: 'Trade not found' });
+    const trade = db.tradeRooms[req.params.id];
+    if (!trade || (trade.buyerUsername !== user.username && trade.sellerUsername !== user.username)) {
+      return res.status(404).json({ error: 'Trade not found' });
+    }
 
     const { action, positive, comment } = req.body as {
       action?: 'mark_paid' | 'release' | 'cancel' | 'dispute' | 'feedback';
       positive?: boolean;
       comment?: string;
     };
+
+    const otherUsername =
+      trade.buyerUsername === user.username ? trade.sellerUsername : trade.buyerUsername;
+    const otherUser = findUserByUsername(otherUsername);
+    const bothRealUsers = Boolean(
+      findUserByUsername(trade.buyerUsername) && findUserByUsername(trade.sellerUsername)
+    );
 
     if (action === 'mark_paid' && trade.status === 'escrow_funded') {
       trade.status = 'payment_sent';
@@ -1087,24 +1421,79 @@ async function startServer() {
         timestamp: new Date().toISOString(),
         isSystem: true,
       });
-      trade.messages.push({
-        id: `msg-${crypto.randomBytes(4).toString('hex')}`,
-        sender: trade.traderUsername,
-        text: isSwap
-          ? `Escrow deposit verified! Releasing ${trade.cryptoAmount.toFixed(6)} ${trade.crypto} to your wallet now.`
-          : `Payment notice received! Checking ${trade.paymentMethod} settlement now — releasing ${trade.crypto} shortly.`,
-        timestamp: new Date(Date.now() + 600).toISOString(),
-      });
+      if (!otherUser) {
+        trade.messages.push({
+          id: `msg-${crypto.randomBytes(4).toString('hex')}`,
+          sender: trade.traderUsername,
+          text: isSwap
+            ? `Escrow deposit verified! Releasing ${trade.cryptoAmount.toFixed(6)} ${trade.crypto} to your wallet now.`
+            : `Payment notice received! Checking ${trade.paymentMethod} settlement now — releasing ${trade.crypto} shortly.`,
+          timestamp: new Date(Date.now() + 600).toISOString(),
+        });
+      } else {
+        pushNotification(otherUser.username, {
+          type: 'trade_status',
+          title: `Payment sent on ${trade.id}`,
+          body: `${user.username} marked ${trade.paymentMethod} payment as sent. Verify receipt and release ${trade.crypto}.`,
+          tradeId: trade.id,
+          fromUsername: user.username,
+        });
+      }
     } else if (action === 'release' && (trade.status === 'escrow_funded' || trade.status === 'payment_sent')) {
+      if (bothRealUsers && user.username !== trade.sellerUsername) {
+        return res.status(403).json({
+          error: `Only the seller (${trade.sellerUsername}) can confirm receipt and release escrow.`,
+        });
+      }
       trade.status = 'completed';
-      if (trade.side === 'sell_crypto' || trade.side === 'swap_crypto') {
-        user.balances[trade.crypto] = Number(
-          ((user.balances[trade.crypto] ?? 0) + trade.cryptoAmount).toFixed(8)
+
+      const buyerUser = findUserByUsername(trade.buyerUsername);
+      const sellerUser = findUserByUsername(trade.sellerUsername);
+
+      if (buyerUser) {
+        buyerUser.balances[trade.crypto] = Number(
+          ((buyerUser.balances[trade.crypto] ?? 0) + trade.cryptoAmount).toFixed(8)
         );
       }
-      const trader = db.traders[trade.traderUsername];
-      if (trader) trader.tradesCount += 1;
-      if (db.traders[user.username]) db.traders[user.username].tradesCount += 1;
+      if (trade.side === 'swap_crypto' && trade.swapToCrypto && trade.swapToAmount && sellerUser) {
+        sellerUser.balances[trade.swapToCrypto] = Number(
+          ((sellerUser.balances[trade.swapToCrypto] ?? 0) + trade.swapToAmount).toFixed(8)
+        );
+      }
+
+      const nowDate = 'Just now';
+      const buyerTrader = findTraderByUsername(trade.buyerUsername);
+      if (buyerTrader) {
+        buyerTrader.tradesCount += 1;
+        if (!buyerTrader.tradeHistory) buyerTrader.tradeHistory = [];
+        buyerTrader.tradeHistory.unshift({
+          id: trade.id,
+          asset: trade.crypto,
+          cryptoAmount: Number(trade.cryptoAmount.toFixed(6)),
+          fiatAmount: Number(trade.fiatAmount.toFixed(2)),
+          fiat: trade.fiat,
+          paymentMethod: trade.paymentMethod,
+          side: 'Bought',
+          counterparty: trade.sellerUsername,
+          completedAt: nowDate,
+        });
+      }
+      const sellerTrader = findTraderByUsername(trade.sellerUsername);
+      if (sellerTrader) {
+        sellerTrader.tradesCount += 1;
+        if (!sellerTrader.tradeHistory) sellerTrader.tradeHistory = [];
+        sellerTrader.tradeHistory.unshift({
+          id: trade.id,
+          asset: trade.crypto,
+          cryptoAmount: Number(trade.cryptoAmount.toFixed(6)),
+          fiatAmount: Number(trade.fiatAmount.toFixed(2)),
+          fiat: trade.fiat,
+          paymentMethod: trade.paymentMethod,
+          side: 'Sold',
+          counterparty: trade.buyerUsername,
+          completedAt: nowDate,
+        });
+      }
 
       trade.messages.push({
         id: `msg-${crypto.randomBytes(4).toString('hex')}`,
@@ -1113,40 +1502,87 @@ async function startServer() {
         timestamp: new Date().toISOString(),
         isSystem: true,
       });
+
+      if (otherUser) {
+        pushNotification(otherUser.username, {
+          type: 'trade_status',
+          title: `Escrow released (${trade.id})`,
+          body: `${trade.cryptoAmount.toFixed(6)} ${trade.crypto} settled to ${trade.buyerUsername}.`,
+          tradeId: trade.id,
+          fromUsername: user.username,
+        });
+        sendToUser(otherUser.username, {
+          type: 'user:updated',
+          user: sanitizeUser(otherUser),
+        });
+      }
     } else if (action === 'cancel' && trade.status === 'escrow_funded') {
       trade.status = 'cancelled';
       if (trade.side === 'buy_crypto') {
-        user.balances[trade.crypto] = Number(
-          ((user.balances[trade.crypto] ?? 0) + trade.cryptoAmount).toFixed(8)
-        );
+        const sellerUser = findUserByUsername(trade.sellerUsername);
+        if (sellerUser) {
+          sellerUser.balances[trade.crypto] = Number(
+            ((sellerUser.balances[trade.crypto] ?? 0) + trade.cryptoAmount).toFixed(8)
+          );
+        }
       } else if (trade.side === 'swap_crypto' && trade.swapToCrypto && trade.swapToAmount) {
-        user.balances[trade.swapToCrypto] = Number(
-          ((user.balances[trade.swapToCrypto] ?? 0) + trade.swapToAmount).toFixed(8)
-        );
+        const buyerUser = findUserByUsername(trade.buyerUsername);
+        if (buyerUser) {
+          buyerUser.balances[trade.swapToCrypto] = Number(
+            ((buyerUser.balances[trade.swapToCrypto] ?? 0) + trade.swapToAmount).toFixed(8)
+          );
+        }
       }
       trade.messages.push({
         id: `msg-${crypto.randomBytes(4).toString('hex')}`,
         sender: 'Escrow System',
-        text: `Trade ${trade.id} cancelled and escrow unlocked.`,
+        text: `Trade ${trade.id} cancelled by ${user.username} and escrow unlocked.`,
         timestamp: new Date().toISOString(),
         isSystem: true,
       });
+      if (otherUser) {
+        pushNotification(otherUser.username, {
+          type: 'trade_status',
+          title: `Trade ${trade.id} cancelled`,
+          body: `${user.username} cancelled the trade and unlocked escrow.`,
+          tradeId: trade.id,
+          fromUsername: user.username,
+        });
+        sendToUser(otherUser.username, {
+          type: 'user:updated',
+          user: sanitizeUser(otherUser),
+        });
+      }
     } else if (action === 'dispute' && (trade.status === 'escrow_funded' || trade.status === 'payment_sent')) {
       trade.status = 'disputed';
       trade.messages.push({
         id: `msg-${crypto.randomBytes(4).toString('hex')}`,
         sender: 'Escrow System',
-        text: `Dispute opened. An independent OOSAB arbitrator has frozen the ${trade.crypto} in escrow and joined the chat.`,
+        text: `Dispute opened by ${user.username}. An independent OOSAB arbitrator has frozen the ${trade.crypto} in escrow and joined the chat.`,
         timestamp: new Date().toISOString(),
         isSystem: true,
       });
+      if (otherUser) {
+        pushNotification(otherUser.username, {
+          type: 'trade_status',
+          title: `Dispute opened (${trade.id})`,
+          body: `${user.username} opened an escrow dispute on ${trade.id}.`,
+          tradeId: trade.id,
+          fromUsername: user.username,
+        });
+      }
     } else if (action === 'feedback' && trade.status === 'completed') {
       const isPos = positive !== false;
       const note = (comment ?? '').trim() || 'Smooth zero-KYC trade!';
+      if (!trade.feedbackBy) trade.feedbackBy = {};
+      trade.feedbackBy[user.username] = { positive: isPos, comment: note };
       trade.feedbackGiven = { positive: isPos, comment: note };
-      const trader = db.traders[trade.traderUsername];
-      if (trader) {
-        trader.recentFeedback.unshift({
+
+      const targetUsername =
+        user.username === trade.buyerUsername ? trade.sellerUsername : trade.buyerUsername;
+      const targetTrader = findTraderByUsername(targetUsername);
+      if (targetTrader) {
+        targetTrader.recentFeedback.unshift({
           id: `fb-${crypto.randomBytes(3).toString('hex')}`,
           author: user.username,
           positive: isPos,
@@ -1154,13 +1590,61 @@ async function startServer() {
           asset: trade.crypto,
           date: 'Just now',
         });
+        targetTrader.totalFeedbackCount = Math.max(
+          targetTrader.totalFeedbackCount ?? 0,
+          targetTrader.recentFeedback.length
+        );
+        const posCount = targetTrader.recentFeedback.filter((f) => f.positive).length;
+        if (targetTrader.recentFeedback.length > 0 && targetTrader.tradesCount <= targetTrader.recentFeedback.length) {
+          targetTrader.ratingPct = Math.round((posCount / targetTrader.recentFeedback.length) * 100);
+        }
+      }
+      if (otherUser) {
+        pushNotification(otherUser.username, {
+          type: 'feedback_received',
+          title: `New ${isPos ? 'positive' : 'negative'} feedback from ${user.username}`,
+          body: note,
+          tradeId: trade.id,
+          fromUsername: user.username,
+        });
       }
     } else {
       return res.status(400).json({ error: 'Invalid trade state transition.' });
     }
 
+    if (otherUser) {
+      sendToUser(otherUser.username, {
+        type: 'trade:updated',
+        trade: formatTradeForViewer(trade, otherUser.username),
+      });
+    }
     await saveDb();
-    return res.json({ trade, user: sanitizeUser(user) });
+    return res.json({
+      trade: formatTradeForViewer(trade, user.username),
+      user: sanitizeUser(user),
+    });
+  });
+
+  // Notifications
+  app.get('/api/notifications', (req, res) => {
+    const user = getAuthUser(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
+    const list = db.notifications[user.username] ?? [];
+    return res.json({ notifications: list });
+  });
+
+  app.post('/api/notifications/read', async (req, res) => {
+    const user = getAuthUser(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
+    const { id } = (req.body ?? {}) as { id?: string };
+    const list = db.notifications[user.username] ?? [];
+    for (const item of list) {
+      if (!id || item.id === id) {
+        item.read = true;
+      }
+    }
+    await saveDb();
+    return res.json({ notifications: list });
   });
 
   // Instant Swaps
@@ -1396,14 +1880,26 @@ async function startServer() {
   });
 
   app.post('/api/wallet/credit', async (req, res) => {
-    const user = getAuthUser(req);
-    if (!user) return res.status(401).json({ error: 'Sign in or register to credit your profile balance.' });
-
-    const { crypto: asset, mode, amount } = req.body as {
+    const authUser = getAuthUser(req);
+    const { crypto: asset, mode, amount, targetUsername } = req.body as {
       crypto?: CryptoAsset;
       mode?: 'crypto' | 'usd';
       amount?: number;
+      targetUsername?: string;
     };
+
+    const targetUser = targetUsername?.trim()
+      ? findUserByUsername(targetUsername)
+      : authUser ?? undefined;
+
+    if (!targetUser) {
+      return res.status(authUser ? 404 : 401).json({
+        error: targetUsername?.trim()
+          ? `Registered account "${targetUsername.trim()}" not found.`
+          : 'Sign in or select a registered account to credit.',
+      });
+    }
+
     const supportedAssets: CryptoAsset[] = ['BTC', 'XMR', 'ETH', 'USDT', 'LTC', 'SOL', 'USDC'];
     if (!asset || !supportedAssets.includes(asset)) {
       return res.status(400).json({ error: 'Select a supported cryptocurrency.' });
@@ -1428,27 +1924,163 @@ async function startServer() {
     }
     const usdValue = Number((creditedCrypto * spotUsd).toFixed(2));
 
-    user.balances[asset] = Number(((user.balances[asset] ?? 0) + creditedCrypto).toFixed(8));
+    targetUser.balances[asset] = Number(
+      ((targetUser.balances[asset] ?? 0) + creditedCrypto).toFixed(8)
+    );
     const tx: WalletTx = {
       id: `DEP-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
       type: 'deposit',
       crypto: asset,
       amount: creditedCrypto,
-      address: user.depositAddresses[asset] ?? generateDepositAddress(asset),
+      address: targetUser.depositAddresses[asset] ?? generateDepositAddress(asset),
       txHash: crypto.randomBytes(32).toString('hex'),
       network: `${asset} Direct Credit`,
       status: 'Confirmed',
       timestamp: new Date().toISOString(),
     };
-    user.walletHistory.unshift(tx);
+    targetUser.walletHistory.unshift(tx);
+
+    pushNotification(targetUser.username, {
+      type: 'wallet_credit',
+      title: `Wallet credited +${creditedCrypto} ${asset}`,
+      body: `+$${usdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD credited to @${targetUser.username}.`,
+    });
+    sendToUser(targetUser.username, {
+      type: 'user:updated',
+      user: sanitizeUser(targetUser),
+    });
+
     await saveDb();
 
     return res.json({
-      user: sanitizeUser(user),
+      user: sanitizeUser(targetUser),
+      targetUsername: targetUser.username,
+      isSelf: Boolean(authUser && authUser.username === targetUser.username),
       tx,
       creditedCrypto,
       usdValue,
     });
+  });
+
+  app.post('/api/secret/profile-stats', async (req, res) => {
+    const authUser = getAuthUser(req);
+    const {
+      targetUsername,
+      addTradesCount,
+      tradeRecord,
+      ratingPct,
+      verified,
+      avgReleaseMinutes,
+      addVolumeUsd,
+      feedback,
+    } = req.body as {
+      targetUsername?: string;
+      addTradesCount?: number;
+      tradeRecord?: {
+        asset?: CryptoAsset;
+        cryptoAmount?: number;
+        fiatAmount?: number;
+        fiat?: FiatCurrency;
+        paymentMethod?: string;
+        side?: 'Bought' | 'Sold';
+        counterparty?: string;
+        completedAt?: string;
+      };
+      ratingPct?: number;
+      verified?: boolean;
+      avgReleaseMinutes?: number;
+      addVolumeUsd?: number;
+      feedback?: {
+        author?: string;
+        positive?: boolean;
+        comment?: string;
+        asset?: CryptoAsset;
+        date?: string;
+      };
+    };
+
+    const resolvedName = targetUsername?.trim() || authUser?.username;
+    if (!resolvedName) {
+      return res.status(401).json({ error: 'Sign in or select a registered account first.' });
+    }
+
+    const trader = findTraderByUsername(resolvedName);
+    if (!trader) {
+      return res.status(404).json({ error: `Profile "${resolvedName}" not found.` });
+    }
+
+    const addCount = Math.max(0, Math.min(10000, Math.floor(Number(addTradesCount) || 0)));
+    if (addCount > 0) {
+      trader.tradesCount += addCount;
+    }
+
+    if (tradeRecord) {
+      const rec: TraderTradeRecord = {
+        id: `TX-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
+        asset: tradeRecord.asset || 'BTC',
+        cryptoAmount: Number(tradeRecord.cryptoAmount) > 0 ? Number(tradeRecord.cryptoAmount) : 0.05,
+        fiatAmount: Number(tradeRecord.fiatAmount) > 0 ? Number(tradeRecord.fiatAmount) : 500,
+        fiat: tradeRecord.fiat || 'USD',
+        paymentMethod: (tradeRecord.paymentMethod || 'Zelle').trim(),
+        side: tradeRecord.side === 'Bought' ? 'Bought' : 'Sold',
+        counterparty: (tradeRecord.counterparty || 'm***8').trim(),
+        completedAt: (tradeRecord.completedAt || 'Just now').trim(),
+      };
+      if (!trader.tradeHistory) trader.tradeHistory = [];
+      trader.tradeHistory.unshift(rec);
+      if (addCount === 0) {
+        trader.tradesCount += 1;
+      }
+      trader.totalVolumeUsd = (trader.totalVolumeUsd ?? 0) + rec.fiatAmount;
+    }
+
+    if (typeof addVolumeUsd === 'number' && addVolumeUsd > 0) {
+      trader.totalVolumeUsd = Math.round((trader.totalVolumeUsd ?? 0) + addVolumeUsd);
+    }
+    if (typeof ratingPct === 'number' && Number.isFinite(ratingPct)) {
+      trader.ratingPct = Math.max(1, Math.min(100, Math.round(ratingPct)));
+    }
+    if (typeof verified === 'boolean') {
+      trader.verified = verified;
+    }
+    if (typeof avgReleaseMinutes === 'number' && Number.isFinite(avgReleaseMinutes) && avgReleaseMinutes > 0) {
+      trader.avgReleaseMinutes = Math.round(avgReleaseMinutes);
+    }
+
+    if (feedback && feedback.comment?.trim()) {
+      const fbEntry = {
+        id: `fb-${crypto.randomBytes(3).toString('hex')}`,
+        author: (feedback.author || 'anon_trader').trim(),
+        positive: feedback.positive !== false,
+        comment: feedback.comment.trim(),
+        asset: feedback.asset || 'BTC',
+        date: (feedback.date || 'Just now').trim(),
+      };
+      if (!trader.recentFeedback) trader.recentFeedback = [];
+      trader.recentFeedback.unshift(fbEntry);
+      trader.totalFeedbackCount = Math.max(
+        trader.totalFeedbackCount ?? 0,
+        trader.recentFeedback.length
+      );
+      if (findUserByUsername(trader.username)) {
+        pushNotification(trader.username, {
+          type: 'feedback_received',
+          title: `New feedback from ${fbEntry.author}`,
+          body: fbEntry.comment,
+          fromUsername: fbEntry.author,
+        });
+      }
+    }
+
+    if (trader.tradesCount >= 250) {
+      const btcTier = Math.max(5, Math.round(trader.tradesCount / 40));
+      trader.volumeTier = `${btcTier}+ BTC`;
+    } else if (trader.tradesCount > 0) {
+      trader.volumeTier = `${Math.max(1, Math.round(trader.tradesCount / 15))}+ BTC`;
+    }
+
+    await saveDb();
+    return res.json({ trader: buildTraderDetails(trader, db.offers) });
   });
 
   // Vite Dev Middleware or Static Production Build
@@ -1467,7 +2099,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`OOSAB server running on http://0.0.0.0:${PORT}`);
   });
 }

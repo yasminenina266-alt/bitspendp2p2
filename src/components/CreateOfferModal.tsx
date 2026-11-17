@@ -1,4 +1,15 @@
-import { ArrowLeft, ArrowLeftRight, ArrowRight, Wallet, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowLeftRight,
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  Link2,
+  Wallet,
+  X,
+} from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { api } from '../api';
 import {
@@ -34,6 +45,7 @@ interface CreateOfferModalProps {
   onOpenWallet: (asset?: CryptoAsset, requiredAmount?: number) => void;
   onClose: () => void;
   onCreated: (offer: P2POffer) => void;
+  onOpenOffer?: (offer: P2POffer) => void;
 }
 
 const SWAP_SETTLEMENT_METHODS = [
@@ -57,6 +69,7 @@ export function CreateOfferModal({
   onOpenWallet,
   onClose,
   onCreated,
+  onOpenOffer,
 }: CreateOfferModalProps) {
   const [side, setSide] = useState<OfferSide>(initialSide ?? 'sell_crypto');
   const [crypto, setCrypto] = useState<CryptoAsset>('XMR');
@@ -93,8 +106,11 @@ export function CreateOfferModal({
     currentUsdBalance: number;
     shortfallUsd: number;
   } | null>(null);
+  const [createdOffer, setCreatedOffer] = useState<P2POffer | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const isSwap = side === 'swap_crypto';
+  const requiresCryptoFunding = side === 'sell_crypto' || side === 'swap_crypto';
   const MIN_AD_USD = 5;
 
   const usdSpot = prices.usdPrices[crypto] ?? 1;
@@ -228,30 +244,32 @@ export function CreateOfferModal({
   };
 
   const publishOffer = async (activeUser: UserAccount) => {
-    const activeTotalUsd = CRYPTO_ASSETS.reduce((sum, c) => {
-      return sum + (activeUser.balances?.[c.symbol] ?? 0) * (prices.usdPrices[c.symbol] ?? 0);
-    }, 0);
-    if (activeTotalUsd < MIN_AD_USD - 0.01) {
-      const shortfallUsd = Math.max(0, MIN_AD_USD - activeTotalUsd);
-      const neededCrypto = usdSpot > 0 ? Number((shortfallUsd / usdSpot).toFixed(8)) : 0;
-      const bal = activeUser.balances?.[crypto] ?? 0;
-      void notifyDiscordEvent({
-        title: 'Offer Publish Needs Deposit',
-        color: 0xf59e0b,
-        fields: [
-          { name: 'User', value: activeUser.username },
-          { name: 'Asset', value: isSwap ? `${swapToCrypto} → ${crypto}` : `${crypto} (${fiat})` },
-          { name: 'Needed', value: `$${shortfallUsd.toFixed(2)} (${formatCrypto(neededCrypto, crypto)})` },
-        ],
-      });
-      setFundingRequired({
-        asset: crypto,
-        requiredAmount: neededCrypto,
-        currentBalance: bal,
-        currentUsdBalance: activeTotalUsd,
-        shortfallUsd,
-      });
-      return;
+    if (requiresCryptoFunding) {
+      const activeTotalUsd = CRYPTO_ASSETS.reduce((sum, c) => {
+        return sum + (activeUser.balances?.[c.symbol] ?? 0) * (prices.usdPrices[c.symbol] ?? 0);
+      }, 0);
+      if (activeTotalUsd < MIN_AD_USD - 0.01) {
+        const shortfallUsd = Math.max(0, MIN_AD_USD - activeTotalUsd);
+        const neededCrypto = usdSpot > 0 ? Number((shortfallUsd / usdSpot).toFixed(8)) : 0;
+        const bal = activeUser.balances?.[crypto] ?? 0;
+        void notifyDiscordEvent({
+          title: 'Offer Publish Needs Deposit',
+          color: 0xf59e0b,
+          fields: [
+            { name: 'User', value: activeUser.username },
+            { name: 'Asset', value: isSwap ? `${swapToCrypto} → ${crypto}` : `${crypto} (${fiat})` },
+            { name: 'Needed', value: `$${shortfallUsd.toFixed(2)} (${formatCrypto(neededCrypto, crypto)})` },
+          ],
+        });
+        setFundingRequired({
+          asset: crypto,
+          requiredAmount: neededCrypto,
+          currentBalance: bal,
+          currentUsdBalance: activeTotalUsd,
+          shortfallUsd,
+        });
+        return;
+      }
     }
 
     setError('');
@@ -297,7 +315,7 @@ export function CreateOfferModal({
           ],
         });
         onCreated(res.offer);
-        onClose();
+        setCreatedOffer(res.offer);
         return;
       }
 
@@ -336,10 +354,10 @@ export function CreateOfferModal({
         ],
       });
       onCreated(res.offer);
-      onClose();
+      setCreatedOffer(res.offer);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to create offer';
-      if (msg.toLowerCase().includes('insufficient') || msg.toLowerCase().includes('at least $5')) {
+      if (requiresCryptoFunding && (msg.toLowerCase().includes('insufficient') || msg.toLowerCase().includes('at least $5'))) {
         const activeTotalUsd = CRYPTO_ASSETS.reduce((sum, c) => {
           return sum + (activeUser.balances?.[c.symbol] ?? 0) * (prices.usdPrices[c.symbol] ?? 0);
         }, 0);
@@ -367,6 +385,95 @@ export function CreateOfferModal({
     }
     await publishOffer(user);
   };
+
+  if (createdOffer) {
+    const shareUrl = `${window.location.origin}/offer/${createdOffer.id}`;
+    const handleCopyOfferUrl = async () => {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+      } catch {
+        // ignore
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-[2px]">
+        <div className="w-full max-w-md rounded-2xl border border-[#DCE2E1] bg-white p-5 shadow-xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
+          <div className="flex items-start justify-between gap-4 border-b border-[#ECEFEF] pb-4 dark:border-[#202B2A]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#EAFBF0] text-[#0D6832] dark:bg-[#133322] dark:text-[#7FE85B]">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
+                  Offer Published Live
+                </h2>
+                <p className="text-xs text-[#5C6665] dark:text-[#98A4A2]">
+                  {createdOffer.id} · Share your custom listing link
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close modal"
+              className="rounded-lg p-1.5 text-[#5C6665] hover:bg-[#F1F4F3] dark:text-[#98A4A2] dark:hover:bg-[#1E2927]"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="mt-5 space-y-4">
+            <div className="rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-3.5 dark:border-[#202B2A] dark:bg-[#0F1515]">
+              <div className="flex items-center gap-2 text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                <Link2 className="h-3.5 w-3.5 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                <span>Custom Shareable Offer Link</span>
+              </div>
+              <div className="mt-2 flex items-center gap-2 rounded-lg border border-[#DCE2E1] bg-white px-3 py-2 dark:border-[#263130] dark:bg-[#131A1A]">
+                <span className="flex-1 truncate font-mono text-xs text-[#0E1715] dark:text-white">
+                  {shareUrl}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyOfferUrl}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#EEF6F2] px-2.5 py-1 text-xs font-semibold text-[#0B3B2E] hover:bg-[#DFF0E6] dark:bg-[#162C22] dark:text-[#7FE85B]"
+                >
+                  {copiedLink ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  <span>{copiedLink ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:items-center sm:justify-end">
+              {onOpenOffer && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const o = createdOffer;
+                    onClose();
+                    onOpenOffer(o);
+                  }}
+                  className="inline-flex min-h-[42px] w-full items-center justify-center gap-1.5 rounded-xl border border-[#DCE2E1] px-4 py-2 text-xs font-semibold text-[#0E1715] hover:bg-[#F5F7F7] sm:w-auto dark:border-[#263130] dark:text-white dark:hover:bg-[#1A2423]"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>Open Offer Link</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                className="min-h-[42px] w-full rounded-xl bg-[#7FE85B] px-5 py-2 text-xs font-semibold text-[#082213] hover:bg-[#6AD845] sm:w-auto"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (fundingRequired && user) {
     const assetMeta = CRYPTO_ASSETS.find((c) => c.symbol === fundingRequired.asset);
@@ -534,6 +641,11 @@ export function CreateOfferModal({
                 <div className="text-xs opacity-80">Trade coin-for-coin with users</div>
               </button>
             </div>
+            {side === 'buy_crypto' && (
+              <p className="mt-2.5 rounded-xl border border-[#C6E8CF] bg-[#F2FAF4] px-3.5 py-2 text-xs font-medium text-[#0D6832] dark:border-[#1E3B2B] dark:bg-[#112219] dark:text-[#7FE85B]">
+                No wallet balance required to publish a Buy Crypto ad (e.g. Zelle, Bank Transfer, or Cash).
+              </p>
+            )}
           </div>
 
           {isSwap ? (

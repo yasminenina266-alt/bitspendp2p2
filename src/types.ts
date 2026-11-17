@@ -141,10 +141,32 @@ export interface TradeOrder {
   createdAt: string;
   expiresAt: string;
   messages: TradeMessage[];
+  counterpartyIsReal?: boolean;
+  lastReadAtBy?: Record<string, string>;
+  feedbackBy?: Record<string, { positive: boolean; comment: string }>;
   feedbackGiven?: {
     positive: boolean;
     comment: string;
   };
+}
+
+export type NotificationType =
+  | 'trade_opened'
+  | 'trade_message'
+  | 'trade_status'
+  | 'wallet_credit'
+  | 'feedback_received';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  tradeId?: string;
+  offerId?: string;
+  fromUsername?: string;
+  read: boolean;
+  createdAt: string;
 }
 
 export type SwapStatus = 'awaiting_deposit' | 'confirming' | 'exchanging' | 'completed';

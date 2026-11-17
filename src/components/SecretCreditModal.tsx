@@ -1,8 +1,30 @@
-import { CheckCircle2, Coins, DollarSign, ShieldAlert, Sparkles, Wallet, X } from 'lucide-react';
-import { useMemo, useState, type FormEvent } from 'react';
-import { api } from '../api';
-import { CRYPTO_ASSETS, formatCrypto } from '../constants/market';
-import type { CryptoAsset, MarketPrices, UserAccount } from '../types';
+import {
+  Award,
+  CheckCircle2,
+  Coins,
+  DollarSign,
+  MessageSquarePlus,
+  ShieldAlert,
+  Sparkles,
+  Users,
+  Wallet,
+  X,
+} from 'lucide-react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { api, type DirectoryUser } from '../api';
+import {
+  CRYPTO_ASSETS,
+  FIAT_CURRENCIES,
+  PAYMENT_METHODS,
+  formatCrypto,
+} from '../constants/market';
+import type {
+  CryptoAsset,
+  FiatCurrency,
+  MarketPrices,
+  TraderProfile,
+  UserAccount,
+} from '../types';
 import { CoinIcon } from './CoinIcon';
 
 interface SecretCreditModalProps {
@@ -11,6 +33,7 @@ interface SecretCreditModalProps {
   onClose: () => void;
   onRequireAuth: (mode: 'login' | 'register') => void;
   onUserUpdated: (user: UserAccount) => void;
+  onProfileUpdated?: (trader: TraderProfile) => void;
   onOpenWallet: () => void;
 }
 
@@ -22,21 +45,94 @@ export function SecretCreditModal({
   onClose,
   onRequireAuth,
   onUserUpdated,
+  onProfileUpdated,
   onOpenWallet,
 }: SecretCreditModalProps) {
+  const [vaultTab, setVaultTab] = useState<'credit' | 'reputation'>('credit');
+  const [directory, setDirectory] = useState<DirectoryUser[]>([]);
+  const [targetUsername, setTargetUsername] = useState<string>(user?.username ?? '');
+  const [userSearch, setUserSearch] = useState('');
+
+  // Balance Credit tab state
   const [selectedCrypto, setSelectedCrypto] = useState<CryptoAsset>('BTC');
   const [inputMode, setInputMode] = useState<'usd' | 'crypto'>('usd');
   const [amountInput, setAmountInput] = useState<string>('1000');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [lastCredit, setLastCredit] = useState<{
+    target: string;
     crypto: CryptoAsset;
     creditedCrypto: number;
     usdValue: number;
   } | null>(null);
 
+  // Profile Trades & Feedback tab state
+  const [addTradesCount, setAddTradesCount] = useState('5');
+  const [ratingPct, setRatingPct] = useState('100');
+  const [avgReleaseMinutes, setAvgReleaseMinutes] = useState('3');
+  const [addVolumeUsd, setAddVolumeUsd] = useState('');
+  const [verifiedToggle, setVerifiedToggle] = useState(true);
+
+  const [includeTradeRecord, setIncludeTradeRecord] = useState(true);
+  const [recAsset, setRecAsset] = useState<CryptoAsset>('BTC');
+  const [recSide, setRecSide] = useState<'Sold' | 'Bought'>('Sold');
+  const [recCryptoAmt, setRecCryptoAmt] = useState('0.085');
+  const [recFiatAmt, setRecFiatAmt] = useState('4200');
+  const [recFiat, setRecFiat] = useState<FiatCurrency>('USD');
+  const [recMethod, setRecMethod] = useState(PAYMENT_METHODS[0].name);
+  const [recCounterparty, setRecCounterparty] = useState('v***x');
+
+  const [fbAuthor, setFbAuthor] = useState('satoshi_desk');
+  const [fbPositive, setFbPositive] = useState(true);
+  const [fbAsset, setFbAsset] = useState<CryptoAsset>('BTC');
+  const [fbComment, setFbComment] = useState(
+    'Instant escrow release and smooth zero-KYC settlement. Highly recommended!'
+  );
+  const [repBusy, setRepBusy] = useState(false);
+  const [repError, setRepError] = useState('');
+  const [repSuccess, setRepSuccess] = useState('');
+
+  const loadDirectory = () => {
+    api
+      .getUserDirectory()
+      .then((res) => {
+        const users = res.users ?? [];
+        setDirectory(users);
+        if (!targetUsername) {
+          if (user?.username) setTargetUsername(user.username);
+          else if (users.length > 0) setTargetUsername(users[0].username);
+        }
+      })
+      .catch(() => undefined);
+  };
+
+  useEffect(() => {
+    loadDirectory();
+  }, []);
+
+  useEffect(() => {
+    if (user?.username && !targetUsername) {
+      setTargetUsername(user.username);
+    }
+  }, [user?.username]);
+
+  const filteredDirectory = useMemo(() => {
+    const q = userSearch.trim().toLowerCase();
+    if (!q) return directory;
+    return directory.filter((u) => u.username.toLowerCase().includes(q));
+  }, [directory, userSearch]);
+
+  const activeTargetUser = useMemo(() => {
+    const clean = targetUsername.trim().toLowerCase();
+    return directory.find((u) => u.username.toLowerCase() === clean) ?? null;
+  }, [directory, targetUsername]);
+
   const spotUsd = prices.usdPrices[selectedCrypto] ?? 1;
-  const currentBalance = user?.balances[selectedCrypto] ?? 0;
+  const currentBalance =
+    activeTargetUser?.balances[selectedCrypto] ??
+    (user && user.username.toLowerCase() === targetUsername.trim().toLowerCase()
+      ? user.balances[selectedCrypto] ?? 0
+      : 0);
 
   const parsedInput = useMemo(() => {
     const n = Number(amountInput);
@@ -69,12 +165,14 @@ export function SecretCreditModal({
     return ['100', '500', '1000', '5000', '10000'];
   }, [selectedCrypto]);
 
-  const handleSubmit = async (e: FormEvent) => {
+  const resolvedTarget = targetUsername.trim() || user?.username || '';
+
+  const handleSubmitCredit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setLastCredit(null);
 
-    if (!user) {
+    if (!resolvedTarget) {
       onClose();
       onRequireAuth('register');
       return;
@@ -91,13 +189,18 @@ export function SecretCreditModal({
         crypto: selectedCrypto,
         mode: inputMode,
         amount: parsedInput,
+        targetUsername: resolvedTarget,
       });
-      onUserUpdated(res.user);
+      if (res.isSelf !== false && user && res.user.username === user.username) {
+        onUserUpdated(res.user);
+      }
       setLastCredit({
+        target: res.targetUsername ?? res.user.username,
         crypto: selectedCrypto,
         creditedCrypto: res.creditedCrypto,
         usdValue: res.usdValue,
       });
+      loadDirectory();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to credit wallet balance.');
     } finally {
@@ -105,9 +208,60 @@ export function SecretCreditModal({
     }
   };
 
+  const handleSubmitReputation = async (e: FormEvent) => {
+    e.preventDefault();
+    setRepError('');
+    setRepSuccess('');
+
+    if (!resolvedTarget) {
+      setRepError('Select or enter a registered username first.');
+      return;
+    }
+
+    setRepBusy(true);
+    try {
+      const res = await api.addSecretProfileStats({
+        targetUsername: resolvedTarget,
+        addTradesCount: Number(addTradesCount) > 0 ? Number(addTradesCount) : undefined,
+        ratingPct: Number(ratingPct) > 0 ? Number(ratingPct) : undefined,
+        verified: verifiedToggle,
+        avgReleaseMinutes: Number(avgReleaseMinutes) > 0 ? Number(avgReleaseMinutes) : undefined,
+        addVolumeUsd: Number(addVolumeUsd) > 0 ? Number(addVolumeUsd) : undefined,
+        tradeRecord: includeTradeRecord
+          ? {
+              asset: recAsset,
+              side: recSide,
+              cryptoAmount: Number(recCryptoAmt) || 0.05,
+              fiatAmount: Number(recFiatAmt) || 500,
+              fiat: recFiat,
+              paymentMethod: recMethod,
+              counterparty: recCounterparty || 'm***8',
+            }
+          : undefined,
+        feedback: fbComment.trim()
+          ? {
+              author: fbAuthor.trim() || 'anon_trader',
+              positive: fbPositive,
+              asset: fbAsset,
+              comment: fbComment.trim(),
+            }
+          : undefined,
+      });
+      onProfileUpdated?.(res.trader);
+      setRepSuccess(
+        `Updated @${res.trader.username}: ${res.trader.tradesCount} trades · ${res.trader.ratingPct}% trust`
+      );
+      loadDirectory();
+    } catch (err) {
+      setRepError(err instanceof Error ? err.message : 'Failed to update profile stats');
+    } finally {
+      setRepBusy(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-xs sm:items-center sm:p-4">
-      <div className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-[#DCE2E1] bg-white p-5 shadow-2xl sm:rounded-2xl sm:p-6 dark:border-[#243230] dark:bg-[#121918]">
+      <div className="relative max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-2xl border border-[#DCE2E1] bg-white p-5 shadow-2xl sm:rounded-2xl sm:p-6 dark:border-[#243230] dark:bg-[#121918]">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -117,14 +271,14 @@ export function SecretCreditModal({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
-                  Vault Balance Credit
+                  Vault Admin Console
                 </h2>
                 <span className="rounded-md bg-[#E8F8EE] px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-[#0B3B2E] dark:bg-[#152D21] dark:text-[#7FE85B]">
                   Instant
                 </span>
               </div>
               <p className="text-xs text-[#5C6665] dark:text-[#8E9B98]">
-                Auto-calculated at live market rates and credited straight to your profile
+                Credit any registered account or add trades &amp; feedback to public profiles
               </p>
             </div>
           </div>
@@ -138,42 +292,111 @@ export function SecretCreditModal({
           </button>
         </div>
 
-        {!user ? (
-          <div className="mt-5 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-5 text-center dark:border-[#222E2C] dark:bg-[#0E1413]">
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[#EEF6F2] text-[#0B3B2E] dark:bg-[#152B20] dark:text-[#7FE85B]">
-              <ShieldAlert className="h-5 w-5" />
-            </div>
-            <h3 className="mt-3 font-display text-base font-bold text-[#0E1715] dark:text-white">
-              Sign in to credit your profile
-            </h3>
-            <p className="mt-1 text-xs text-[#5C6665] dark:text-[#8E9B98]">
-              You need an active OOSAB profile so calculated crypto or dollar funds can be credited to your wallet.
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onRequireAuth('login');
-                }}
-                className="rounded-xl border border-[#DCE2E1] bg-white px-4 py-2.5 text-sm font-semibold text-[#0E1715] hover:bg-[#F3F5F5] dark:border-[#263130] dark:bg-[#151E1D] dark:text-white"
-              >
-                Sign in
-              </button>
+        {/* Mode Switcher Tabs */}
+        <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-[#DCE2E1] bg-[#F4F6F6] p-1 dark:border-[#24302F] dark:bg-[#0E1413]">
+          <button
+            type="button"
+            onClick={() => setVaultTab('credit')}
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+              vaultTab === 'credit'
+                ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
+                : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
+            }`}
+          >
+            <Wallet className="h-3.5 w-3.5" />
+            <span>Credit Balance</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setVaultTab('reputation')}
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+              vaultTab === 'reputation'
+                ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
+                : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
+            }`}
+          >
+            <Award className="h-3.5 w-3.5" />
+            <span>Trades &amp; Feedback</span>
+          </button>
+        </div>
+
+        {/* Target Registered Account Picker */}
+        <div className="mt-4 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3.5 dark:border-[#222E2C] dark:bg-[#0E1413]">
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1.5 font-semibold text-[#1E2726] dark:text-[#DCE4E3]">
+              <Users className="h-3.5 w-3.5 text-[#0B3B2E] dark:text-[#7FE85B]" />
+              <span>Target Registered Account</span>
+            </span>
+            <span className="font-mono text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+              {directory.length} account{directory.length === 1 ? '' : 's'} saved
+            </span>
+          </div>
+
+          {directory.length === 0 && !user ? (
+            <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-3 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
+              <ShieldAlert className="mx-auto mb-1.5 h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
+              No registered user accounts yet.{' '}
               <button
                 type="button"
                 onClick={() => {
                   onClose();
                   onRequireAuth('register');
                 }}
-                className="rounded-xl bg-[#7FE85B] px-4 py-2.5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845]"
+                className="font-semibold text-[#0B3B2E] underline dark:text-[#7FE85B]"
               >
-                Register Free
-              </button>
+                Register an account
+              </button>{' '}
+              first.
             </div>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          ) : (
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <select
+                  value={targetUsername}
+                  onChange={(e) => {
+                    setTargetUsername(e.target.value);
+                    setLastCredit(null);
+                    setRepSuccess('');
+                  }}
+                  className="h-10 w-full rounded-lg border border-[#DCE2E1] bg-white px-3 text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                >
+                  {user && !directory.some((d) => d.username === user.username) && (
+                    <option value={user.username}>@{user.username} (You)</option>
+                  )}
+                  {filteredDirectory.map((acc) => (
+                    <option key={acc.username} value={acc.username}>
+                      @{acc.username}
+                      {user?.username === acc.username ? ' (You)' : ''} · {acc.tradesCount} trades
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Filter accounts by username..."
+                  className="h-10 w-full rounded-lg border border-[#DCE2E1] bg-white px-3 text-xs text-[#0E1715] placeholder-[#7B8684] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                />
+              </div>
+              {activeTargetUser && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                  <span>
+                    Selected: <strong className="text-[#0E1715] dark:text-white">@{activeTargetUser.username}</strong>
+                  </span>
+                  <span>
+                    · {formatCrypto(activeTargetUser.balances[selectedCrypto] ?? 0, selectedCrypto)}
+                  </span>
+                  <span>· {activeTargetUser.tradesCount} trades</span>
+                  <span>· {activeTargetUser.ratingPct}% trust</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* TAB 1: Credit Crypto or Dollars */}
+        {vaultTab === 'credit' && (
+          <form onSubmit={handleSubmitCredit} className="mt-4 space-y-4">
             {/* Step 1: Choose Crypto Asset */}
             <div>
               <div className="mb-2 flex items-center justify-between text-xs">
@@ -199,13 +422,13 @@ export function SecretCreditModal({
                         setSelectedCrypto(coin.symbol);
                         setLastCredit(null);
                       }}
-                      className={`flex flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2.5 text-xs font-semibold transition-colors ${
+                      className={`flex flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-xs font-semibold transition-colors ${
                         active
                           ? 'border-[#0B3B2E] bg-[#EEF6F2] text-[#0B3B2E] dark:border-[#7FE85B] dark:bg-[#162C22] dark:text-[#7FE85B]'
                           : 'border-[#DCE2E1] bg-[#F8FAFA] text-[#394241] hover:bg-[#EFF3F2] dark:border-[#24302F] dark:bg-[#0E1413] dark:text-[#C8D2D0] dark:hover:bg-[#192322]'
                       }`}
                     >
-                      <CoinIcon symbol={coin.symbol} size={20} />
+                      <CoinIcon symbol={coin.symbol} size={18} />
                       <span>{coin.symbol}</span>
                     </button>
                   );
@@ -214,50 +437,45 @@ export function SecretCreditModal({
             </div>
 
             {/* Step 2: Mode Switch (Dollars USD vs Crypto Amount) */}
-            <div>
-              <label className="mb-2 block text-xs font-semibold text-[#1E2726] dark:text-[#DCE4E3]">
-                Credit Input Mode
-              </label>
-              <div className="grid grid-cols-2 gap-2 rounded-xl border border-[#DCE2E1] bg-[#F4F6F6] p-1 dark:border-[#24302F] dark:bg-[#0E1413]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (inputMode !== 'usd') {
-                      setInputMode('usd');
-                      setAmountInput(calculated.usdAmount > 0 ? String(calculated.usdAmount) : '1000');
-                      setLastCredit(null);
-                    }
-                  }}
-                  className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                    inputMode === 'usd'
-                      ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
-                      : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
-                  }`}
-                >
-                  <DollarSign className="h-3.5 w-3.5" />
-                  <span>Dollars (USD)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (inputMode !== 'crypto') {
-                      setInputMode('crypto');
-                      setAmountInput(
-                        calculated.cryptoAmount > 0 ? String(calculated.cryptoAmount) : '0.1'
-                      );
-                      setLastCredit(null);
-                    }
-                  }}
-                  className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                    inputMode === 'crypto'
-                      ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
-                      : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
-                  }`}
-                >
-                  <Coins className="h-3.5 w-3.5" />
-                  <span>Crypto ({selectedCrypto})</span>
-                </button>
-              </div>
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-[#DCE2E1] bg-[#F4F6F6] p-1 dark:border-[#24302F] dark:bg-[#0E1413]">
+              <button
+                type="button"
+                onClick={() => {
+                  if (inputMode !== 'usd') {
+                    setInputMode('usd');
+                    setAmountInput(calculated.usdAmount > 0 ? String(calculated.usdAmount) : '1000');
+                    setLastCredit(null);
+                  }
+                }}
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                  inputMode === 'usd'
+                    ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
+                    : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
+                }`}
+              >
+                <DollarSign className="h-3.5 w-3.5" />
+                <span>Dollars (USD)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (inputMode !== 'crypto') {
+                    setInputMode('crypto');
+                    setAmountInput(
+                      calculated.cryptoAmount > 0 ? String(calculated.cryptoAmount) : '0.1'
+                    );
+                    setLastCredit(null);
+                  }
+                }}
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                  inputMode === 'crypto'
+                    ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
+                    : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
+                }`}
+              >
+                <Coins className="h-3.5 w-3.5" />
+                <span>Crypto ({selectedCrypto})</span>
+              </button>
             </div>
 
             {/* Step 3: Amount + Presets */}
@@ -330,45 +548,29 @@ export function SecretCreditModal({
               </div>
             </div>
 
-            {/* Automated Live Calculation Preview */}
-            <div className="rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-4 dark:border-[#222E2C] dark:bg-[#0E1413]">
+            {/* Calculation Summary */}
+            <div className="rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3.5 dark:border-[#222E2C] dark:bg-[#0E1413]">
               <div className="flex items-center justify-between text-xs text-[#5C6665] dark:text-[#8E9B98]">
                 <span>Calculated Credit</span>
                 <span className="font-mono font-semibold text-[#0D6832] dark:text-[#7FE85B]">
                   +{calculated.cryptoAmount.toLocaleString('en-US', { maximumFractionDigits: 8 })}{' '}
-                  {selectedCrypto}
+                  {selectedCrypto} (${calculated.usdAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                 </span>
               </div>
-              <div className="mt-1.5 flex items-center justify-between text-xs text-[#5C6665] dark:text-[#8E9B98]">
-                <span>Dollar Equivalent</span>
-                <span className="font-mono font-semibold text-[#0E1715] dark:text-white">
-                  +$
-                  {calculated.usdAmount.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}{' '}
-                  USD
-                </span>
-              </div>
-              <div className="my-2.5 border-t border-[#E3E7E7] dark:border-[#202B2A]" />
+              <div className="my-2 border-t border-[#E3E7E7] dark:border-[#202B2A]" />
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-[#1E2726] dark:text-[#DCE4E3]">
-                  New {selectedCrypto} Balance ({user.username})
+                  New {selectedCrypto} Balance (@{resolvedTarget || 'account'})
                 </span>
-                <div className="text-right font-mono">
-                  <div className="font-bold text-[#0E1715] dark:text-white">
-                    {projectedBalance.toLocaleString('en-US', { maximumFractionDigits: 8 })}{' '}
-                    {selectedCrypto}
-                  </div>
-                  <div className="text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
-                    ≈ $
-                    {projectedUsd.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{' '}
-                    USD
-                  </div>
-                </div>
+                <span className="font-mono font-bold text-[#0E1715] dark:text-white">
+                  {projectedBalance.toLocaleString('en-US', { maximumFractionDigits: 8 })}{' '}
+                  {selectedCrypto} (≈ $
+                  {projectedUsd.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                  )
+                </span>
               </div>
             </div>
 
@@ -388,25 +590,22 @@ export function SecretCreditModal({
                       +{lastCredit.creditedCrypto.toLocaleString('en-US', { maximumFractionDigits: 8 })}{' '}
                       {lastCredit.crypto}
                     </strong>{' '}
-                    ($
-                    {lastCredit.usdValue.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                    ) to @{user.username}.
+                    to @{lastCredit.target}.
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onOpenWallet();
-                  }}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-[#0B3B2E] px-2.5 py-1.5 font-semibold text-white hover:bg-[#135241] dark:bg-[#7FE85B] dark:text-[#082213]"
-                >
-                  <Wallet className="h-3.5 w-3.5" />
-                  <span>Wallet</span>
-                </button>
+                {user && lastCredit.target === user.username && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenWallet();
+                    }}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-[#0B3B2E] px-2.5 py-1.5 font-semibold text-white hover:bg-[#135241] dark:bg-[#7FE85B] dark:text-[#082213]"
+                  >
+                    <Wallet className="h-3.5 w-3.5" />
+                    <span>Wallet</span>
+                  </button>
+                )}
               </div>
             )}
 
@@ -420,12 +619,237 @@ export function SecretCreditModal({
               </button>
               <button
                 type="submit"
-                disabled={submitting || calculated.cryptoAmount <= 0}
+                disabled={submitting || calculated.cryptoAmount <= 0 || !resolvedTarget}
                 className="h-10 rounded-xl bg-[#7FE85B] px-5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {submitting
                   ? 'Crediting...'
                   : `Credit +${calculated.cryptoAmount.toLocaleString('en-US', { maximumFractionDigits: 6 })} ${selectedCrypto}`}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* TAB 2: Profile Trades & Feedback Injection */}
+        {vaultTab === 'reputation' && (
+          <form onSubmit={handleSubmitReputation} className="mt-4 space-y-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                  Add Trades
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="10000"
+                  value={addTradesCount}
+                  onChange={(e) => setAddTradesCount(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                  Trust %
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={ratingPct}
+                  onChange={(e) => setRatingPct(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                  Release (min)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={avgReleaseMinutes}
+                  onChange={(e) => setAvgReleaseMinutes(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                  +Volume USD
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 5000"
+                  value={addVolumeUsd}
+                  onChange={(e) => setAddVolumeUsd(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                />
+              </div>
+            </div>
+
+            <label className="flex cursor-pointer items-center justify-between rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] px-3.5 py-2.5 text-xs font-semibold text-[#1E2726] dark:border-[#222E2C] dark:bg-[#0E1413] dark:text-[#DCE4E3]">
+              <span>Verified High-Volume Badge</span>
+              <input
+                type="checkbox"
+                checked={verifiedToggle}
+                onChange={(e) => setVerifiedToggle(e.target.checked)}
+                className="h-4 w-4 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+              />
+            </label>
+
+            {/* Optional Completed Trade Record */}
+            <div className="rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3.5 dark:border-[#222E2C] dark:bg-[#0E1413]">
+              <label className="flex cursor-pointer items-center justify-between text-xs font-bold text-[#0E1715] dark:text-white">
+                <span>Log Completed Trade Entry in History</span>
+                <input
+                  type="checkbox"
+                  checked={includeTradeRecord}
+                  onChange={(e) => setIncludeTradeRecord(e.target.checked)}
+                  className="h-4 w-4 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                />
+              </label>
+
+              {includeTradeRecord && (
+                <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                  <select
+                    value={recSide}
+                    onChange={(e) => setRecSide(e.target.value as 'Sold' | 'Bought')}
+                    className="h-9 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                  >
+                    <option value="Sold">Sold</option>
+                    <option value="Bought">Bought</option>
+                  </select>
+                  <select
+                    value={recAsset}
+                    onChange={(e) => setRecAsset(e.target.value as CryptoAsset)}
+                    className="h-9 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                  >
+                    {CRYPTO_ASSETS.map((c) => (
+                      <option key={c.symbol} value={c.symbol}>
+                        {c.symbol}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    step="any"
+                    value={recCryptoAmt}
+                    onChange={(e) => setRecCryptoAmt(e.target.value)}
+                    placeholder="Crypto amt"
+                    className="h-9 rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    value={recFiatAmt}
+                    onChange={(e) => setRecFiatAmt(e.target.value)}
+                    placeholder="Fiat amt"
+                    className="h-9 rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                  />
+                  <select
+                    value={recFiat}
+                    onChange={(e) => setRecFiat(e.target.value as FiatCurrency)}
+                    className="h-9 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                  >
+                    {FIAT_CURRENCIES.map((f) => (
+                      <option key={f.code} value={f.code}>
+                        {f.code}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={recMethod}
+                    onChange={(e) => setRecMethod(e.target.value)}
+                    className="h-9 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                  >
+                    {PAYMENT_METHODS.map((pm) => (
+                      <option key={pm.name} value={pm.name}>
+                        {pm.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={recCounterparty}
+                    onChange={(e) => setRecCounterparty(e.target.value)}
+                    placeholder="Counterparty (e.g. m***8)"
+                    className="col-span-2 h-9 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs text-[#0E1715] sm:col-span-3 dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Feedback Entry */}
+            <div className="space-y-2.5 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3.5 dark:border-[#222E2C] dark:bg-[#0E1413]">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[#0E1715] dark:text-white">
+                <MessageSquarePlus className="h-3.5 w-3.5 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                <span>Add Custom Feedback Review (optional)</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <input
+                  type="text"
+                  value={fbAuthor}
+                  onChange={(e) => setFbAuthor(e.target.value)}
+                  placeholder="Reviewer username"
+                  className="h-9 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                />
+                <select
+                  value={fbAsset}
+                  onChange={(e) => setFbAsset(e.target.value as CryptoAsset)}
+                  className="h-9 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                >
+                  {CRYPTO_ASSETS.map((c) => (
+                    <option key={c.symbol} value={c.symbol}>
+                      {c.symbol}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={fbPositive ? 'pos' : 'neg'}
+                  onChange={(e) => setFbPositive(e.target.value === 'pos')}
+                  className="h-9 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                >
+                  <option value="pos">Positive Review</option>
+                  <option value="neg">Negative Review</option>
+                </select>
+              </div>
+              <textarea
+                rows={2}
+                value={fbComment}
+                onChange={(e) => setFbComment(e.target.value)}
+                placeholder="Write a review comment (leave blank to skip adding feedback)..."
+                className="w-full rounded-lg border border-[#DCE2E1] bg-white p-2.5 text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+              />
+            </div>
+
+            {repError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                {repError}
+              </div>
+            )}
+
+            {repSuccess && (
+              <div className="flex items-center gap-2 rounded-xl border border-[#8CE89E] bg-[#EAFBF0] px-3.5 py-3 text-xs font-semibold text-[#0B3B2E] dark:border-[#1E4D33] dark:bg-[#112A1D] dark:text-[#7FE85B]">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span>{repSuccess}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-10 rounded-xl border border-[#DCE2E1] px-4 text-sm font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#DCE4E3] dark:hover:bg-[#1A2423]"
+              >
+                Close
+              </button>
+              <button
+                type="submit"
+                disabled={repBusy || !resolvedTarget}
+                className="h-10 rounded-xl bg-[#7FE85B] px-5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] disabled:opacity-50"
+              >
+                {repBusy ? 'Applying...' : `Apply to @${resolvedTarget || 'profile'}`}
               </button>
             </div>
           </form>

@@ -5,7 +5,9 @@ import {
   Clock,
   Copy,
   FileText,
+  Link2,
   Lock,
+  Minimize2,
   Paperclip,
   Send,
   ShieldCheck,
@@ -33,6 +35,11 @@ interface TradeModalProps {
   prices: MarketPrices;
   initialFiatAmount?: number | null;
   user: UserAccount | null;
+  onlineUsers?: string[];
+  typingByTrade?: Record<string, string | null>;
+  onTyping?: (tradeId: string, isTyping: boolean) => void;
+  onMarkRead?: (tradeId: string) => void;
+  onSelectTrader?: (username: string) => void;
   onRequireAuth: () => void;
   onClose: () => void;
   onTradeUpdated: (trade: TradeOrder, updatedUser?: UserAccount) => void;
@@ -45,6 +52,11 @@ export function TradeModal({
   prices,
   initialFiatAmount,
   user,
+  onlineUsers = [],
+  typingByTrade = {},
+  onTyping,
+  onMarkRead,
+  onSelectTrader,
   onRequireAuth,
   onClose,
   onTradeUpdated,
@@ -74,8 +86,16 @@ export function TradeModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [copiedId, setCopiedId] = useState(false);
+  const [copiedOfferUrl, setCopiedOfferUrl] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(1800);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (existingTrade) {
+      setTrade(existingTrade);
+    }
+  }, [existingTrade]);
 
   useEffect(() => {
     if (!trade) return;
@@ -90,12 +110,19 @@ export function TradeModal({
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [trade?.messages.length]);
+  }, [trade?.messages.length, trade?.id]);
 
-  // Realistic escrow release progression after buyer/taker confirms deposit/payment
+  // Mark trade messages read whenever trade opens or incoming messages arrive
+  useEffect(() => {
+    if (!trade || !user) return;
+    onMarkRead?.(trade.id);
+  }, [trade?.id, trade?.messages.length, user?.username]);
+
+  // Only simulate auto-release for NPC / seed traders; real 2-user trades wait for the real seller
   useEffect(() => {
     if (
       !trade ||
+      trade.counterpartyIsReal ||
       trade.status !== 'payment_sent' ||
       (trade.side !== 'sell_crypto' && trade.side !== 'swap_crypto')
     ) {
@@ -111,7 +138,7 @@ export function TradeModal({
       }
     }, 3500);
     return () => clearTimeout(timer);
-  }, [trade?.id, trade?.status, trade?.side, onTradeUpdated]);
+  }, [trade?.id, trade?.status, trade?.side, trade?.counterpartyIsReal, onTradeUpdated]);
 
   const formatTimer = (sec: number) => {
     const m = Math.floor(sec / 60);
@@ -119,7 +146,15 @@ export function TradeModal({
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  // Phase 1: LocalCoinSwap-Style Offer Review, Terms & Amount Entry
+  const formatMsgClock = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  };
+
+  // Phase 1: Offer Review, Terms & Amount Entry
   if (!trade && offer) {
     const isOwnOffer = Boolean(user && offer.traderUsername === user.username);
     const isSwap = offer.side === 'swap_crypto' && !!offer.swapToCrypto;
@@ -145,6 +180,16 @@ export function TradeModal({
             ? String(Number(prod.toFixed(swapTargetAsset === 'USDT' || swapTargetAsset === 'USDC' ? 2 : 6)))
             : prod.toFixed(2)
         );
+      }
+    };
+
+    const handleCopyOfferUrl = async () => {
+      try {
+        await navigator.clipboard.writeText(`${window.location.origin}/offer/${offer.id}`);
+        setCopiedOfferUrl(true);
+        setTimeout(() => setCopiedOfferUrl(false), 1800);
+      } catch {
+        // ignore
       }
     };
 
@@ -191,9 +236,19 @@ export function TradeModal({
                 </h2>
                 <p className="flex flex-wrap items-center gap-1.5 text-xs text-[#5C6665] dark:text-[#98A4A2]">
                   <span>
-                    Offer by <span className="font-semibold text-[#0E1715] dark:text-white">{offer.traderUsername}</span>{' '}
+                    Offer by{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onSelectTrader?.(offer.traderUsername);
+                      }}
+                      className="font-semibold text-[#0E1715] hover:underline dark:text-white"
+                    >
+                      /{offer.traderUsername}
+                    </button>{' '}
                     · {trader?.ratingPct ?? 100}% Trust ({trader?.tradesCount ?? 0} trades) ·{' '}
-                    {offer.paymentWindowMinutes}m escrow window
+                    {offer.paymentWindowMinutes}m escrow
                   </span>
                   {offer.cryptoChain && CHAIN_OPTIONS[offer.cryptoChain] && (
                     <span className="inline-flex items-center gap-1 rounded-md border border-[#DCE2E1] bg-[#F8FAFA] px-1.5 py-0.5 font-mono text-[11px] font-medium text-[#394241] dark:border-[#263130] dark:bg-[#172120] dark:text-[#C5D1CF]">
@@ -214,14 +269,33 @@ export function TradeModal({
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close modal"
-              className="rounded-lg p-1.5 text-[#5C6665] hover:bg-[#F1F4F3] dark:text-[#98A4A2] dark:hover:bg-[#1E2927]"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleCopyOfferUrl}
+                className="inline-flex items-center gap-1 rounded-lg border border-[#DCE2E1] px-2.5 py-1.5 font-mono text-[11px] font-semibold text-[#394241] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#C5D1CF] dark:hover:bg-[#1E2927]"
+              >
+                {copiedOfferUrl ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-[#0D6832] dark:text-[#7FE85B]" />
+                    <span>Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Share Offer</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close modal"
+                className="rounded-lg p-1.5 text-[#5C6665] hover:bg-[#F1F4F3] dark:text-[#98A4A2] dark:hover:bg-[#1E2927]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-12">
@@ -323,14 +397,14 @@ export function TradeModal({
               </div>
             </div>
 
-            {/* Right: Generated Terms & Conditions + Escrow Guarantee */}
+            {/* Right: Terms & Conditions */}
             <div className="flex flex-col justify-between space-y-4 md:col-span-6">
               <div className="space-y-3">
                 <div className="rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-4 dark:border-[#202B2A] dark:bg-[#0F1515]">
                   <div className="flex items-center gap-2 text-xs font-bold text-[#0E1715] dark:text-white">
                     <FileText className="h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
                     <span>
-                      Terms & Conditions for {user ? user.username : isSwap ? 'Swapper' : 'Buyer'}
+                      Terms & Conditions for {user ? user.username : isSwap ? 'Swapper' : 'Trader'}
                     </span>
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-[#2D3635] dark:text-[#D1DCDA]">
@@ -371,7 +445,7 @@ export function TradeModal({
                     </span>
                   </div>
                   <p className="mt-1">
-                    This is how your published listing appears live to traders. Use the calculator on the left to test amounts and spot-synced rates. You cannot open a trade on your own ad.
+                    This is how your published listing appears live to traders. Copy your share link above so others can open and trade with you directly.
                   </p>
                 </div>
               ) : (
@@ -441,21 +515,62 @@ export function TradeModal({
     );
   }
 
-  // Phase 2: LocalCoinSwap-Style Active Escrow & Chat Room
+  // Phase 2: Active Multi-User Escrow & Live Chat Room
   if (!trade) return null;
 
   const isSwap = trade.side === 'swap_crypto' && !!trade.swapToCrypto;
-  const isBuyingCrypto = trade.side === 'sell_crypto';
+  const isBuyer = Boolean(user && trade.buyerUsername === user.username);
+  const isSeller = Boolean(user && trade.sellerUsername === user.username);
+  const counterparty = user
+    ? trade.buyerUsername === user.username
+      ? trade.sellerUsername
+      : trade.buyerUsername
+    : trade.traderUsername;
+
+  const counterpartyOnline = trade.counterpartyIsReal
+    ? onlineUsers.some((u) => u.toLowerCase() === counterparty.toLowerCase())
+    : true;
+  const counterpartyTyping = typingByTrade[trade.id] === counterparty;
+
+  const emitTypingChange = (nextVal: string) => {
+    setMessageText(nextVal);
+    if (!onTyping) return;
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    if (nextVal.trim().length > 0) {
+      onTyping(trade.id, true);
+      typingTimerRef.current = setTimeout(() => {
+        onTyping(trade.id, false);
+      }, 1500);
+    } else {
+      onTyping(trade.id, false);
+    }
+  };
 
   const handleSendMsg = async (e: FormEvent) => {
     e.preventDefault();
     if (!messageText.trim() || busy) return;
     setBusy(true);
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    onTyping?.(trade.id, false);
     try {
       const res = await api.sendTradeMessage(trade.id, messageText);
       setTrade(res.trade);
       onTradeUpdated(res.trade);
       setMessageText('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send message');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleQuickReply = async (text: string) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await api.sendTradeMessage(trade.id, text);
+      setTrade(res.trade);
+      onTradeUpdated(res.trade);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
@@ -518,12 +633,24 @@ export function TradeModal({
           : 1;
 
   const statusLabel = {
-    escrow_funded: 'Escrow Funded · Send Payment',
-    payment_sent: 'Payment Sent · Verifying Receipt',
+    escrow_funded: 'Escrow Funded · Active',
+    payment_sent: 'Payment Sent · Pending Release',
     completed: 'Completed · Crypto Released',
     cancelled: 'Cancelled · Escrow Returned',
     disputed: 'Disputed · Escrow Frozen',
   }[trade.status];
+
+  const quickReplies = isBuyer
+    ? [
+        `Where should I send ${trade.paymentMethod}?`,
+        `Sending ${formatFiat(trade.fiatAmount, trade.fiat)} now.`,
+        `Payment sent via ${trade.paymentMethod} with ref ${trade.id}.`,
+      ]
+    : [
+        `Send ${formatFiat(trade.fiatAmount, trade.fiat)} via ${trade.paymentMethod} (${trade.paymentDetails}).`,
+        `Checking ${trade.paymentMethod} receipt now.`,
+        `Payment confirmed, releasing ${trade.crypto} now!`,
+      ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-[2px]">
@@ -541,31 +668,58 @@ export function TradeModal({
                   {statusLabel}
                 </span>
               </div>
-              <p className="text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                {isSwap && trade.swapToCrypto && trade.swapToAmount ? (
-                  <>
-                    Swap {formatCrypto(trade.swapToAmount, trade.swapToCrypto)} →{' '}
-                    {formatCrypto(trade.cryptoAmount, trade.crypto)} · {trade.paymentMethod} with{' '}
-                    {trade.traderUsername}
-                  </>
-                ) : (
-                  <>
-                    {formatCrypto(trade.cryptoAmount, trade.crypto)} for{' '}
-                    {formatFiat(trade.fiatAmount, trade.fiat)} · {trade.paymentMethod} with{' '}
-                    {trade.traderUsername}
-                  </>
-                )}
-              </p>
+              <div className="flex flex-wrap items-center gap-x-2 text-xs text-[#5C6665] dark:text-[#98A4A2]">
+                <span>
+                  {isSwap && trade.swapToCrypto && trade.swapToAmount ? (
+                    <>
+                      Swap {formatCrypto(trade.swapToAmount, trade.swapToCrypto)} →{' '}
+                      {formatCrypto(trade.cryptoAmount, trade.crypto)} · {trade.paymentMethod} with{' '}
+                    </>
+                  ) : (
+                    <>
+                      {formatCrypto(trade.cryptoAmount, trade.crypto)} for{' '}
+                      {formatFiat(trade.fiatAmount, trade.fiat)} · {trade.paymentMethod} with{' '}
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onSelectTrader?.(counterparty);
+                    }}
+                    className="font-semibold text-[#0E1715] hover:underline dark:text-white"
+                  >
+                    @{counterparty}
+                  </button>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      counterpartyOnline ? 'bg-[#16A34A] dark:bg-[#7FE85B]' : 'bg-[#9CA8A6]'
+                    }`}
+                  />
+                  <span>{counterpartyOnline ? 'Online' : 'Offline'}</span>
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {(trade.status === 'escrow_funded' || trade.status === 'payment_sent') && (
               <div className="flex items-center gap-1 rounded-lg border border-[#DCE2E1] px-2 py-1 font-mono text-[11px] font-semibold text-[#0E1715] sm:gap-1.5 sm:px-2.5 sm:text-xs dark:border-[#263130] dark:text-white">
                 <Clock className="h-3 w-3 text-[#5C6665] sm:h-3.5 sm:w-3.5" />
                 <span>{formatTimer(secondsLeft)}</span>
               </div>
             )}
+            <button
+              type="button"
+              onClick={onClose}
+              title="Exit chat and keep browsing (return via Messages button)"
+              className="hidden sm:inline-flex items-center gap-1 rounded-lg border border-[#DCE2E1] px-2.5 py-1.5 text-xs font-semibold text-[#4B5554] hover:bg-[#F1F4F3] dark:border-[#263130] dark:text-[#C5D1CF] dark:hover:bg-[#1E2927]"
+            >
+              <Minimize2 className="h-3.5 w-3.5" />
+              <span>Minimize</span>
+            </button>
             <button
               type="button"
               onClick={onClose}
@@ -609,7 +763,7 @@ export function TradeModal({
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <div className="text-[#5C6665] dark:text-[#8E9B98]">
-                    {isSwap ? 'You Send' : 'Fiat Amount'}
+                    {isSwap ? 'Swap Input' : 'Fiat Amount'}
                   </div>
                   <div className="mt-0.5 font-mono text-sm font-bold tabular-nums text-[#0E1715] dark:text-white">
                     {isSwap && trade.swapToCrypto && trade.swapToAmount
@@ -619,20 +773,24 @@ export function TradeModal({
                 </div>
                 <div>
                   <div className="text-[#5C6665] dark:text-[#8E9B98]">
-                    {isSwap ? 'You Receive' : 'Escrow Locked'}
+                    {isSwap ? 'Swap Output' : 'Escrow Locked'}
                   </div>
                   <div className="mt-0.5 font-mono text-sm font-bold tabular-nums text-[#0B3B2E] dark:text-[#7FE85B]">
                     {formatCrypto(trade.cryptoAmount, trade.crypto)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[#5C6665] dark:text-[#8E9B98]">Buyer</div>
+                  <div className="text-[#5C6665] dark:text-[#8E9B98]">
+                    Buyer {isBuyer ? '(You)' : ''}
+                  </div>
                   <div className="mt-0.5 font-semibold text-[#0E1715] dark:text-white">
                     {trade.buyerUsername}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[#5C6665] dark:text-[#8E9B98]">Seller</div>
+                  <div className="text-[#5C6665] dark:text-[#8E9B98]">
+                    Seller {isSeller ? '(You)' : ''}
+                  </div>
                   <div className="mt-0.5 font-semibold text-[#0E1715] dark:text-white">
                     {trade.sellerUsername}
                   </div>
@@ -644,7 +802,7 @@ export function TradeModal({
             <div className="rounded-xl border border-[#DCE2E1] bg-white p-3.5 dark:border-[#24302E] dark:bg-[#0F1515]">
               <div className="flex items-center justify-between text-xs font-bold text-[#0E1715] dark:text-white">
                 <span>
-                  {isSwap ? `Swap Escrow Details` : `Payment Details (${trade.paymentMethod})`}
+                  {isSwap ? 'Swap Escrow Details' : `Payment Details (${trade.paymentMethod})`}
                 </span>
                 <button
                   type="button"
@@ -660,9 +818,9 @@ export function TradeModal({
               </p>
             </div>
 
-            {/* Action Buttons */}
+            {/* Role-Aware Action Buttons */}
             <div className="space-y-2.5">
-              {trade.status === 'escrow_funded' && (isBuyingCrypto || isSwap) && (
+              {trade.status === 'escrow_funded' && (isBuyer || (!trade.counterpartyIsReal && isSwap)) && (
                 <button
                   type="button"
                   disabled={busy}
@@ -673,35 +831,35 @@ export function TradeModal({
                 </button>
               )}
 
-              {trade.status === 'payment_sent' && (isBuyingCrypto || isSwap) && (
+              {trade.status === 'payment_sent' && isBuyer && (
                 <div className="rounded-xl border border-[#DCE2E1] bg-[#F5F9F7] p-3.5 text-xs text-[#202B29] dark:border-[#203029] dark:bg-[#11201A] dark:text-[#D1DCDA]">
                   <div className="flex items-center gap-2 font-semibold text-[#0D6832] dark:text-[#7FE85B]">
                     <ShieldCheck className="h-4 w-4" />
                     <span>
                       {isSwap
-                        ? `Settling ${trade.swapToCrypto} ↔ ${trade.crypto} swap...`
-                        : `Verifying ${trade.paymentMethod} confirmation...`}
+                        ? `Waiting for ${counterparty} to finalize swap...`
+                        : `Waiting for ${counterparty} to release ${trade.crypto}...`}
                     </span>
                   </div>
                   <p className="mt-1 opacity-85">
-                    {trade.traderUsername} is confirming receipt and releasing {trade.crypto} from escrow.
+                    {trade.counterpartyIsReal
+                      ? `@${counterparty} received your payment confirmation notification and can release escrow after verifying.`
+                      : `${counterparty} is confirming receipt and releasing ${trade.crypto} from escrow.`}
                   </p>
                 </div>
               )}
 
-              {(trade.status === 'escrow_funded' || trade.status === 'payment_sent') &&
-                !isBuyingCrypto &&
-                !isSwap && (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => handleAction('release')}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#7FE85B] py-3 text-sm font-semibold text-[#082213] hover:bg-[#6AD845]"
-                  >
-                    <Lock className="h-4 w-4" />
-                    <span>Confirm Payment &amp; Release {trade.crypto}</span>
-                  </button>
-                )}
+              {(trade.status === 'escrow_funded' || trade.status === 'payment_sent') && isSeller && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => handleAction('release')}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#7FE85B] py-3 text-sm font-semibold text-[#082213] hover:bg-[#6AD845]"
+                >
+                  <Lock className="h-4 w-4" />
+                  <span>Confirm Payment &amp; Release {trade.crypto}</span>
+                </button>
+              )}
 
               {trade.status === 'escrow_funded' && (
                 <button
@@ -730,7 +888,7 @@ export function TradeModal({
                 <div className="space-y-3 rounded-xl border border-[#D3EBD9] bg-[#F3FAF5] p-4 dark:border-[#1E3B2B] dark:bg-[#112219]">
                   <div className="flex items-center gap-2 text-sm font-bold text-[#0D6832] dark:text-[#7FE85B]">
                     <CheckCircle2 className="h-4 w-4" />
-                    <span>Escrow Released · Leave Feedback</span>
+                    <span>Escrow Released · Leave Feedback for @{counterparty}</span>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -790,8 +948,8 @@ export function TradeModal({
             )}
           </div>
 
-          {/* Right: Escrow Chat */}
-          <div className="flex h-[360px] flex-col sm:h-[420px] md:col-span-7 md:h-[500px]">
+          {/* Right: Dynamic Live Escrow Chat */}
+          <div className="flex h-[380px] flex-col sm:h-[440px] md:col-span-7 md:h-[520px]">
             <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
               {trade.messages.map((m) => {
                 const isMe = m.sender === user?.username;
@@ -801,10 +959,13 @@ export function TradeModal({
                       key={m.id}
                       className="rounded-xl border border-[#E3E7E7] bg-[#F6F8F8] px-3.5 py-2.5 text-xs text-[#4B5554] dark:border-[#202B2A] dark:bg-[#0F1515] dark:text-[#98A4A2]"
                     >
-                      <span className="font-semibold text-[#0E1715] dark:text-white mr-1.5">
+                      <span className="mr-1.5 font-semibold text-[#0E1715] dark:text-white">
                         Escrow:
                       </span>
                       <span>{m.text}</span>
+                      <span className="ml-2 font-mono text-[10px] opacity-70">
+                        {formatMsgClock(m.timestamp)}
+                      </span>
                     </div>
                   );
                 }
@@ -813,9 +974,12 @@ export function TradeModal({
                     key={m.id}
                     className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                   >
-                    <span className="mb-1 text-[11px] font-medium text-[#6C7775]">
-                      {m.sender}
-                    </span>
+                    <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-[#6C7775]">
+                      <span>{m.sender}</span>
+                      <span className="font-mono text-[10px] opacity-75">
+                        {formatMsgClock(m.timestamp)}
+                      </span>
+                    </div>
                     <div
                       className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                         isMe
@@ -828,8 +992,31 @@ export function TradeModal({
                   </div>
                 );
               })}
+
+              {counterpartyTyping && (
+                <div className="flex items-center gap-2 text-xs italic text-[#5C6665] dark:text-[#8E9B98]">
+                  <span>@{counterparty} is typing...</span>
+                </div>
+              )}
+
               <div ref={chatBottomRef} />
             </div>
+
+            {(trade.status === 'escrow_funded' || trade.status === 'payment_sent') && (
+              <div className="flex flex-wrap gap-1.5 border-t border-[#ECEFEF] bg-[#FAFCFC] px-3.5 py-2 dark:border-[#202B2A] dark:bg-[#0F1515]">
+                {quickReplies.map((qr) => (
+                  <button
+                    key={qr}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handleQuickReply(qr)}
+                    className="rounded-lg border border-[#DCE2E1] bg-white px-2.5 py-1 text-[11px] font-medium text-[#394241] hover:border-[#0B3B2E] hover:text-[#0B3B2E] dark:border-[#263130] dark:bg-[#151D1C] dark:text-[#C5D1CF] dark:hover:border-[#7FE85B] dark:hover:text-[#7FE85B]"
+                  >
+                    {qr}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <form
               onSubmit={handleSendMsg}
@@ -847,8 +1034,8 @@ export function TradeModal({
               <input
                 type="text"
                 value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                placeholder="Write a message or share payment info..."
+                onChange={(e) => emitTypingChange(e.target.value)}
+                placeholder={`Message @${counterparty} or share payment info...`}
                 className="h-10 flex-1 rounded-xl border border-[#DCE2E1] bg-white px-3.5 text-sm text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
               />
               <button

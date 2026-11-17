@@ -14,6 +14,7 @@ export interface OfferFilters {
   intent: 'buy' | 'sell' | 'swap'; // 'buy' = sell_crypto, 'sell' = buy_crypto, 'swap' = swap_crypto
   crypto: CryptoAsset | 'ALL';
   paymentMethod: string;
+  searchQuery: string;
   fiat: FiatCurrency | 'ALL';
   country: string;
   amount: string;
@@ -68,6 +69,7 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
   const hasActiveChips =
     filters.crypto !== 'ALL' ||
     filters.paymentMethod.trim() !== '' ||
+    filters.searchQuery.trim() !== '' ||
     filters.fiat !== 'ALL' ||
     filters.country !== 'ALL' ||
     filters.amount.trim() !== '' ||
@@ -303,6 +305,28 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
           <ChevronDown className="pointer-events-none absolute right-3 top-3.5 h-4 w-4 text-[#6C7775]" />
         </div>
 
+        {/* Search by Username / Ad ID / Keywords */}
+        <div className="col-span-2 flex h-11 w-full items-center rounded-xl border border-[#DCE2E1] bg-white px-3.5 focus-within:border-[#0B3B2E] sm:col-span-1 sm:min-w-[195px] sm:flex-1 sm:max-w-[260px] dark:border-[#232E2D] dark:bg-[#131A1A] dark:focus-within:border-[#7FE85B]">
+          <Search className="mr-2 h-4 w-4 shrink-0 text-[#6C7775]" />
+          <input
+            type="text"
+            value={filters.searchQuery}
+            onChange={(e) => onChange({ ...filters, searchQuery: e.target.value })}
+            placeholder="Search @user, ad ID, terms..."
+            className="w-full bg-transparent text-sm text-[#111917] placeholder-[#7B8684] focus:outline-none dark:text-[#EDF3F2] dark:placeholder-[#71807D]"
+          />
+          {filters.searchQuery && (
+            <button
+              type="button"
+              aria-label="Clear search query"
+              onClick={() => onChange({ ...filters, searchQuery: '' })}
+              className="ml-1.5 text-[#6C7775] hover:text-[#111917] dark:hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
         {/* Amount Input */}
         <div className="col-span-2 flex h-11 w-full items-center rounded-xl border border-[#DCE2E1] bg-white px-3.5 focus-within:border-[#0B3B2E] sm:col-span-1 sm:w-[142px] dark:border-[#232E2D] dark:bg-[#131A1A] dark:focus-within:border-[#7FE85B]">
           <input
@@ -443,6 +467,16 @@ export function OfferFilterBar({ filters, onChange, onReset, prices }: OfferFilt
               className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4DCDC] bg-white px-2.5 py-1 text-xs font-medium text-[#1E2726] hover:border-[#9CA8A6] dark:border-[#263130] dark:bg-[#151D1C] dark:text-[#DCE4E3]"
             >
               <span>{filters.paymentMethod}</span>
+              <X className="h-3.5 w-3.5 text-[#6C7775]" />
+            </button>
+          )}
+          {filters.searchQuery.trim() !== '' && (
+            <button
+              type="button"
+              onClick={() => onChange({ ...filters, searchQuery: '' })}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4DCDC] bg-white px-2.5 py-1 text-xs font-medium text-[#1E2726] hover:border-[#9CA8A6] dark:border-[#263130] dark:bg-[#151D1C] dark:text-[#DCE4E3]"
+            >
+              <span>Search: {filters.searchQuery}</span>
               <X className="h-3.5 w-3.5 text-[#6C7775]" />
             </button>
           )}

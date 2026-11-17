@@ -6,6 +6,7 @@ import {
   generateTraderTradesPage,
 } from '../server/seedData';
 import type {
+  AppNotification,
   ChainId,
   CryptoAsset,
   FiatCurrency,
@@ -111,6 +112,7 @@ interface LocalDb {
   trades: Record<string, TradeOrder[]>;
   swaps: Record<string, SwapOrder[]>;
   cards: Record<string, VirtualCard[]>;
+  notifications?: Record<string, AppNotification[]>;
 }
 
 let cachedPrices: MarketPrices = {
@@ -211,6 +213,7 @@ function loadLocalDb(): LocalDb {
         trades: parsed.trades ?? {},
         swaps: parsed.swaps ?? {},
         cards: parsed.cards ?? {},
+        notifications: parsed.notifications ?? {},
       };
     }
   } catch {
@@ -224,6 +227,7 @@ function loadLocalDb(): LocalDb {
     trades: {},
     swaps: {},
     cards: {},
+    notifications: {},
   };
 }
 
@@ -382,13 +386,52 @@ export const localEngine = {
     return { offers: db.offers, traders: db.traders };
   },
 
+  getOfferById: async (id: string) => {
+    const db = loadLocalDb();
+    const cleanId = id.trim().toLowerCase();
+    const offer = db.offers.find((o) => o.id.toLowerCase() === cleanId);
+    if (!offer) throw new Error('Offer not found');
+    const rawTrader =
+      db.traders[offer.traderUsername] ??
+      Object.values(db.traders).find(
+        (t) => t.username.toLowerCase() === offer.traderUsername.toLowerCase()
+      );
+    return {
+      offer,
+      trader: rawTrader ? buildTraderDetails(rawTrader, db.offers) : undefined,
+    };
+  },
+
+  getUserDirectory: async () => {
+    const db = loadLocalDb();
+    return {
+      users: Object.values(db.users).map((u) => {
+        const t = db.traders[u.username];
+        return {
+          username: u.username,
+          createdAt: u.createdAt,
+          balances: u.balances,
+          tradesCount: t?.tradesCount ?? 0,
+          ratingPct: t?.ratingPct ?? 100,
+          verified: t?.verified ?? false,
+        };
+      }),
+    };
+  },
+
   getTrader: async (username: string) => {
     const db = loadLocalDb();
-    const rawTrader = db.traders[username];
+    const key = Object.keys(db.traders).find((k) => k.toLowerCase() === username.trim().toLowerCase());
+    const rawTrader = key ? db.traders[key] : undefined;
     if (!rawTrader) throw new Error('Trader profile not found');
     const trader = buildTraderDetails(rawTrader, db.offers);
     const offers = db.offers.filter((o) => o.traderUsername === trader.username && o.active);
-    return { trader, offers };
+    return {
+      trader,
+      offers,
+      isOnline: trader.lastSeenMinutes === 0,
+      isRegisteredUser: Boolean(db.users[trader.username]),
+    };
   },
 
   getTraderTrades: async (username: string, offset = 0, limit = 20): Promise<{
@@ -397,7 +440,8 @@ export const localEngine = {
     hasMore: boolean;
   }> => {
     const db = loadLocalDb();
-    const rawTrader = db.traders[username];
+    const key = Object.keys(db.traders).find((k) => k.toLowerCase() === username.trim().toLowerCase());
+    const rawTrader = key ? db.traders[key] : undefined;
     if (!rawTrader) throw new Error('Trader profile not found');
     return generateTraderTradesPage(rawTrader, db.offers, offset, limit);
   },
@@ -408,7 +452,8 @@ export const localEngine = {
     hasMore: boolean;
   }> => {
     const db = loadLocalDb();
-    const rawTrader = db.traders[username];
+    const key = Object.keys(db.traders).find((k) => k.toLowerCase() === username.trim().toLowerCase());
+    const rawTrader = key ? db.traders[key] : undefined;
     if (!rawTrader) throw new Error('Trader profile not found');
     return generateTraderFeedbackPage(rawTrader, db.offers, offset, limit);
   },
@@ -558,15 +603,17 @@ export const localEngine = {
     if (!body.crypto || !body.side) throw new Error('Missing required offer fields.');
 
     const prices = await getBrowserLivePrices();
-    const totalUsdBalance = (Object.keys(user.balances) as CryptoAsset[]).reduce((sum, sym) => {
-      const bal = user.balances[sym] ?? 0;
-      const usd = prices.usdPrices[sym] ?? DEFAULT_USD_PRICES[sym] ?? 0;
-      return sum + bal * usd;
-    }, 0);
-    if (totalUsdBalance < 4.99) {
-      throw new Error(
-        `Insufficient funds to publish this listing. You need at least $5.00 worth of any cryptocurrency in your account (current balance: $${totalUsdBalance.toFixed(2)}).`
-      );
+    if (body.side === 'sell_crypto' || body.side === 'swap_crypto') {
+      const totalUsdBalance = (Object.keys(user.balances) as CryptoAsset[]).reduce((sum, sym) => {
+        const bal = user.balances[sym] ?? 0;
+        const usd = prices.usdPrices[sym] ?? DEFAULT_USD_PRICES[sym] ?? 0;
+        return sum + bal * usd;
+      }, 0);
+      if (totalUsdBalance < 4.99) {
+        throw new Error(
+          `Insufficient funds to publish this listing. You need at least $5.00 worth of any cryptocurrency in your account to post a Sell or Swap ad (current balance: $${totalUsdBalance.toFixed(2)}).`
+        );
+      }
     }
 
     if (body.side === 'swap_crypto') {
@@ -787,6 +834,17 @@ export const localEngine = {
     return { trade, user: sanitizeUser(user) };
   },
 
+  markTradeRead: async (tradeId: string) => {
+    const db = loadLocalDb();
+    const user = getLocalAuthUser(db);
+    const trade = (db.trades[user.username] ?? []).find((t) => t.id === tradeId);
+    if (!trade) throw new Error('Trade not found');
+    if (!trade.lastReadAtBy) trade.lastReadAtBy = {};
+    trade.lastReadAtBy[user.username] = new Date().toISOString();
+    saveLocalDb(db);
+    return { trade };
+  },
+
   sendTradeMessage: async (tradeId: string, text: string) => {
     const db = loadLocalDb();
     const user = getLocalAuthUser(db);
@@ -841,6 +899,24 @@ export const localEngine = {
     }
     saveLocalDb(db);
     return { trade, user: sanitizeUser(user) };
+  },
+
+  getNotifications: async () => {
+    const db = loadLocalDb();
+    const user = getLocalAuthUser(db);
+    return { notifications: db.notifications?.[user.username] ?? [] };
+  },
+
+  markNotificationsRead: async (id?: string) => {
+    const db = loadLocalDb();
+    const user = getLocalAuthUser(db);
+    if (!db.notifications) db.notifications = {};
+    const list = db.notifications[user.username] ?? [];
+    for (const n of list) {
+      if (!id || n.id === id) n.read = true;
+    }
+    saveLocalDb(db);
+    return { notifications: list };
   },
 
   getSwaps: async () => {
@@ -1004,9 +1080,23 @@ export const localEngine = {
     crypto: CryptoAsset;
     mode: 'crypto' | 'usd';
     amount: number;
+    targetUsername?: string;
   }) => {
     const db = loadLocalDb();
-    const user = getLocalAuthUser(db);
+    const authUser = (() => {
+      try {
+        return getLocalAuthUser(db);
+      } catch {
+        return null;
+      }
+    })();
+    const targetName = payload.targetUsername?.trim();
+    const targetKey = targetName
+      ? Object.keys(db.users).find((k) => k.toLowerCase() === targetName.toLowerCase())
+      : undefined;
+    const user = targetKey ? ensureUserFields(db.users[targetKey]) : authUser;
+    if (!user) throw new Error('Authentication required or target account not found.');
+
     const rawAmt = Number(payload.amount);
     if (!Number.isFinite(rawAmt) || rawAmt <= 0) {
       throw new Error('Enter a valid amount greater than zero.');
@@ -1037,6 +1127,92 @@ export const localEngine = {
     };
     user.walletHistory.unshift(tx);
     saveLocalDb(db);
-    return { user: sanitizeUser(user), tx, creditedCrypto, usdValue };
+    return {
+      user: sanitizeUser(user),
+      targetUsername: user.username,
+      isSelf: Boolean(authUser && authUser.username === user.username),
+      tx,
+      creditedCrypto,
+      usdValue,
+    };
+  },
+
+  addSecretProfileStats: async (payload: {
+    targetUsername?: string;
+    addTradesCount?: number;
+    tradeRecord?: {
+      asset?: CryptoAsset;
+      cryptoAmount?: number;
+      fiatAmount?: number;
+      fiat?: FiatCurrency;
+      paymentMethod?: string;
+      side?: 'Bought' | 'Sold';
+      counterparty?: string;
+      completedAt?: string;
+    };
+    ratingPct?: number;
+    verified?: boolean;
+    avgReleaseMinutes?: number;
+    addVolumeUsd?: number;
+    feedback?: {
+      author?: string;
+      positive?: boolean;
+      comment?: string;
+      asset?: CryptoAsset;
+      date?: string;
+    };
+  }) => {
+    const db = loadLocalDb();
+    let resolved = payload.targetUsername?.trim();
+    if (!resolved) {
+      resolved = getLocalAuthUser(db).username;
+    }
+    const key = Object.keys(db.traders).find((k) => k.toLowerCase() === resolved!.toLowerCase());
+    if (!key) throw new Error('Profile not found.');
+    const trader = db.traders[key];
+    const addCount = Math.max(0, Math.min(10000, Math.floor(Number(payload.addTradesCount) || 0)));
+    if (addCount > 0) trader.tradesCount += addCount;
+    if (payload.tradeRecord) {
+      const rec: TraderTradeRecord = {
+        id: `TX-${randomHex(3).toUpperCase()}`,
+        asset: payload.tradeRecord.asset || 'BTC',
+        cryptoAmount: Number(payload.tradeRecord.cryptoAmount) > 0 ? Number(payload.tradeRecord.cryptoAmount) : 0.05,
+        fiatAmount: Number(payload.tradeRecord.fiatAmount) > 0 ? Number(payload.tradeRecord.fiatAmount) : 500,
+        fiat: payload.tradeRecord.fiat || 'USD',
+        paymentMethod: (payload.tradeRecord.paymentMethod || 'Zelle').trim(),
+        side: payload.tradeRecord.side === 'Bought' ? 'Bought' : 'Sold',
+        counterparty: (payload.tradeRecord.counterparty || 'm***8').trim(),
+        completedAt: (payload.tradeRecord.completedAt || 'Just now').trim(),
+      };
+      if (!trader.tradeHistory) trader.tradeHistory = [];
+      trader.tradeHistory.unshift(rec);
+      if (addCount === 0) trader.tradesCount += 1;
+      trader.totalVolumeUsd = (trader.totalVolumeUsd ?? 0) + rec.fiatAmount;
+    }
+    if (typeof payload.addVolumeUsd === 'number' && payload.addVolumeUsd > 0) {
+      trader.totalVolumeUsd = Math.round((trader.totalVolumeUsd ?? 0) + payload.addVolumeUsd);
+    }
+    if (typeof payload.ratingPct === 'number' && Number.isFinite(payload.ratingPct)) {
+      trader.ratingPct = Math.max(1, Math.min(100, Math.round(payload.ratingPct)));
+    }
+    if (typeof payload.verified === 'boolean') trader.verified = payload.verified;
+    if (typeof payload.avgReleaseMinutes === 'number' && payload.avgReleaseMinutes > 0) {
+      trader.avgReleaseMinutes = Math.round(payload.avgReleaseMinutes);
+    }
+    if (payload.feedback?.comment?.trim()) {
+      const fb = {
+        id: `fb-${randomHex(3)}`,
+        author: (payload.feedback.author || 'anon_trader').trim(),
+        positive: payload.feedback.positive !== false,
+        comment: payload.feedback.comment.trim(),
+        asset: payload.feedback.asset || 'BTC',
+        date: (payload.feedback.date || 'Just now').trim(),
+      };
+      if (!trader.recentFeedback) trader.recentFeedback = [];
+      trader.recentFeedback.unshift(fb);
+      trader.totalFeedbackCount = Math.max(trader.totalFeedbackCount ?? 0, trader.recentFeedback.length);
+    }
+    saveLocalDb(db);
+    return { trader: buildTraderDetails(trader, db.offers) };
   },
 };
