@@ -155,6 +155,36 @@ export default function App() {
     }
   }, [darkMode]);
 
+  useEffect(() => {
+    const origin = window.location.origin;
+    const currentUrl = origin + window.location.pathname;
+    const ogImageUrl = `${origin}/og-image.jpg`;
+
+    const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (canonical) canonical.href = currentUrl;
+
+    const ogUrl = document.querySelector<HTMLMetaElement>('meta[property="og:url"]');
+    if (ogUrl) ogUrl.content = currentUrl;
+
+    const ogImage = document.querySelector<HTMLMetaElement>('meta[property="og:image"]');
+    if (ogImage) ogImage.content = ogImageUrl;
+
+    const twitterImage = document.querySelector<HTMLMetaElement>('meta[name="twitter:image"]');
+    if (twitterImage) twitterImage.content = ogImageUrl;
+  }, []);
+
+  useEffect(() => {
+    const viewTitle =
+      activeTab === 'account'
+        ? 'OOSAB | Wallet & Escrow Trades'
+        : filters.intent === 'swap'
+          ? 'OOSAB | P2P Crypto Swap Offers'
+          : filters.intent === 'sell'
+            ? 'OOSAB | Sell Crypto P2P Marketplace'
+            : 'OOSAB | No-KYC P2P Crypto Marketplace';
+    document.title = viewTitle;
+  }, [activeTab, filters.intent]);
+
   const loadPrices = useCallback(async (force = false) => {
     setRefreshingPrices(true);
     try {
