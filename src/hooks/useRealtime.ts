@@ -179,7 +179,11 @@ export function useRealtime(
               ((t.buyerUid === uid && t.buyerSettled !== true) ||
                 (t.sellerUid === uid && t.sellerSettled !== true && t.side === 'swap_crypto'))) ||
             (t.status === 'cancelled' &&
-              ((t.sellerUid === uid && t.sellerRefunded !== true && t.side === 'buy_crypto') ||
+              ((t.sellerUid === uid &&
+                t.sellerRefunded !== true &&
+                (t.lastReadAtBy?.__escrowState === 'funded' ||
+                  (t.side === 'buy_crypto' &&
+                    t.lastReadAtBy?.__escrowState !== 'awaiting_seller'))) ||
                 (t.buyerUid === uid && t.buyerRefunded !== true && t.side === 'swap_crypto')))
           ) {
             needsClaim = true;

@@ -939,10 +939,13 @@ export async function claimPendingTradeSettlements(
         hasClaims = true;
       }
     } else if (status === 'cancelled') {
+      const sellerHadFunded =
+        t.lastReadAtBy?.__escrowState === 'funded' ||
+        (side === 'buy_crypto' && t.lastReadAtBy?.__escrowState !== 'awaiting_seller');
       if (
         sellerUid === uid &&
         t.sellerRefunded !== true &&
-        side === 'buy_crypto' &&
+        sellerHadFunded &&
         cryptoAmt > 0
       ) {
         nextBalances[cryptoAsset] = Number(
@@ -1979,7 +1982,10 @@ export const api = {
         sellerSettled: false,
         buyerRefunded: false,
         sellerRefunded: false,
-        lastReadAtBy: { [user.username]: nowIso },
+        lastReadAtBy: {
+          [user.username]: nowIso,
+          __escrowState: counterpartyIsReal ? 'awaiting_seller' : 'funded',
+        },
         expiresAt,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -1992,7 +1998,9 @@ export const api = {
       });
 
       const sysId = `msg-${randomHex(4)}`;
-      const sysText = `Both sides funded in OOSAB multi-asset escrow: ${sendAmt.toFixed(6)} ${offer.swapToCrypto} swapped for ${receiveAmt.toFixed(6)} ${offer.crypto} at 1 ${offer.crypto} = ${unitPrice.toFixed(6)} ${offer.swapToCrypto}.`;
+      const sysText = counterpartyIsReal
+        ? `${sendAmt.toFixed(6)} ${offer.swapToCrypto} locked in escrow by ${user.username}. Waiting for @${offer.traderUsername} to fund ${receiveAmt.toFixed(6)} ${offer.crypto} into escrow.`
+        : `Both sides funded in OOSAB multi-asset escrow: ${sendAmt.toFixed(6)} ${offer.swapToCrypto} swapped for ${receiveAmt.toFixed(6)} ${offer.crypto} at 1 ${offer.crypto} = ${unitPrice.toFixed(6)} ${offer.swapToCrypto}.`;
       batch.set(doc(db, 'trades', tradeId, 'messages', sysId), {
         id: sysId,
         sender: 'Escrow System',
@@ -2063,18 +2071,8 @@ export const api = {
     }
 
     const cryptoAmount = amount / unitPrice;
-    if (offer.side === 'buy_crypto') {
-      if ((nextBalances[offer.crypto] ?? 0) < cryptoAmount - 1e-8) {
-        throw new ApiError(
-          `Insufficient ${offer.crypto} balance in your OOSAB wallet. Deposit ${offer.crypto} in Profile & Wallet first.`,
-          400
-        );
-      }
-      nextBalances[offer.crypto] = Number(
-        Math.max(0, (nextBalances[offer.crypto] ?? 0) - cryptoAmount).toFixed(8)
-      );
-      balancesChanged = true;
-    }
+    const requiresSellerFundingStep = counterpartyIsReal || offer.side === 'buy_crypto';
+    const initialEscrowState = requiresSellerFundingStep ? 'awaiting_seller' : 'funded';
 
     const paymentDetails =
       offer.paymentCategory === 'Gift Cards'
@@ -2118,7 +2116,10 @@ export const api = {
       sellerSettled: false,
       buyerRefunded: false,
       sellerRefunded: false,
-      lastReadAtBy: { [user.username]: nowIso },
+      lastReadAtBy: {
+        [user.username]: nowIso,
+        __escrowState: initialEscrowState,
+      },
       expiresAt,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -2133,7 +2134,9 @@ export const api = {
     }
 
     const sysId = `msg-${randomHex(4)}`;
-    const sysText = `${cryptoAmount.toFixed(6)} ${offer.crypto} is now locked in OOSAB multi-sig escrow at ${unitPrice.toFixed(2)} ${offer.fiat}/${offer.crypto}.`;
+    const sysText = requiresSellerFundingStep
+      ? `Trade ${tradeId} opened for ${cryptoAmount.toFixed(6)} ${offer.crypto} (${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${offer.fiat}). Waiting for @${sellerUsername} to fund escrow before payment.`
+      : `${cryptoAmount.toFixed(6)} ${offer.crypto} is now locked in OOSAB multi-sig escrow at ${unitPrice.toFixed(2)} ${offer.fiat}/${offer.crypto}.`;
     batch.set(doc(db, 'trades', tradeId, 'messages', sysId), {
       id: sysId,
       sender: 'Escrow System',
@@ -2152,7 +2155,7 @@ export const api = {
       const npcText =
         offer.side === 'sell_crypto'
           ? `Hello ${user.username}, escrow is funded for trade ${tradeId}. Please send ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${offer.fiat} via ${offer.paymentMethod}. Payment instruction: ${paymentDetails}`
-          : `Hello ${user.username}, escrow is funded. Share your ${offer.paymentMethod} receiving details here so I can transfer ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${offer.fiat}.`;
+          : `Hello ${user.username}, trade ${tradeId} is open. Fund ${cryptoAmount.toFixed(6)} ${offer.crypto} into escrow first, then I will send ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${offer.fiat} via ${offer.paymentMethod}.`;
       batch.set(doc(db, 'trades', tradeId, 'messages', npcId), {
         id: npcId,
         sender: offer.traderUsername,
@@ -2176,7 +2179,10 @@ export const api = {
           fromUid: uid,
           type: 'trade_opened',
           title: `New trade ${tradeId} opened`,
-          body: `${user.username} opened a ${amount.toLocaleString('en-US')} ${offer.fiat} (${cryptoAmount.toFixed(5)} ${offer.crypto}) trade via ${offer.paymentMethod}.`,
+          body:
+            offer.side === 'sell_crypto'
+              ? `${user.username} opened a ${amount.toLocaleString('en-US')} ${offer.fiat} (${cryptoAmount.toFixed(5)} ${offer.crypto}) trade. Open the trade room to fund escrow.`
+              : `${user.username} opened a ${amount.toLocaleString('en-US')} ${offer.fiat} (${cryptoAmount.toFixed(5)} ${offer.crypto}) trade via ${offer.paymentMethod}.`,
           tradeId,
           offerId: offer.id,
           fromUsername: user.username,
@@ -2310,7 +2316,7 @@ export const api = {
   async tradeAction(
     tradeId: string,
     payload: {
-      action: 'mark_paid' | 'release' | 'cancel' | 'dispute' | 'feedback';
+      action: 'fund_escrow' | 'mark_paid' | 'release' | 'cancel' | 'dispute' | 'feedback';
       positive?: boolean;
       comment?: string;
     }
@@ -2331,8 +2337,90 @@ export const api = {
     let updatedUser: UserAccount = { ...user, balances: { ...user.balances } };
     let nextStatus = trade.status;
     let nextFeedbackBy = trade.feedbackBy ? { ...trade.feedbackBy } : undefined;
+    let nextLastReadAtBy = tData.lastReadAtBy
+      ? { ...(tData.lastReadAtBy as Record<string, string>) }
+      : undefined;
+    const escrowState = nextLastReadAtBy?.__escrowState;
 
-    if (payload.action === 'mark_paid' && trade.status === 'escrow_funded') {
+    if (
+      payload.action === 'fund_escrow' &&
+      trade.status === 'escrow_funded' &&
+      escrowState === 'awaiting_seller'
+    ) {
+      if (uid !== sellerUid) {
+        throw new ApiError(
+          `Only the seller (${trade.sellerUsername}) can fund escrow for this trade.`,
+          403
+        );
+      }
+      if ((updatedUser.balances[trade.crypto] ?? 0) < trade.cryptoAmount - 1e-8) {
+        throw new ApiError(
+          `Insufficient ${trade.crypto} balance to fund escrow (${trade.cryptoAmount.toFixed(6)} ${trade.crypto} needed). Deposit ${trade.crypto} in your wallet first.`,
+          400
+        );
+      }
+
+      updatedUser.balances[trade.crypto] = Number(
+        Math.max(0, (updatedUser.balances[trade.crypto] ?? 0) - trade.cryptoAmount).toFixed(8)
+      );
+      batch.update(doc(db, 'users', uid), {
+        balances: updatedUser.balances,
+        updatedAt: serverTimestamp(),
+      });
+
+      const nowIso = new Date().toISOString();
+      nextLastReadAtBy = {
+        ...(nextLastReadAtBy ?? {}),
+        [user.username]: nowIso,
+        __escrowState: 'funded',
+      };
+      batch.update(tradeRef, {
+        lastReadAtBy: nextLastReadAtBy,
+        updatedAt: serverTimestamp(),
+      });
+
+      const sysId = `msg-${randomHex(4)}`;
+      batch.set(doc(db, 'trades', tradeId, 'messages', sysId), {
+        id: sysId,
+        sender: 'Escrow System',
+        senderUid: uid,
+        text: `${trade.cryptoAmount.toFixed(6)} ${trade.crypto} has been funded into OOSAB multi-sig escrow by ${user.username}.`,
+        isSystem: true,
+        createdAt: serverTimestamp(),
+      });
+
+      if (isReal) {
+        const notifId = `ntf-${randomHex(4)}`;
+        batch.set(
+          doc(db, 'notifications', notifId),
+          createNotificationPayload({
+            id: notifId,
+            toUid: otherUid,
+            fromUid: uid,
+            type: 'trade_status',
+            title: `Escrow funded on ${trade.id}`,
+            body: `${user.username} locked ${trade.cryptoAmount.toFixed(5)} ${trade.crypto} in escrow. You can now send payment.`,
+            tradeId: trade.id,
+            fromUsername: user.username,
+          })
+        );
+      } else if (trade.side === 'buy_crypto') {
+        const npcId = `msg-${randomHex(4)}`;
+        batch.set(doc(db, 'trades', tradeId, 'messages', npcId), {
+          id: npcId,
+          sender: trade.traderUsername,
+          senderUid: uid,
+          text: `Escrow verified! Sending ${trade.fiatAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${trade.fiat} via ${trade.paymentMethod} now.`,
+          createdAt: serverTimestamp(),
+        });
+      }
+    } else if (payload.action === 'mark_paid' && trade.status === 'escrow_funded') {
+      if (escrowState === 'awaiting_seller') {
+        throw new ApiError(
+          `Waiting for ${trade.sellerUsername} to fund ${trade.crypto} into escrow first.`,
+          400
+        );
+      }
       nextStatus = 'payment_sent';
       batch.update(tradeRef, {
         status: 'payment_sent',
@@ -2346,22 +2434,26 @@ export const api = {
         senderUid: uid,
         text: isSwap
           ? `${user.username} confirmed ${trade.swapToAmount?.toFixed(6)} ${trade.swapToCrypto} swap escrow deposit. Finalizing atomic settlement.`
-          : `${user.username} marked fiat payment as sent via ${trade.paymentMethod}. Waiting for seller confirmation.`,
+          : trade.side === 'buy_crypto' && !isReal
+            ? `${trade.traderUsername} marked ${trade.paymentMethod} payment as sent. Verify receipt and release ${trade.crypto}.`
+            : `${user.username} marked fiat payment as sent via ${trade.paymentMethod}. Waiting for seller confirmation.`,
         isSystem: true,
         createdAt: serverTimestamp(),
       });
 
       if (!isReal) {
-        const npcId = `msg-${randomHex(4)}`;
-        batch.set(doc(db, 'trades', tradeId, 'messages', npcId), {
-          id: npcId,
-          sender: trade.traderUsername,
-          senderUid: uid,
-          text: isSwap
-            ? `Escrow deposit verified! Releasing ${trade.cryptoAmount.toFixed(6)} ${trade.crypto} to your wallet now.`
-            : `Payment notice received! Checking ${trade.paymentMethod} settlement now — releasing ${trade.crypto} shortly.`,
-          createdAt: serverTimestamp(),
-        });
+        if (trade.side !== 'buy_crypto') {
+          const npcId = `msg-${randomHex(4)}`;
+          batch.set(doc(db, 'trades', tradeId, 'messages', npcId), {
+            id: npcId,
+            sender: trade.traderUsername,
+            senderUid: uid,
+            text: isSwap
+              ? `Escrow deposit verified! Releasing ${trade.cryptoAmount.toFixed(6)} ${trade.crypto} to your wallet now.`
+              : `Payment notice received! Checking ${trade.paymentMethod} settlement now — releasing ${trade.crypto} shortly.`,
+            createdAt: serverTimestamp(),
+          });
+        }
       } else {
         const notifId = `ntf-${randomHex(4)}`;
         batch.set(
@@ -2382,6 +2474,9 @@ export const api = {
       payload.action === 'release' &&
       (trade.status === 'escrow_funded' || trade.status === 'payment_sent')
     ) {
+      if (escrowState === 'awaiting_seller') {
+        throw new ApiError('Fund escrow first before releasing crypto.', 400);
+      }
       if (isReal && uid !== sellerUid) {
         throw new ApiError(
           `Only the seller (${trade.sellerUsername}) can confirm receipt and release escrow.`,
@@ -2389,8 +2484,10 @@ export const api = {
         );
       }
 
+      const alreadyFundedInEscrow = escrowState === 'funded';
       if (
         isReal &&
+        !alreadyFundedInEscrow &&
         (trade.side === 'sell_crypto' || trade.side === 'swap_crypto') &&
         (updatedUser.balances[trade.crypto] ?? 0) < trade.cryptoAmount - 1e-8
       ) {
@@ -2406,7 +2503,7 @@ export const api = {
       let userBalChanged = false;
 
       if (isReal) {
-        if (trade.side === 'sell_crypto' || trade.side === 'swap_crypto') {
+        if (!alreadyFundedInEscrow && (trade.side === 'sell_crypto' || trade.side === 'swap_crypto')) {
           updatedUser.balances[trade.crypto] = Number(
             Math.max(0, (updatedUser.balances[trade.crypto] ?? 0) - trade.cryptoAmount).toFixed(8)
           );
@@ -2502,12 +2599,14 @@ export const api = {
       }
     } else if (payload.action === 'cancel' && trade.status === 'escrow_funded') {
       nextStatus = 'cancelled';
-      let buyerRefunded = trade.side === 'sell_crypto';
-      let sellerRefunded = trade.side === 'sell_crypto' || trade.side === 'swap_crypto';
+      const sellerHadFunded =
+        escrowState === 'funded' ||
+        (trade.side === 'buy_crypto' && escrowState !== 'awaiting_seller');
+      let buyerRefunded = trade.side === 'sell_crypto' || trade.side === 'buy_crypto';
+      let sellerRefunded = !sellerHadFunded;
       let userBalChanged = false;
 
-      if (trade.side === 'buy_crypto') {
-        buyerRefunded = true;
+      if (sellerHadFunded) {
         if (sellerUid === uid) {
           updatedUser.balances[trade.crypto] = Number(
             ((updatedUser.balances[trade.crypto] ?? 0) + trade.cryptoAmount).toFixed(8)
@@ -2517,8 +2616,8 @@ export const api = {
         } else {
           sellerRefunded = false;
         }
-      } else if (trade.side === 'swap_crypto' && trade.swapToCrypto && trade.swapToAmount) {
-        sellerRefunded = true;
+      }
+      if (trade.side === 'swap_crypto' && trade.swapToCrypto && trade.swapToAmount) {
         if (buyerUid === uid) {
           updatedUser.balances[trade.swapToCrypto] = Number(
             ((updatedUser.balances[trade.swapToCrypto] ?? 0) + trade.swapToAmount).toFixed(8)
@@ -2674,7 +2773,12 @@ export const api = {
       await batch.commit();
       const msgs = await fetchTradeMessages(tradeId);
       const updated = normalizeTradeDoc(
-        { ...tData, status: nextStatus, feedbackBy: nextFeedbackBy ?? tData.feedbackBy },
+        {
+          ...tData,
+          status: nextStatus,
+          feedbackBy: nextFeedbackBy ?? tData.feedbackBy,
+          lastReadAtBy: nextLastReadAtBy ?? tData.lastReadAtBy,
+        },
         msgs,
         user.username
       );

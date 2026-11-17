@@ -122,27 +122,50 @@ export function TradeModal({
     onMarkRead?.(trade.id);
   }, [trade?.id, trade?.messages.length, user?.username]);
 
-  // Only simulate auto-release for NPC / seed traders; real 2-user trades wait for the real seller
+  // Simulate NPC step progression only when counterpartyIsReal is false
   useEffect(() => {
-    if (
-      !trade ||
-      trade.counterpartyIsReal ||
-      trade.status !== 'payment_sent' ||
-      (trade.side !== 'sell_crypto' && trade.side !== 'swap_crypto')
-    ) {
-      return;
+    if (!trade || trade.counterpartyIsReal) return;
+
+    const escrowPending =
+      trade.status === 'escrow_funded' &&
+      trade.lastReadAtBy?.__escrowState === 'awaiting_seller';
+
+    if (trade.side === 'buy_crypto' && trade.status === 'escrow_funded' && !escrowPending) {
+      const timer = setTimeout(async () => {
+        try {
+          const res = await api.tradeAction(trade.id, { action: 'mark_paid' });
+          setTrade(res.trade);
+          onTradeUpdated(res.trade, res.user);
+        } catch {
+          // ignore if already updated
+        }
+      }, 2500);
+      return () => clearTimeout(timer);
     }
-    const timer = setTimeout(async () => {
-      try {
-        const res = await api.tradeAction(trade.id, { action: 'release' });
-        setTrade(res.trade);
-        onTradeUpdated(res.trade, res.user);
-      } catch {
-        // ignore if already settled or closed
-      }
-    }, 3500);
-    return () => clearTimeout(timer);
-  }, [trade?.id, trade?.status, trade?.side, trade?.counterpartyIsReal, onTradeUpdated]);
+
+    if (
+      trade.status === 'payment_sent' &&
+      (trade.side === 'sell_crypto' || trade.side === 'swap_crypto')
+    ) {
+      const timer = setTimeout(async () => {
+        try {
+          const res = await api.tradeAction(trade.id, { action: 'release' });
+          setTrade(res.trade);
+          onTradeUpdated(res.trade, res.user);
+        } catch {
+          // ignore if already settled or closed
+        }
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    trade?.id,
+    trade?.status,
+    trade?.side,
+    trade?.counterpartyIsReal,
+    trade?.lastReadAtBy?.__escrowState,
+    onTradeUpdated,
+  ]);
 
   const formatTimer = (sec: number) => {
     const m = Math.floor(sec / 60);
@@ -624,7 +647,7 @@ export function TradeModal({
   };
 
   const handleAction = async (
-    action: 'mark_paid' | 'release' | 'cancel' | 'dispute' | 'feedback'
+    action: 'fund_escrow' | 'mark_paid' | 'release' | 'cancel' | 'dispute' | 'feedback'
   ) => {
     setError('');
     setBusy(true);
@@ -653,22 +676,29 @@ export function TradeModal({
     }
   };
 
+  const awaitingSellerEscrow =
+    trade.status === 'escrow_funded' &&
+    trade.lastReadAtBy?.__escrowState === 'awaiting_seller';
+  const escrowIsFunded = !awaitingSellerEscrow;
+
   const stepIndex =
     trade.status === 'completed'
       ? 4
       : trade.status === 'payment_sent'
         ? 3
-        : trade.status === 'escrow_funded'
+        : trade.status === 'escrow_funded' && escrowIsFunded
           ? 2
           : 1;
 
-  const statusLabel = {
-    escrow_funded: 'Escrow Funded · Active',
-    payment_sent: 'Payment Sent · Pending Release',
-    completed: 'Completed · Crypto Released',
-    cancelled: 'Cancelled · Escrow Returned',
-    disputed: 'Disputed · Escrow Frozen',
-  }[trade.status];
+  const statusLabel = awaitingSellerEscrow
+    ? 'Awaiting Escrow Funding'
+    : {
+        escrow_funded: 'Escrow Funded · Active',
+        payment_sent: 'Payment Sent · Pending Release',
+        completed: 'Completed · Crypto Released',
+        cancelled: 'Cancelled · Escrow Returned',
+        disputed: 'Disputed · Escrow Frozen',
+      }[trade.status];
 
   const quickReplies = isBuyer
     ? [
@@ -815,7 +845,11 @@ export function TradeModal({
                 </div>
                 <div>
                   <div className="text-[#5C6665] dark:text-[#8E9B98]">
-                    {isSwap ? 'Swap Output' : 'Escrow Locked'}
+                    {isSwap
+                      ? 'Swap Output'
+                      : awaitingSellerEscrow
+                        ? 'Escrow Required'
+                        : 'Escrow Locked'}
                   </div>
                   <div className="mt-0.5 font-mono text-sm font-bold tabular-nums text-[#0B3B2E] dark:text-[#7FE85B]">
                     {formatCrypto(trade.cryptoAmount, trade.crypto)}
@@ -862,16 +896,54 @@ export function TradeModal({
 
             {/* Role-Aware Action Buttons */}
             <div className="space-y-2.5">
-              {trade.status === 'escrow_funded' && (isBuyer || (!trade.counterpartyIsReal && isSwap)) && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => handleAction('mark_paid')}
-                  className="w-full rounded-xl bg-[#7FE85B] py-3 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] transition-colors"
-                >
-                  {isSwap ? 'Confirm Swap Escrow & Settle' : 'Mark Payment as Paid'}
-                </button>
+              {awaitingSellerEscrow && isSeller && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handleAction('fund_escrow')}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#7FE85B] py-3 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] disabled:opacity-60 transition-colors"
+                  >
+                    <Lock className="h-4 w-4" />
+                    <span>
+                      Fund Escrow ({formatCrypto(trade.cryptoAmount, trade.crypto)})
+                    </span>
+                  </button>
+                  <div className="flex items-center justify-between px-1 text-[11px] text-[#5C6665] dark:text-[#98A4A2]">
+                    <span>Your {trade.crypto} balance:</span>
+                    <span className="font-mono font-semibold text-[#0E1715] dark:text-white">
+                      {formatCrypto(user?.balances?.[trade.crypto] ?? 0, trade.crypto)}
+                    </span>
+                  </div>
+                </div>
               )}
+
+              {awaitingSellerEscrow && isBuyer && !isSeller && (
+                <div className="rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3.5 text-xs text-[#202B29] dark:border-[#24302E] dark:bg-[#0F1515] dark:text-[#D1DCDA]">
+                  <div className="flex items-center gap-2 font-semibold text-[#0B3B2E] dark:text-[#7FE85B]">
+                    <Clock className="h-4 w-4" />
+                    <span>
+                      Waiting for @{trade.sellerUsername} to fund escrow...
+                    </span>
+                  </div>
+                  <p className="mt-1 opacity-85">
+                    @{trade.sellerUsername} must lock {formatCrypto(trade.cryptoAmount, trade.crypto)} into escrow before you send payment.
+                  </p>
+                </div>
+              )}
+
+              {trade.status === 'escrow_funded' &&
+                escrowIsFunded &&
+                (isBuyer || (!trade.counterpartyIsReal && isSwap)) && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handleAction('mark_paid')}
+                    className="w-full rounded-xl bg-[#7FE85B] py-3 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] transition-colors"
+                  >
+                    {isSwap ? 'Confirm Swap Escrow & Settle' : 'Mark Payment as Paid'}
+                  </button>
+                )}
 
               {trade.status === 'payment_sent' && isBuyer && (
                 <div className="rounded-xl border border-[#DCE2E1] bg-[#F5F9F7] p-3.5 text-xs text-[#202B29] dark:border-[#203029] dark:bg-[#11201A] dark:text-[#D1DCDA]">
@@ -891,17 +963,19 @@ export function TradeModal({
                 </div>
               )}
 
-              {(trade.status === 'escrow_funded' || trade.status === 'payment_sent') && isSeller && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => handleAction('release')}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#7FE85B] py-3 text-sm font-semibold text-[#082213] hover:bg-[#6AD845]"
-                >
-                  <Lock className="h-4 w-4" />
-                  <span>Confirm Payment &amp; Release {trade.crypto}</span>
-                </button>
-              )}
+              {(trade.status === 'escrow_funded' || trade.status === 'payment_sent') &&
+                escrowIsFunded &&
+                isSeller && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handleAction('release')}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#7FE85B] py-3 text-sm font-semibold text-[#082213] hover:bg-[#6AD845]"
+                  >
+                    <Lock className="h-4 w-4" />
+                    <span>Confirm Payment &amp; Release {trade.crypto}</span>
+                  </button>
+                )}
 
               {trade.status === 'escrow_funded' && (
                 <button
