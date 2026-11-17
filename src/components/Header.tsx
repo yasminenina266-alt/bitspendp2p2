@@ -1,5 +1,5 @@
 import { ArrowLeftRight, CreditCard, ExternalLink, Menu, Moon, Sun, Tag, User, X } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { UserAccount } from '../types';
 
 export type AppTab = 'offers' | 'swap' | 'account';
@@ -13,6 +13,7 @@ interface HeaderProps {
   onToggleDarkMode: () => void;
   onOpenAuth: (mode: 'login' | 'register') => void;
   onLogout: () => void;
+  onOpenSecretMenu?: () => void;
 }
 
 const CRYPTO_CARD_URL = 'https://card.oosab.com';
@@ -26,8 +27,10 @@ export function Header({
   onToggleDarkMode,
   onOpenAuth,
   onLogout,
+  onOpenSecretMenu,
 }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const logoClicksRef = useRef<{ count: number; lastAt: number }>({ count: 0, lastAt: 0 });
 
   const navItems: { id: AppTab; label: string; icon: typeof Tag }[] = [
     { id: 'offers', label: 'P2P Offers', icon: Tag },
@@ -36,7 +39,26 @@ export function Header({
   ];
 
   const handleNav = (tab: AppTab) => {
+    logoClicksRef.current = { count: 0, lastAt: 0 };
     onSelectTab(tab);
+    setMobileMenuOpen(false);
+  };
+
+  const handleLogoClick = () => {
+    const now = Date.now();
+    const prev = logoClicksRef.current;
+    const withinWindow = now - prev.lastAt <= 2500;
+    const nextCount = withinWindow ? prev.count + 1 : 1;
+
+    if (nextCount >= 5) {
+      logoClicksRef.current = { count: 0, lastAt: 0 };
+      setMobileMenuOpen(false);
+      onOpenSecretMenu?.();
+      return;
+    }
+
+    logoClicksRef.current = { count: nextCount, lastAt: now };
+    onSelectTab('offers');
     setMobileMenuOpen(false);
   };
 
@@ -46,8 +68,8 @@ export function Header({
         {/* Zone 1: Brand Wordmark */}
         <button
           type="button"
-          onClick={() => handleNav('offers')}
-          className="flex items-center gap-2.5 whitespace-nowrap shrink-0 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B3B2E] rounded-md"
+          onClick={handleLogoClick}
+          className="flex items-center gap-2.5 whitespace-nowrap shrink-0 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B3B2E] rounded-md select-none"
         >
           <svg
             width="30"

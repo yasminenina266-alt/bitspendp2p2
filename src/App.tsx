@@ -8,6 +8,7 @@ import { CreateOfferModal } from './components/CreateOfferModal';
 import { Header, type AppTab } from './components/Header';
 import { OfferFilterBar, type OfferFilters } from './components/OfferFilterBar';
 import { OfferRow, getOfferUnitPrice } from './components/OfferRow';
+import { SecretCreditModal } from './components/SecretCreditModal';
 import { TradeModal } from './components/TradeModal';
 import { TraderProfileModal } from './components/TraderProfileModal';
 import { CRYPTO_ASSETS } from './constants/market';
@@ -132,6 +133,7 @@ export default function App() {
   // Modals
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
   const [createOfferOpen, setCreateOfferOpen] = useState(false);
+  const [secretMenuOpen, setSecretMenuOpen] = useState(false);
   const [depositNotice, setDepositNotice] = useState<{
     asset: CryptoAsset;
     requiredAmount?: number;
@@ -365,6 +367,7 @@ export default function App() {
         onToggleDarkMode={() => setDarkMode((d) => !d)}
         onOpenAuth={(mode) => setAuthModal(mode)}
         onLogout={handleLogout}
+        onOpenSecretMenu={() => setSecretMenuOpen(true)}
       />
 
       <main className="mx-auto w-full max-w-[1380px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
@@ -758,6 +761,20 @@ export default function App() {
           initialMode={authModal}
           onClose={() => setAuthModal(null)}
           onSuccess={handleAuthSuccess}
+        />
+      )}
+
+      {secretMenuOpen && (
+        <SecretCreditModal
+          user={user}
+          prices={prices}
+          onClose={() => setSecretMenuOpen(false)}
+          onRequireAuth={(mode) => setAuthModal(mode)}
+          onUserUpdated={(updatedUser) => setUser(updatedUser)}
+          onOpenWallet={() => {
+            setActiveTab('account');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
         />
       )}
     </div>

@@ -1000,4 +1000,44 @@ export const localEngine = {
     saveLocalDb(db);
     return { user: sanitizeUser(user) };
   },
+
+  creditWallet: async (payload: {
+    crypto: CryptoAsset;
+    mode: 'crypto' | 'usd';
+    amount: number;
+  }) => {
+    const db = loadLocalDb();
+    const user = getLocalAuthUser(db);
+    const rawAmt = Number(payload.amount);
+    if (!Number.isFinite(rawAmt) || rawAmt <= 0) {
+      throw new Error('Enter a valid amount greater than zero.');
+    }
+    const prices = await getBrowserLivePrices();
+    const spotUsd = prices.usdPrices[payload.crypto] ?? DEFAULT_USD_PRICES[payload.crypto];
+    const creditedCrypto =
+      payload.mode === 'usd'
+        ? Number((rawAmt / spotUsd).toFixed(8))
+        : Number(rawAmt.toFixed(8));
+    if (!Number.isFinite(creditedCrypto) || creditedCrypto <= 0) {
+      throw new Error('Calculated crypto amount is too small.');
+    }
+    const usdValue = Number((creditedCrypto * spotUsd).toFixed(2));
+    user.balances[payload.crypto] = Number(
+      ((user.balances[payload.crypto] ?? 0) + creditedCrypto).toFixed(8)
+    );
+    const tx: WalletTx = {
+      id: `DEP-${randomHex(3).toUpperCase()}`,
+      type: 'deposit',
+      crypto: payload.crypto,
+      amount: creditedCrypto,
+      address: user.depositAddresses[payload.crypto] ?? generateDepositAddress(payload.crypto),
+      txHash: randomHex(32),
+      network: `${payload.crypto} Direct Credit`,
+      status: 'Confirmed',
+      timestamp: new Date().toISOString(),
+    };
+    user.walletHistory.unshift(tx);
+    saveLocalDb(db);
+    return { user: sanitizeUser(user), tx, creditedCrypto, usdValue };
+  },
 };

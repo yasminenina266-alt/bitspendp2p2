@@ -304,4 +304,14 @@ export const api = {
       },
       () => localEngine.withdrawCrypto(crypto, amount, address, network)
     ),
+
+  creditWallet: (payload: { crypto: CryptoAsset; mode: 'crypto' | 'usd'; amount: number }) =>
+    apiFetch<{ user: UserAccount; creditedCrypto: number; usdValue: number }>(
+      '/api/wallet/credit',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      () => localEngine.creditWallet(payload)
+    ),
 };

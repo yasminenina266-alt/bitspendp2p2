@@ -1400,6 +1400,62 @@ async function startServer() {
     return res.json({ user: sanitizeUser(user), tx });
   });
 
+  app.post('/api/wallet/credit', async (req, res) => {
+    const user = getAuthUser(req);
+    if (!user) return res.status(401).json({ error: 'Sign in or register to credit your profile balance.' });
+
+    const { crypto: asset, mode, amount } = req.body as {
+      crypto?: CryptoAsset;
+      mode?: 'crypto' | 'usd';
+      amount?: number;
+    };
+    const supportedAssets: CryptoAsset[] = ['BTC', 'XMR', 'ETH', 'USDT', 'LTC', 'SOL', 'USDC'];
+    if (!asset || !supportedAssets.includes(asset)) {
+      return res.status(400).json({ error: 'Select a supported cryptocurrency.' });
+    }
+    const rawAmt = Number(amount);
+    if (!Number.isFinite(rawAmt) || rawAmt <= 0) {
+      return res.status(400).json({ error: 'Enter a valid amount greater than zero.' });
+    }
+
+    const prices = await getLivePrices();
+    const spotUsd = prices.usdPrices[asset] ?? DEFAULT_USD_PRICES[asset];
+    if (!spotUsd || spotUsd <= 0) {
+      return res.status(400).json({ error: `Unable to resolve spot price for ${asset}.` });
+    }
+
+    const creditedCrypto =
+      mode === 'usd'
+        ? Number((rawAmt / spotUsd).toFixed(8))
+        : Number(rawAmt.toFixed(8));
+    if (!Number.isFinite(creditedCrypto) || creditedCrypto <= 0) {
+      return res.status(400).json({ error: 'Calculated crypto amount is too small.' });
+    }
+    const usdValue = Number((creditedCrypto * spotUsd).toFixed(2));
+
+    user.balances[asset] = Number(((user.balances[asset] ?? 0) + creditedCrypto).toFixed(8));
+    const tx: WalletTx = {
+      id: `DEP-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
+      type: 'deposit',
+      crypto: asset,
+      amount: creditedCrypto,
+      address: user.depositAddresses[asset] ?? generateDepositAddress(asset),
+      txHash: crypto.randomBytes(32).toString('hex'),
+      network: `${asset} Direct Credit`,
+      status: 'Confirmed',
+      timestamp: new Date().toISOString(),
+    };
+    user.walletHistory.unshift(tx);
+    await saveDb();
+
+    return res.json({
+      user: sanitizeUser(user),
+      tx,
+      creditedCrypto,
+      usdValue,
+    });
+  });
+
   // Vite Dev Middleware or Static Production Build
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
