@@ -23,11 +23,13 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
   const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [pgpKey, setPgpKey] = useState('');
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [provisioningStep, setProvisioningStep] = useState<number | null>(null);
   const [registeredUser, setRegisteredUser] = useState<UserAccount | null>(null);
   const [copiedPhrase, setCopiedPhrase] = useState(false);
+
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const mountedRef = useRef(true);
 
@@ -40,14 +42,14 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
 
   const registrationSteps = [
     {
-      title: 'Verifying handle availability',
-      detail: `Checking @${username.trim() || 'handle'} across the P2P directory`,
-      delayMs: 650,
+      title: 'Reserving handle in global directory',
+      detail: `Claiming @${username.trim() || 'handle'} across the live P2P network`,
+      delayMs: 500,
     },
     {
-      title: 'Deriving salted scrypt credentials',
-      detail: 'Generating local salt and 64-byte scrypt password hash',
-      delayMs: 900,
+      title: 'Deriving salted PBKDF2 credentials',
+      detail: 'Hashing password offline with 100,000 SHA-256 rounds (zero plaintext stored)',
+      delayMs: 650,
     },
     {
       title: pgpKey.trim()
@@ -56,39 +58,57 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
       detail: pgpKey.trim()
         ? 'Binding your provided PGP key to escrow terms'
         : 'Creating 40-character signing key fingerprint',
-      delayMs: 850,
+      delayMs: 550,
     },
     {
       title: 'Generating 12-word recovery seed',
-      detail: 'Building offline recovery phrase for zero-email account access',
-      delayMs: 800,
+      detail: 'Building offline recovery phrase for zero-KYC password recovery',
+      delayMs: 550,
     },
     {
       title: 'Deriving multi-chain deposit addresses',
       detail: 'Initializing BTC, XMR, ETH, USDT, LTC, SOL & USDC wallet keys',
-      delayMs: 1150,
+      delayMs: 700,
     },
     {
-      title: 'Finalizing escrow profile & session',
-      detail: 'Registering zero-KYC trader profile and opening encrypted session',
-      delayMs: 650,
+      title: 'Publishing trader profile & opening vault',
+      detail: 'Saving zero-KYC trader desk to Cloud Firestore for instant sync',
+      delayMs: 500,
     },
   ];
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    if (mode === 'register' && password !== confirmPassword) {
-      setError('Passwords do not match. Please enter the same password twice.');
+
+    const cleanUsername = username.trim();
+    if (!cleanUsername || !password) {
+      setError('Enter both username and password.');
       return;
     }
+
+    if (mode === 'register') {
+      if (!/^[a-zA-Z0-9_]{3,24}$/.test(cleanUsername)) {
+        setError('Username must be 3–24 characters using letters, numbers, or underscores only.');
+        return;
+      }
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('Passwords do not match.');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       if (mode === 'register') {
         setProvisioningStep(0);
         const [res] = await Promise.all([
           api.register({
-            username,
+            username: cleanUsername,
             password,
             confirmPassword,
             pgpKey,
@@ -118,7 +138,8 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
           ],
         });
       } else {
-        const res = await api.login({ username, password });
+        const res = await api.login({ username: cleanUsername, password });
+        if (!mountedRef.current) return;
         setToken(res.token);
         onSuccess(res.user);
         onClose();
@@ -177,7 +198,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
             <p className="mt-1 text-xs text-[#5C6665] dark:text-[#98A4A2]">
               Initializing keys, recovery phrase, and multi-chain deposit addresses for{' '}
               <span className="font-mono font-semibold text-[#0E1715] dark:text-white">
-                {username.trim()}
+                @{username.trim()}
               </span>
             </p>
           </div>
@@ -190,12 +211,12 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
           </div>
 
           <div className="mt-5 space-y-2.5">
-            {registrationSteps.map((step, idx) => {
+            {registrationSteps.map((s, idx) => {
               const isDone = idx < provisioningStep;
               const isActive = idx === provisioningStep;
               return (
                 <div
-                  key={step.title}
+                  key={s.title}
                   className={`flex items-start gap-3 rounded-xl border px-3.5 py-2.5 transition-colors ${
                     isActive
                       ? 'border-[#0B3B2E]/30 bg-[#EEF6F2] dark:border-[#7FE85B]/30 dark:bg-[#152B20]'
@@ -223,11 +244,11 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
                             : 'text-[#64706E] dark:text-[#8E9B98]'
                       }`}
                     >
-                      {step.title}
+                      {s.title}
                     </div>
                     {isActive && (
                       <div className="mt-0.5 text-[11px] text-[#5C6665] dark:text-[#98A4A2]">
-                        {step.detail}
+                        {s.detail}
                       </div>
                     )}
                   </div>
@@ -254,7 +275,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
                   Account Created
                 </h2>
                 <p className="text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                  Welcome, {registeredUser.username} · Wallet initialized & ready
+                  Welcome, @{registeredUser.username} · Wallet initialized &amp; ready
                 </p>
               </div>
             </div>
@@ -262,7 +283,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
 
           <div className="mt-5 space-y-3">
             <p className="text-sm text-[#394241] dark:text-[#C5D1CF]">
-              OOSAB requires zero email, phone number, or ID. Save your 12-word recovery phrase below to recover your account if needed:
+              Since OOSAB does not collect email addresses or IDs, save this 12-word recovery phrase offline:
             </p>
 
             <div className="rounded-xl border border-[#DCE2E1] bg-[#F6F8F8] p-4 dark:border-[#24302E] dark:bg-[#0D1313]">
@@ -351,7 +372,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
+            <label className="mb-1.5 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
               Handle / Username
             </label>
             <input
@@ -366,7 +387,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
+            <label className="mb-1.5 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
               Password
             </label>
             <input
@@ -375,7 +396,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
               minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Minimum 6 characters"
+              placeholder={mode === 'register' ? 'Minimum 6 characters' : 'Enter password'}
               className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3.5 text-sm text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0D1313] dark:text-white dark:focus:border-[#7FE85B]"
             />
           </div>
@@ -383,7 +404,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
           {mode === 'register' && (
             <>
               <div>
-                <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
+                <label className="mb-1.5 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
                   Confirm Password
                 </label>
                 <input
@@ -392,7 +413,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
                   minLength={6}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter your password"
+                  placeholder="Re-enter password"
                   className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3.5 text-sm text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0D1313] dark:text-white dark:focus:border-[#7FE85B]"
                 />
               </div>
@@ -440,7 +461,9 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
                       type="button"
                       onClick={() => setAvatarUrl(p.url)}
                       className={`rounded-lg p-0.5 ${
-                        avatarUrl === p.url ? 'ring-2 ring-[#0B3B2E] dark:ring-[#7FE85B]' : 'opacity-80 hover:opacity-100'
+                        avatarUrl === p.url
+                          ? 'ring-2 ring-[#0B3B2E] dark:ring-[#7FE85B]'
+                          : 'opacity-80 hover:opacity-100'
                       }`}
                     >
                       <img src={p.url} alt={p.label} className="h-7 w-7 rounded-md object-cover" />
@@ -459,7 +482,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
+                <label className="mb-1.5 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
                   Headline / Tagline (optional)
                 </label>
                 <input
@@ -473,7 +496,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
+                <label className="mb-1.5 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
                   Public Bio (optional)
                 </label>
                 <input
@@ -486,7 +509,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
+                <label className="mb-1.5 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
                   PGP Fingerprint (optional — auto-generated if blank)
                 </label>
                 <input
@@ -512,7 +535,7 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
             className="w-full rounded-xl bg-[#0B3B2E] py-3 text-sm font-semibold text-white hover:bg-[#082B21] disabled:opacity-60 dark:bg-[#7FE85B] dark:text-[#082213] dark:hover:bg-[#6AD845] transition-colors"
           >
             {loading
-              ? 'Processing...'
+              ? 'Please wait...'
               : mode === 'register'
                 ? 'Create Account (No KYC)'
                 : 'Sign in'}

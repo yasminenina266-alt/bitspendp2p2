@@ -887,16 +887,17 @@ export function AccountView({
               </label>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 border-t border-[#ECEFEF] pt-4 sm:grid-cols-2 dark:border-[#202B2A]">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
                   Change Password (optional)
                 </label>
                 <input
                   type="password"
+                  minLength={6}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="New password"
+                  placeholder="Min 6 characters"
                   className="h-10 w-full rounded-xl border border-[#DCE2E1] bg-white px-3 text-sm text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
                 />
               </div>
@@ -906,9 +907,10 @@ export function AccountView({
                 </label>
                 <input
                   type="password"
+                  minLength={6}
                   value={confirmNewPassword}
                   onChange={(e) => setConfirmNewPassword(e.target.value)}
-                  placeholder="Repeat new password"
+                  placeholder="Repeat password"
                   className="h-10 w-full rounded-xl border border-[#DCE2E1] bg-white px-3 text-sm text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
                 />
               </div>

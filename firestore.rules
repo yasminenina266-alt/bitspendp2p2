@@ -1,0 +1,592 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-Deny Catch-All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Global Validation Helpers
+    // -------------------------------------------------------------------------
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidAsset(asset) {
+      return asset is string && asset in ['BTC', 'XMR', 'ETH', 'USDT', 'LTC', 'SOL', 'USDC'];
+    }
+
+    function isOptStr(data, key, maxLen) {
+      return !(key in data) || data[key] == null || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isOptNum(data, key) {
+      return !(key in data) || data[key] == null || (data[key] is number);
+    }
+
+    function isOptBool(data, key) {
+      return !(key in data) || data[key] == null || (data[key] is bool);
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprints
+    // -------------------------------------------------------------------------
+    function isValidAuthCred(data) {
+      return data.keys().hasAll(['uid', 'username', 'lowerUsername', 'passwordHash', 'salt', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'username', 'lowerUsername', 'passwordHash', 'salt', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.username is string && data.username.size() >= 3 && data.username.size() <= 24
+        && data.username.matches('^[a-zA-Z0-9_]{3,24}$')
+        && data.lowerUsername is string && data.lowerUsername.size() >= 3 && data.lowerUsername.size() <= 24
+        && data.lowerUsername.matches('^[a-z0-9_]{3,24}$')
+        && data.passwordHash is string && data.passwordHash.size() >= 32 && data.passwordHash.size() <= 128
+        && data.salt is string && data.salt.size() >= 16 && data.salt.size() <= 64
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSession(data) {
+      return data.keys().hasAll(['token', 'uid', 'username', 'createdAt'])
+        && data.keys().hasOnly(['token', 'uid', 'username', 'createdAt'])
+        && isValidId(data.token)
+        && isValidId(data.uid)
+        && data.username is string && data.username.size() >= 3 && data.username.size() <= 24
+        && data.createdAt is timestamp;
+    }
+
+    function isValidUserAccount(data) {
+      return data.keys().hasAll([
+          'uid', 'username', 'bio', 'pgpKey', 'recoveryPhrase',
+          'balances', 'depositAddresses', 'walletHistory', 'settings',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'username', 'bio', 'avatarUrl', 'bannerUrl', 'tagline',
+          'location', 'accentTheme', 'languages', 'preferredMethods', 'tradingHours',
+          'pgpKey', 'recoveryPhrase', 'balances', 'depositAddresses',
+          'walletHistory', 'settings', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.username is string && data.username.size() >= 3 && data.username.size() <= 24
+        && data.username.matches('^[a-zA-Z0-9_]{3,24}$')
+        && data.bio is string && data.bio.size() <= 320
+        && isOptStr(data, 'avatarUrl', 450000)
+        && isOptStr(data, 'bannerUrl', 450000)
+        && isOptStr(data, 'tagline', 90)
+        && isOptStr(data, 'location', 60)
+        && isOptStr(data, 'tradingHours', 60)
+        && (!('accentTheme' in data) || data.accentTheme == null || (data.accentTheme is string && data.accentTheme in ['emerald', 'midnight', 'amber', 'violet', 'slate']))
+        && (!('languages' in data) || data.languages == null || (data.languages is list && data.languages.size() <= 8 && (data.languages.size() == 0 || data.languages[0] is string)))
+        && (!('preferredMethods' in data) || data.preferredMethods == null || (data.preferredMethods is list && data.preferredMethods.size() <= 10 && (data.preferredMethods.size() == 0 || data.preferredMethods[0] is string)))
+        && data.pgpKey is string && data.pgpKey.size() <= 120
+        && data.recoveryPhrase is string && data.recoveryPhrase.size() <= 256
+        && data.balances is map
+        && data.balances.keys().hasOnly(['BTC', 'XMR', 'ETH', 'USDT', 'LTC', 'SOL', 'USDC'])
+        && data.depositAddresses is map
+        && data.depositAddresses.keys().hasOnly(['BTC', 'XMR', 'ETH', 'USDT', 'LTC', 'SOL', 'USDC'])
+        && data.walletHistory is list && data.walletHistory.size() <= 100
+        && (data.walletHistory.size() == 0 || data.walletHistory[0] is map)
+        && data.settings is map
+        && data.settings.keys().hasOnly([
+          'preferredCurrency', 'defaultPaymentWindow', 'autoPgpSign',
+          'hideOnlineStatus', 'torFriendlyMode', 'escrowAlerts'
+        ])
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUsernameClaim(data) {
+      return data.keys().hasAll(['uid', 'username', 'lowerUsername', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'username', 'lowerUsername', 'createdAt'])
+        && isValidId(data.uid)
+        && data.username is string && data.username.size() >= 3 && data.username.size() <= 24
+        && data.username.matches('^[a-zA-Z0-9_]{3,24}$')
+        && data.lowerUsername is string && data.lowerUsername.size() >= 3 && data.lowerUsername.size() <= 24
+        && data.lowerUsername.matches('^[a-z0-9_]{3,24}$')
+        && data.createdAt is timestamp;
+    }
+
+    function isValidTraderProfile(data) {
+      return data.keys().hasAll([
+          'ownerUid', 'username', 'lowerUsername', 'isRegisteredUser',
+          'joinedAt', 'tradesCount', 'ratingPct', 'avgReleaseMinutes',
+          'lastSeenMinutes', 'verified', 'languages', 'pgpFingerprint',
+          'bio', 'volumeTier', 'recentFeedback', 'tradeHistory',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerUid', 'username', 'lowerUsername', 'isRegisteredUser',
+          'joinedAt', 'tradesCount', 'ratingPct', 'avgReleaseMinutes',
+          'lastSeenMinutes', 'verified', 'languages', 'pgpFingerprint',
+          'bio', 'avatarUrl', 'bannerUrl', 'tagline', 'location',
+          'accentTheme', 'preferredMethods', 'tradingHours', 'volumeTier',
+          'totalVolumeUsd', 'completionRatePct', 'totalFeedbackCount',
+          'recentFeedback', 'tradeHistory', 'lastTradeId',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.ownerUid)
+        && data.username is string && data.username.size() >= 3 && data.username.size() <= 24
+        && data.username.matches('^[a-zA-Z0-9_]{3,24}$')
+        && data.lowerUsername is string && data.lowerUsername.size() >= 3 && data.lowerUsername.size() <= 24
+        && data.lowerUsername.matches('^[a-z0-9_]{3,24}$')
+        && data.isRegisteredUser is bool
+        && data.joinedAt is string && data.joinedAt.size() <= 32
+        && data.tradesCount is number && data.tradesCount >= 0
+        && data.ratingPct is number && data.ratingPct >= 0 && data.ratingPct <= 100
+        && data.avgReleaseMinutes is number && data.avgReleaseMinutes >= 0
+        && data.lastSeenMinutes is number && data.lastSeenMinutes >= 0
+        && data.verified is bool
+        && data.languages is list && data.languages.size() <= 8
+        && (data.languages.size() == 0 || data.languages[0] is string)
+        && data.pgpFingerprint is string && data.pgpFingerprint.size() <= 120
+        && data.bio is string && data.bio.size() <= 320
+        && isOptStr(data, 'avatarUrl', 450000)
+        && isOptStr(data, 'bannerUrl', 450000)
+        && isOptStr(data, 'tagline', 90)
+        && isOptStr(data, 'location', 60)
+        && isOptStr(data, 'tradingHours', 60)
+        && isOptStr(data, 'lastTradeId', 128)
+        && (!('accentTheme' in data) || data.accentTheme == null || (data.accentTheme is string && data.accentTheme in ['emerald', 'midnight', 'amber', 'violet', 'slate']))
+        && (!('preferredMethods' in data) || data.preferredMethods == null || (data.preferredMethods is list && data.preferredMethods.size() <= 10 && (data.preferredMethods.size() == 0 || data.preferredMethods[0] is string)))
+        && data.volumeTier is string && data.volumeTier.size() <= 40
+        && isOptNum(data, 'totalVolumeUsd')
+        && isOptNum(data, 'completionRatePct')
+        && isOptNum(data, 'totalFeedbackCount')
+        && data.recentFeedback is list && data.recentFeedback.size() <= 40
+        && (data.recentFeedback.size() == 0 || data.recentFeedback[0] is map)
+        && data.tradeHistory is list && data.tradeHistory.size() <= 40
+        && (data.tradeHistory.size() == 0 || data.tradeHistory[0] is map)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidOffer(data) {
+      return data.keys().hasAll([
+          'id', 'ownerUid', 'side', 'traderUsername', 'crypto',
+          'fiat', 'country', 'paymentMethod', 'paymentCategory',
+          'pricingMode', 'marginPct', 'minFiat', 'maxFiat',
+          'paymentWindowMinutes', 'tags', 'terms', 'active',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerUid', 'side', 'traderUsername', 'crypto',
+          'cryptoChain', 'swapToCrypto', 'swapToChain',
+          'fiat', 'country', 'paymentMethod', 'paymentCategory',
+          'pricingMode', 'marginPct', 'fixedPrice', 'minFiat', 'maxFiat',
+          'minSwapAmount', 'maxSwapAmount', 'availableCrypto',
+          'paymentWindowMinutes', 'tags', 'terms', 'active',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.ownerUid)
+        && data.side is string && data.side in ['sell_crypto', 'buy_crypto', 'swap_crypto']
+        && data.traderUsername is string && data.traderUsername.size() >= 3 && data.traderUsername.size() <= 24
+        && isValidAsset(data.crypto)
+        && isOptStr(data, 'cryptoChain', 16)
+        && (!('swapToCrypto' in data) || data.swapToCrypto == null || isValidAsset(data.swapToCrypto))
+        && isOptStr(data, 'swapToChain', 16)
+        && data.fiat is string && data.fiat.size() >= 2 && data.fiat.size() <= 8
+        && data.country is string && data.country.size() <= 64
+        && data.paymentMethod is string && data.paymentMethod.size() >= 1 && data.paymentMethod.size() <= 80
+        && data.paymentCategory is string && data.paymentCategory.size() <= 40
+        && data.pricingMode is string && data.pricingMode in ['margin', 'fixed']
+        && data.marginPct is number && data.marginPct >= -50 && data.marginPct <= 200
+        && isOptNum(data, 'fixedPrice')
+        && data.minFiat is number && data.minFiat > 0
+        && data.maxFiat is number && data.maxFiat >= data.minFiat
+        && isOptNum(data, 'minSwapAmount')
+        && isOptNum(data, 'maxSwapAmount')
+        && isOptNum(data, 'availableCrypto')
+        && data.paymentWindowMinutes is number && data.paymentWindowMinutes >= 5 && data.paymentWindowMinutes <= 180
+        && data.tags is list && data.tags.size() <= 10
+        && (data.tags.size() == 0 || data.tags[0] is string)
+        && data.terms is string && data.terms.size() <= 2000
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTrade(data) {
+      return data.keys().hasAll([
+          'id', 'offerId', 'side', 'traderUsername', 'buyerUsername', 'sellerUsername',
+          'buyerUid', 'sellerUid', 'participantUids', 'crypto', 'fiat',
+          'fiatAmount', 'cryptoAmount', 'unitPrice', 'paymentMethod', 'paymentDetails',
+          'terms', 'status', 'counterpartyIsReal', 'expiresAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'offerId', 'side', 'traderUsername', 'buyerUsername', 'sellerUsername',
+          'buyerUid', 'sellerUid', 'participantUids', 'crypto', 'cryptoChain',
+          'swapToCrypto', 'swapToChain', 'swapToAmount', 'fiat',
+          'fiatAmount', 'cryptoAmount', 'unitPrice', 'paymentMethod', 'paymentDetails',
+          'terms', 'status', 'counterpartyIsReal', 'buyerSettled', 'sellerSettled',
+          'buyerRefunded', 'sellerRefunded', 'lastReadAtBy', 'feedbackBy',
+          'expiresAt', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.offerId)
+        && data.side is string && data.side in ['sell_crypto', 'buy_crypto', 'swap_crypto']
+        && data.traderUsername is string && data.traderUsername.size() <= 40
+        && data.buyerUsername is string && data.buyerUsername.size() <= 40
+        && data.sellerUsername is string && data.sellerUsername.size() <= 40
+        && data.buyerUid is string && data.buyerUid.size() <= 128
+        && data.sellerUid is string && data.sellerUid.size() <= 128
+        && data.participantUids is list && data.participantUids.size() >= 1 && data.participantUids.size() <= 2
+        && data.participantUids[0] is string
+        && isValidAsset(data.crypto)
+        && isOptStr(data, 'cryptoChain', 16)
+        && (!('swapToCrypto' in data) || data.swapToCrypto == null || isValidAsset(data.swapToCrypto))
+        && isOptStr(data, 'swapToChain', 16)
+        && isOptNum(data, 'swapToAmount')
+        && data.fiat is string && data.fiat.size() <= 8
+        && data.fiatAmount is number && data.fiatAmount > 0
+        && data.cryptoAmount is number && data.cryptoAmount > 0
+        && data.unitPrice is number && data.unitPrice > 0
+        && data.paymentMethod is string && data.paymentMethod.size() <= 80
+        && data.paymentDetails is string && data.paymentDetails.size() <= 500
+        && data.terms is string && data.terms.size() <= 2000
+        && data.status is string && data.status in ['escrow_funded', 'payment_sent', 'completed', 'cancelled', 'disputed']
+        && data.counterpartyIsReal is bool
+        && isOptBool(data, 'buyerSettled')
+        && isOptBool(data, 'sellerSettled')
+        && isOptBool(data, 'buyerRefunded')
+        && isOptBool(data, 'sellerRefunded')
+        && (!('lastReadAtBy' in data) || data.lastReadAtBy == null || data.lastReadAtBy is map)
+        && (!('feedbackBy' in data) || data.feedbackBy == null || data.feedbackBy is map)
+        && data.expiresAt is string && data.expiresAt.size() <= 64
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTradeMessage(data) {
+      return data.keys().hasAll(['id', 'sender', 'senderUid', 'text', 'createdAt'])
+        && data.keys().hasOnly(['id', 'sender', 'senderUid', 'text', 'isSystem', 'createdAt'])
+        && isValidId(data.id)
+        && data.sender is string && data.sender.size() >= 1 && data.sender.size() <= 64
+        && isValidId(data.senderUid)
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 2000
+        && isOptBool(data, 'isSystem')
+        && data.createdAt is timestamp;
+    }
+
+    function isValidDirectChat(data) {
+      return data.keys().hasAll(['id', 'participants', 'participantUids', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'participants', 'participantUids', 'offerId',
+          'offerSummary', 'lastReadAtBy', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.participants is list && data.participants.size() == 2
+        && data.participants[0] is string
+        && data.participantUids is list && data.participantUids.size() >= 1 && data.participantUids.size() <= 2
+        && data.participantUids[0] is string
+        && isOptStr(data, 'offerId', 64)
+        && isOptStr(data, 'offerSummary', 200)
+        && (!('lastReadAtBy' in data) || data.lastReadAtBy == null || data.lastReadAtBy is map)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDirectMessage(data) {
+      return data.keys().hasAll(['id', 'sender', 'senderUid', 'text', 'createdAt'])
+        && data.keys().hasOnly(['id', 'sender', 'senderUid', 'text', 'offerId', 'createdAt'])
+        && isValidId(data.id)
+        && data.sender is string && data.sender.size() >= 1 && data.sender.size() <= 64
+        && isValidId(data.senderUid)
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 2000
+        && isOptStr(data, 'offerId', 64)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['id', 'toUid', 'fromUid', 'type', 'title', 'body', 'read', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'toUid', 'fromUid', 'type', 'title', 'body',
+          'tradeId', 'offerId', 'chatId', 'fromUsername', 'read',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.toUid)
+        && isValidId(data.fromUid)
+        && data.type is string && data.type in ['trade_opened', 'trade_message', 'trade_status', 'direct_message', 'wallet_credit', 'feedback_received']
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && data.body is string && data.body.size() >= 1 && data.body.size() <= 400
+        && isOptStr(data, 'tradeId', 64)
+        && isOptStr(data, 'offerId', 64)
+        && isOptStr(data, 'chatId', 128)
+        && isOptStr(data, 'fromUsername', 40)
+        && data.read is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSwapOrder(data) {
+      return data.keys().hasAll([
+          'id', 'ownerUid', 'fromCrypto', 'toCrypto', 'fromAmount',
+          'toAmount', 'rate', 'mode', 'destinationAddress', 'depositAddress',
+          'status', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerUid', 'fromCrypto', 'toCrypto', 'fromAmount',
+          'toAmount', 'rate', 'mode', 'destinationAddress', 'depositAddress',
+          'status', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.ownerUid)
+        && isValidAsset(data.fromCrypto)
+        && isValidAsset(data.toCrypto)
+        && data.fromCrypto != data.toCrypto
+        && data.fromAmount is number && data.fromAmount > 0
+        && data.toAmount is number && data.toAmount > 0
+        && data.rate is number && data.rate > 0
+        && data.mode is string && data.mode in ['floating', 'fixed']
+        && data.destinationAddress is string && data.destinationAddress.size() >= 8 && data.destinationAddress.size() <= 160
+        && data.depositAddress is string && data.depositAddress.size() >= 8 && data.depositAddress.size() <= 160
+        && data.status is string && data.status in ['awaiting_deposit', 'confirming', 'exchanging', 'completed']
+        && data.createdAt is timestamp;
+    }
+
+    function isValidVirtualCard(data) {
+      return data.keys().hasAll([
+          'id', 'ownerUid', 'label', 'type', 'fundingCrypto',
+          'balanceUsd', 'last4', 'fullNumber', 'expiry', 'cvv',
+          'frozen', 'transactions', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerUid', 'label', 'type', 'fundingCrypto',
+          'balanceUsd', 'last4', 'fullNumber', 'expiry', 'cvv',
+          'frozen', 'transactions', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.ownerUid)
+        && data.label is string && data.label.size() >= 1 && data.label.size() <= 80
+        && data.type is string && data.type in ['disposable', 'reloadable']
+        && isValidAsset(data.fundingCrypto)
+        && data.balanceUsd is number && data.balanceUsd >= 0
+        && data.last4 is string && data.last4.size() == 4
+        && data.fullNumber is string && data.fullNumber.size() >= 12 && data.fullNumber.size() <= 19
+        && data.expiry is string && data.expiry.size() <= 8
+        && data.cvv is string && data.cvv.size() >= 3 && data.cvv.size() <= 4
+        && data.frozen is bool
+        && data.transactions is list && data.transactions.size() <= 100
+        && (data.transactions.size() == 0 || data.transactions[0] is map)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection Rules
+    // -------------------------------------------------------------------------
+
+    match /authCredentials/{lowerUsername} {
+      allow get: if isValidId(lowerUsername);
+      allow list: if false;
+      allow create: if isValidId(lowerUsername)
+        && isValidAuthCred(incoming())
+        && incoming().lowerUsername == lowerUsername
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && !exists(/databases/$(database)/documents/authCredentials/$(lowerUsername));
+      allow update: if isValidId(lowerUsername)
+        && isValidAuthCred(incoming())
+        && incoming().uid == existing().uid
+        && incoming().lowerUsername == existing().lowerUsername
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /sessions/{token} {
+      allow get: if isValidId(token);
+      allow list: if false;
+      allow create: if isValidId(token)
+        && isValidSession(incoming())
+        && incoming().token == token
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(token);
+    }
+
+    match /users/{uid} {
+      allow get: if isValidId(uid);
+      allow list: if true;
+      allow create: if isValidId(uid)
+        && isValidUserAccount(incoming())
+        && incoming().uid == uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/traders/$(incoming().username));
+      allow update: if isValidId(uid)
+        && isValidUserAccount(incoming())
+        && incoming().uid == existing().uid
+        && incoming().username == existing().username
+        && incoming().recoveryPhrase == existing().recoveryPhrase
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /usernames/{lowerUsername} {
+      allow get: if isValidId(lowerUsername);
+      allow list: if true;
+      allow create: if isValidId(lowerUsername)
+        && isValidUsernameClaim(incoming())
+        && incoming().lowerUsername == lowerUsername
+        && incoming().createdAt == request.time
+        && !exists(/databases/$(database)/documents/usernames/$(lowerUsername));
+      allow update, delete: if false;
+    }
+
+    match /traders/{username} {
+      allow get: if isValidId(username);
+      allow list: if true;
+      allow create: if isValidId(username)
+        && isValidTraderProfile(incoming())
+        && incoming().username == username
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(username)
+        && isValidTraderProfile(incoming())
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().username == existing().username
+        && incoming().lowerUsername == existing().lowerUsername
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /offers/{offerId} {
+      allow get: if isValidId(offerId);
+      allow list: if true;
+      allow create: if isValidId(offerId)
+        && isValidOffer(incoming())
+        && incoming().id == offerId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(offerId)
+        && isValidOffer(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(offerId);
+    }
+
+    match /trades/{tradeId} {
+      allow get: if isValidId(tradeId);
+      allow list: if true;
+      allow create: if isValidId(tradeId)
+        && isValidTrade(incoming())
+        && incoming().id == tradeId
+        && incoming().status == 'escrow_funded'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(tradeId)
+        && isValidTrade(incoming())
+        && incoming().id == existing().id
+        && incoming().offerId == existing().offerId
+        && incoming().side == existing().side
+        && incoming().buyerUid == existing().buyerUid
+        && incoming().sellerUid == existing().sellerUid
+        && incoming().participantUids == existing().participantUids
+        && incoming().cryptoAmount == existing().cryptoAmount
+        && incoming().fiatAmount == existing().fiatAmount
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        allow get: if isValidId(msgId);
+        allow list: if true;
+        allow create: if isValidId(tradeId) && isValidId(msgId)
+          && isValidTradeMessage(incoming())
+          && incoming().id == msgId
+          && incoming().createdAt == request.time;
+        allow update, delete: if false;
+      }
+    }
+
+    match /chats/{chatId} {
+      allow get: if isValidId(chatId);
+      allow list: if true;
+      allow create: if isValidId(chatId)
+        && isValidDirectChat(incoming())
+        && incoming().id == chatId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(chatId)
+        && isValidDirectChat(incoming())
+        && incoming().id == existing().id
+        && incoming().participantUids == existing().participantUids
+        && incoming().participants == existing().participants
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        allow get: if isValidId(msgId);
+        allow list: if true;
+        allow create: if isValidId(chatId) && isValidId(msgId)
+          && isValidDirectMessage(incoming())
+          && incoming().id == msgId
+          && incoming().createdAt == request.time;
+        allow update, delete: if false;
+      }
+    }
+
+    match /notifications/{notifId} {
+      allow get: if isValidId(notifId);
+      allow list: if true;
+      allow create: if isValidId(notifId)
+        && isValidNotification(incoming())
+        && incoming().id == notifId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(notifId)
+        && isValidNotification(incoming())
+        && incoming().id == existing().id
+        && incoming().toUid == existing().toUid
+        && incoming().fromUid == existing().fromUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(notifId);
+    }
+
+    match /swaps/{swapId} {
+      allow get: if isValidId(swapId);
+      allow list: if true;
+      allow create: if isValidId(swapId)
+        && isValidSwapOrder(incoming())
+        && incoming().id == swapId
+        && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /cards/{cardId} {
+      allow get: if isValidId(cardId);
+      allow list: if true;
+      allow create: if isValidId(cardId)
+        && isValidVirtualCard(incoming())
+        && incoming().id == cardId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(cardId)
+        && isValidVirtualCard(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+  }
+}

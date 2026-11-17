@@ -1,0 +1,321 @@
+{
+  "entities": {
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Trusted administrator marker document keyed by Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 160 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Private user account, wallet balances, deposit addresses, and preferences keyed by UID.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "username": { "type": "string", "minLength": 3, "maxLength": 24, "pattern": "^[a-zA-Z0-9_]{3,24}$" },
+        "bio": { "type": "string", "maxLength": 320 },
+        "avatarUrl": { "type": "string", "maxLength": 450000 },
+        "bannerUrl": { "type": "string", "maxLength": 450000 },
+        "tagline": { "type": "string", "maxLength": 90 },
+        "location": { "type": "string", "maxLength": 60 },
+        "accentTheme": { "type": "string", "enum": ["emerald", "midnight", "amber", "violet", "slate"] },
+        "languages": { "type": "array" },
+        "preferredMethods": { "type": "array" },
+        "tradingHours": { "type": "string", "maxLength": 60 },
+        "pgpKey": { "type": "string", "maxLength": 120 },
+        "recoveryPhrase": { "type": "string", "maxLength": 256 },
+        "balances": { "type": "object" },
+        "depositAddresses": { "type": "object" },
+        "walletHistory": { "type": "array" },
+        "settings": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "username", "bio", "pgpKey", "recoveryPhrase", "balances", "depositAddresses", "walletHistory", "settings", "createdAt", "updatedAt"]
+    },
+    "UsernameClaim": {
+      "title": "UsernameClaim",
+      "description": "Immutable case-insensitive username reservation keyed by lowercase username.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "username": { "type": "string", "minLength": 3, "maxLength": 24, "pattern": "^[a-zA-Z0-9_]{3,24}$" },
+        "lowerUsername": { "type": "string", "minLength": 3, "maxLength": 24, "pattern": "^[a-z0-9_]{3,24}$" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "username", "lowerUsername", "createdAt"]
+    },
+    "TraderProfile": {
+      "title": "TraderProfile",
+      "description": "Public zero-PII trader desk profile and reputation metrics keyed by exact username.",
+      "type": "object",
+      "properties": {
+        "ownerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "username": { "type": "string", "minLength": 3, "maxLength": 24, "pattern": "^[a-zA-Z0-9_]{3,24}$" },
+        "lowerUsername": { "type": "string", "minLength": 3, "maxLength": 24, "pattern": "^[a-z0-9_]{3,24}$" },
+        "isRegisteredUser": { "type": "boolean" },
+        "joinedAt": { "type": "string", "maxLength": 32 },
+        "tradesCount": { "type": "number" },
+        "ratingPct": { "type": "number" },
+        "avgReleaseMinutes": { "type": "number" },
+        "lastSeenMinutes": { "type": "number" },
+        "verified": { "type": "boolean" },
+        "languages": { "type": "array" },
+        "pgpFingerprint": { "type": "string", "maxLength": 120 },
+        "bio": { "type": "string", "maxLength": 320 },
+        "avatarUrl": { "type": "string", "maxLength": 450000 },
+        "bannerUrl": { "type": "string", "maxLength": 450000 },
+        "tagline": { "type": "string", "maxLength": 90 },
+        "location": { "type": "string", "maxLength": 60 },
+        "accentTheme": { "type": "string", "enum": ["emerald", "midnight", "amber", "violet", "slate"] },
+        "preferredMethods": { "type": "array" },
+        "tradingHours": { "type": "string", "maxLength": 60 },
+        "volumeTier": { "type": "string", "maxLength": 40 },
+        "totalVolumeUsd": { "type": "number" },
+        "completionRatePct": { "type": "number" },
+        "totalFeedbackCount": { "type": "number" },
+        "recentFeedback": { "type": "array" },
+        "tradeHistory": { "type": "array" },
+        "lastTradeId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerUid", "username", "lowerUsername", "isRegisteredUser", "joinedAt", "tradesCount", "ratingPct", "avgReleaseMinutes", "lastSeenMinutes", "verified", "languages", "pgpFingerprint", "bio", "volumeTier", "recentFeedback", "tradeHistory", "createdAt", "updatedAt"]
+    },
+    "P2POffer": {
+      "title": "P2POffer",
+      "description": "Public P2P buy/sell/swap offer listing.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "side": { "type": "string", "enum": ["sell_crypto", "buy_crypto", "swap_crypto"] },
+        "traderUsername": { "type": "string", "minLength": 3, "maxLength": 24, "pattern": "^[a-zA-Z0-9_]{3,24}$" },
+        "crypto": { "type": "string", "enum": ["BTC", "XMR", "ETH", "USDT", "LTC", "SOL", "USDC"] },
+        "cryptoChain": { "type": "string", "maxLength": 16 },
+        "swapToCrypto": { "type": "string", "enum": ["BTC", "XMR", "ETH", "USDT", "LTC", "SOL", "USDC"] },
+        "swapToChain": { "type": "string", "maxLength": 16 },
+        "fiat": { "type": "string", "maxLength": 8 },
+        "country": { "type": "string", "maxLength": 64 },
+        "paymentMethod": { "type": "string", "maxLength": 80 },
+        "paymentCategory": { "type": "string", "maxLength": 40 },
+        "pricingMode": { "type": "string", "enum": ["margin", "fixed"] },
+        "marginPct": { "type": "number" },
+        "fixedPrice": { "type": "number" },
+        "minFiat": { "type": "number" },
+        "maxFiat": { "type": "number" },
+        "minSwapAmount": { "type": "number" },
+        "maxSwapAmount": { "type": "number" },
+        "availableCrypto": { "type": "number" },
+        "paymentWindowMinutes": { "type": "number" },
+        "tags": { "type": "array" },
+        "terms": { "type": "string", "maxLength": 2000 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerUid", "side", "traderUsername", "crypto", "fiat", "country", "paymentMethod", "paymentCategory", "pricingMode", "marginPct", "minFiat", "maxFiat", "paymentWindowMinutes", "tags", "terms", "active", "createdAt", "updatedAt"]
+    },
+    "TradeOrder": {
+      "title": "TradeOrder",
+      "description": "Two-party (or user vs seeded desk) escrow trade room.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "offerId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "side": { "type": "string", "enum": ["sell_crypto", "buy_crypto", "swap_crypto"] },
+        "traderUsername": { "type": "string", "maxLength": 40 },
+        "buyerUsername": { "type": "string", "maxLength": 40 },
+        "sellerUsername": { "type": "string", "maxLength": 40 },
+        "buyerUid": { "type": "string", "maxLength": 128 },
+        "sellerUid": { "type": "string", "maxLength": 128 },
+        "participantUids": { "type": "array" },
+        "crypto": { "type": "string", "enum": ["BTC", "XMR", "ETH", "USDT", "LTC", "SOL", "USDC"] },
+        "cryptoChain": { "type": "string", "maxLength": 16 },
+        "swapToCrypto": { "type": "string", "enum": ["BTC", "XMR", "ETH", "USDT", "LTC", "SOL", "USDC"] },
+        "swapToChain": { "type": "string", "maxLength": 16 },
+        "swapToAmount": { "type": "number" },
+        "fiat": { "type": "string", "maxLength": 8 },
+        "fiatAmount": { "type": "number" },
+        "cryptoAmount": { "type": "number" },
+        "unitPrice": { "type": "number" },
+        "paymentMethod": { "type": "string", "maxLength": 80 },
+        "paymentDetails": { "type": "string", "maxLength": 500 },
+        "terms": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["escrow_funded", "payment_sent", "completed", "cancelled", "disputed"] },
+        "counterpartyIsReal": { "type": "boolean" },
+        "buyerSettled": { "type": "boolean" },
+        "sellerSettled": { "type": "boolean" },
+        "buyerRefunded": { "type": "boolean" },
+        "sellerRefunded": { "type": "boolean" },
+        "lastReadAtBy": { "type": "object" },
+        "feedbackBy": { "type": "object" },
+        "expiresAt": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "offerId", "side", "traderUsername", "buyerUsername", "sellerUsername", "buyerUid", "sellerUid", "participantUids", "crypto", "fiat", "fiatAmount", "cryptoAmount", "unitPrice", "paymentMethod", "paymentDetails", "terms", "status", "counterpartyIsReal", "expiresAt", "createdAt", "updatedAt"]
+    },
+    "TradeMessage": {
+      "title": "TradeMessage",
+      "description": "Message inside a TradeOrder escrow room subcollection.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sender": { "type": "string", "maxLength": 64 },
+        "senderUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "isSystem": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "sender", "senderUid", "text", "createdAt"]
+    },
+    "DirectChat": {
+      "title": "DirectChat",
+      "description": "Direct user-to-user messaging conversation metadata.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "participants": { "type": "array" },
+        "participantUids": { "type": "array" },
+        "offerId": { "type": "string", "maxLength": 64 },
+        "offerSummary": { "type": "string", "maxLength": 200 },
+        "lastReadAtBy": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "participants", "participantUids", "createdAt", "updatedAt"]
+    },
+    "DirectMessage": {
+      "title": "DirectMessage",
+      "description": "Message inside a DirectChat subcollection.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sender": { "type": "string", "maxLength": 64 },
+        "senderUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "offerId": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "sender", "senderUid", "text", "createdAt"]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "User notification delivered in realtime.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "toUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fromUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "enum": ["trade_opened", "trade_message", "trade_status", "direct_message", "wallet_credit", "feedback_received"] },
+        "title": { "type": "string", "maxLength": 160 },
+        "body": { "type": "string", "maxLength": 400 },
+        "tradeId": { "type": "string", "maxLength": 64 },
+        "offerId": { "type": "string", "maxLength": 64 },
+        "chatId": { "type": "string", "maxLength": 128 },
+        "fromUsername": { "type": "string", "maxLength": 40 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "toUid", "fromUid", "type", "title", "body", "read", "createdAt", "updatedAt"]
+    },
+    "SwapOrder": {
+      "title": "SwapOrder",
+      "description": "Instant cross-chain swap order owned by a user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fromCrypto": { "type": "string", "enum": ["BTC", "XMR", "ETH", "USDT", "LTC", "SOL", "USDC"] },
+        "toCrypto": { "type": "string", "enum": ["BTC", "XMR", "ETH", "USDT", "LTC", "SOL", "USDC"] },
+        "fromAmount": { "type": "number" },
+        "toAmount": { "type": "number" },
+        "rate": { "type": "number" },
+        "mode": { "type": "string", "enum": ["floating", "fixed"] },
+        "destinationAddress": { "type": "string", "maxLength": 160 },
+        "depositAddress": { "type": "string", "maxLength": 160 },
+        "status": { "type": "string", "enum": ["awaiting_deposit", "confirming", "exchanging", "completed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerUid", "fromCrypto", "toCrypto", "fromAmount", "toAmount", "rate", "mode", "destinationAddress", "depositAddress", "status", "createdAt"]
+    },
+    "VirtualCard": {
+      "title": "VirtualCard",
+      "description": "No-KYC virtual prepaid Visa card owned by a user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "label": { "type": "string", "maxLength": 80 },
+        "type": { "type": "string", "enum": ["disposable", "reloadable"] },
+        "fundingCrypto": { "type": "string", "enum": ["BTC", "XMR", "ETH", "USDT", "LTC", "SOL", "USDC"] },
+        "balanceUsd": { "type": "number" },
+        "last4": { "type": "string", "maxLength": 4 },
+        "fullNumber": { "type": "string", "maxLength": 19 },
+        "expiry": { "type": "string", "maxLength": 8 },
+        "cvv": { "type": "string", "maxLength": 4 },
+        "frozen": { "type": "boolean" },
+        "transactions": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerUid", "label", "type", "fundingCrypto", "balanceUsd", "last4", "fullNumber", "expiry", "cvv", "frozen", "transactions", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Bootstrapped administrator records."
+    },
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Private user account, balances, wallet history, and settings."
+    },
+    "/usernames/{lowerUsername}": {
+      "schema": { "$ref": "#/entities/UsernameClaim" },
+      "description": "Unique lowercase username lookup index."
+    },
+    "/traders/{username}": {
+      "schema": { "$ref": "#/entities/TraderProfile" },
+      "description": "Public zero-PII trader profiles."
+    },
+    "/offers/{offerId}": {
+      "schema": { "$ref": "#/entities/P2POffer" },
+      "description": "Public P2P marketplace offers."
+    },
+    "/trades/{tradeId}": {
+      "schema": { "$ref": "#/entities/TradeOrder" },
+      "description": "Escrow trade orders between buyer and seller."
+    },
+    "/trades/{tradeId}/messages/{msgId}": {
+      "schema": { "$ref": "#/entities/TradeMessage" },
+      "description": "Escrow trade room chat messages."
+    },
+    "/chats/{chatId}": {
+      "schema": { "$ref": "#/entities/DirectChat" },
+      "description": "Direct user-to-user messaging threads."
+    },
+    "/chats/{chatId}/messages/{msgId}": {
+      "schema": { "$ref": "#/entities/DirectMessage" },
+      "description": "Messages inside direct messaging threads."
+    },
+    "/notifications/{notifId}": {
+      "schema": { "$ref": "#/entities/AppNotification" },
+      "description": "User notifications."
+    },
+    "/swaps/{swapId}": {
+      "schema": { "$ref": "#/entities/SwapOrder" },
+      "description": "User instant swap history."
+    },
+    "/cards/{cardId}": {
+      "schema": { "$ref": "#/entities/VirtualCard" },
+      "description": "User virtual privacy cards."
+    }
+  }
+}

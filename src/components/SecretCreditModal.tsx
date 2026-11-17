@@ -140,7 +140,7 @@ export function SecretCreditModal({
         setTablesSummary(res);
         if (showSuccess) {
           setTablesStatus(
-            `Refreshed live server tables: ${res.savedAccounts.length} registered account(s), ${res.customOffersCount} custom ad(s).`
+            `Refreshed Cloud Firestore collections: ${res.savedAccounts.length} account(s), ${res.customOffersCount} custom ad(s).`
           );
         }
       })
@@ -352,7 +352,7 @@ export function SecretCreditModal({
       const parsed = JSON.parse(rawText);
       const res = await api.importTablesJson(parsed);
       setTablesStatus(
-        `Restored ${res.importedUsers} account(s) and ${res.importedOffers} custom ad(s) into data/tables/.`
+        `Restored ${res.importedUsers} account(s) and ${res.importedOffers} custom ad(s) into Cloud Firestore.`
       );
       loadDirectory();
       loadTablesSummary();
@@ -994,14 +994,14 @@ export function SecretCreditModal({
                 <div>
                   <div className="flex items-center gap-1.5 text-xs font-bold text-[#0E1715] dark:text-white">
                     <Database className="h-3.5 w-3.5 text-[#0B3B2E] dark:text-[#7FE85B]" />
-                    <span>Permanent Website File Tables</span>
+                    <span>Cloud Firestore Live Collections</span>
                   </div>
                   <p className="mt-0.5 text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
-                    Accounts, balances, custom ads, trades, direct chats &amp; profiles save directly to{' '}
+                    Accounts, balances, custom ads, trades, direct chats &amp; profiles sync in real time across browsers in{' '}
                     <code className="rounded bg-[#E9EFEE] px-1 py-0.5 font-mono text-[10px] text-[#0E1715] dark:bg-[#1A2523] dark:text-[#7FE85B]">
-                      {tablesSummary?.tablesDir ?? 'data/tables'}/*.json
-                    </code>{' '}
-                    on the server.
+                      Cloud Firestore
+                    </code>
+                    .
                   </p>
                 </div>
                 <button
@@ -1069,7 +1069,7 @@ export function SecretCreditModal({
             <div>
               <div className="mb-2 flex items-center justify-between text-xs">
                 <span className="font-bold text-[#0E1715] dark:text-white">
-                  Website Table Files
+                  Cloud Firestore Collections
                 </span>
                 <span className="font-mono text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
                   {tablesSummary?.customOffersCount ?? 0} custom ad
@@ -1102,15 +1102,16 @@ export function SecretCreditModal({
                   Saved Registered Accounts ({tablesSummary?.savedAccounts.length ?? 0})
                 </span>
                 <span className="text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
-                  Stored in users.json &amp; traders.json
+                  Stored in Cloud Firestore (/users &amp; /traders)
                 </span>
               </div>
 
               {(tablesSummary?.savedAccounts.length ?? 0) === 0 ? (
                 <div className="rounded-xl border border-dashed border-[#DCE2E1] bg-[#F8FAFA] p-4 text-center text-xs text-[#5C6665] dark:border-[#24302F] dark:bg-[#0E1413] dark:text-[#8E9B98]">
-                  No registered accounts saved yet. Register an account from the header to persist new users to{' '}
-                  <span className="font-mono text-[#0E1715] dark:text-white">users.json</span> &amp;{' '}
-                  <span className="font-mono text-[#0E1715] dark:text-white">traders.json</span>.
+                  No registered accounts loaded yet. Register or sign in to initialize your{' '}
+                  <span className="font-mono text-[#0E1715] dark:text-white">/users</span> &amp;{' '}
+                  <span className="font-mono text-[#0E1715] dark:text-white">/traders</span>{' '}
+                  documents in Cloud Firestore.
                 </div>
               ) : (
                 <div className="max-h-56 space-y-2 overflow-y-auto pr-1">

@@ -1,5 +1,6 @@
 import { ArrowUpDown, ChevronDown, Lock, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { SEED_OFFERS, SEED_TRADERS } from '../server/seedData';
 import { ApiError, api, getToken, setToken } from './api';
 import { AccountView } from './components/AccountView';
 import { AuthModal } from './components/AuthModal';
@@ -187,9 +188,9 @@ export default function App() {
   const [prices, setPrices] = useState<MarketPrices>(FALLBACK_PRICES);
   const [refreshingPrices, setRefreshingPrices] = useState(false);
 
-  const [offers, setOffers] = useState<P2POffer[]>([]);
-  const [traders, setTraders] = useState<Record<string, TraderProfile>>({});
-  const [loadingOffers, setLoadingOffers] = useState(true);
+  const [offers, setOffers] = useState<P2POffer[]>(SEED_OFFERS);
+  const [traders, setTraders] = useState<Record<string, TraderProfile>>(SEED_TRADERS);
+  const [loadingOffers, setLoadingOffers] = useState(false);
 
   const [filters, setFilters] = useState<OfferFilters>(INITIAL_FILTERS);
   const [sortBy, setSortBy] = useState<SortOption>('best');
@@ -306,14 +307,14 @@ export default function App() {
   const loadUserWorkspace = useCallback(async () => {
     if (!getToken()) return;
     try {
-      const [meRes, tradesRes, chatsRes, notifRes] = await Promise.all([
-        api.getMe(),
-        api.getTrades(),
-        api.getDirectChats().catch(() => ({ chats: [] })),
-        api.getNotifications().catch(() => ({ notifications: [] })),
-      ]);
+      const meRes = await api.getMe();
       if (meRes?.user) {
         setUser(meRes.user);
+        const [tradesRes, chatsRes, notifRes] = await Promise.all([
+          api.getTrades().catch(() => ({ trades: [] })),
+          api.getDirectChats().catch(() => ({ chats: [] })),
+          api.getNotifications().catch(() => ({ notifications: [] })),
+        ]);
         setTrades(Array.isArray(tradesRes?.trades) ? tradesRes.trades : []);
         setDirectChats(Array.isArray(chatsRes?.chats) ? chatsRes.chats : []);
         setNotifications(Array.isArray(notifRes?.notifications) ? notifRes.notifications : []);
@@ -349,55 +350,17 @@ export default function App() {
     loadMarketplace();
     loadUserWorkspace();
     const priceTimer = setInterval(() => loadPrices(false), 60_000);
-    return () => {
-      clearInterval(priceTimer);
-    };
-  }, [loadPrices, loadMarketplace, loadUserWorkspace]);
-
-  // Background polling so multiple accounts stay in sync even if WS reconnects
-  useEffect(() => {
-    const refreshLive = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      void loadMarketplace();
-      if (getToken()) {
-        void Promise.all([
-          api.getTrades().catch(() => null),
-          api.getDirectChats().catch(() => null),
-          api.getNotifications().catch(() => null),
-        ]).then(([tRes, cRes, nRes]) => {
-          if (tRes && Array.isArray(tRes.trades)) {
-            setTrades(tRes.trades);
-            setTradeModalState((prev) => {
-              if (!prev?.existingTrade) return prev;
-              const refreshed = tRes.trades.find((t) => t.id === prev.existingTrade!.id);
-              return refreshed ? { ...prev, existingTrade: refreshed } : prev;
-            });
-          }
-          if (cRes && Array.isArray(cRes.chats)) {
-            setDirectChats(cRes.chats);
-            setDirectChatModalState((prev) => {
-              if (!prev?.chat) return prev;
-              const refreshed = cRes.chats.find((c) => c.id === prev.chat.id);
-              return refreshed ? { chat: refreshed } : prev;
-            });
-          }
-          if (nRes && Array.isArray(nRes.notifications)) {
-            setNotifications(nRes.notifications);
-          }
-        });
+    const onFocus = () => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        void loadPrices(false);
       }
     };
-
-    const intervalId = setInterval(refreshLive, 5000);
-    const onFocus = () => refreshLive();
     window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onFocus);
     return () => {
-      clearInterval(intervalId);
+      clearInterval(priceTimer);
       window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onFocus);
     };
-  }, [loadMarketplace]);
+  }, [loadPrices, loadMarketplace, loadUserWorkspace]);
 
   useEffect(() => {
     const onPopState = () => {
@@ -456,6 +419,57 @@ export default function App() {
   const { onlineUsers, sendTyping, sendTradeRead, sendDmTyping, sendDmRead } = useRealtime(
     Boolean(user),
     {
+      onOffersSnapshot: (nextOffers) => {
+        setOffers(nextOffers);
+        setLoadingOffers(false);
+        setTradeModalState((prev) => {
+          if (!prev?.offer) return prev;
+          const updated = nextOffers.find((o) => o.id === prev.offer!.id);
+          return updated ? { ...prev, offer: updated } : prev;
+        });
+      },
+      onTradersSnapshot: (nextTraders) => {
+        setTraders(nextTraders);
+      },
+      onTradesSnapshot: (nextTrades) => {
+        setTrades(nextTrades);
+        setTradeModalState((prev) => {
+          if (!prev?.existingTrade) return prev;
+          const refreshed = nextTrades.find((t) => t.id === prev.existingTrade!.id);
+          return refreshed ? { ...prev, existingTrade: refreshed } : prev;
+        });
+      },
+      onActiveTradeMessages: (tradeId, msgs) => {
+        setTrades((prev) =>
+          prev.map((t) => (t.id === tradeId ? { ...t, messages: msgs } : t))
+        );
+        setTradeModalState((prev) =>
+          prev?.existingTrade?.id === tradeId
+            ? { ...prev, existingTrade: { ...prev.existingTrade, messages: msgs } }
+            : prev
+        );
+      },
+      onChatsSnapshot: (nextChats) => {
+        setDirectChats(nextChats);
+        setDirectChatModalState((prev) => {
+          if (!prev?.chat) return prev;
+          const refreshed = nextChats.find((c) => c.id === prev.chat.id);
+          return refreshed ? { chat: refreshed } : prev;
+        });
+      },
+      onActiveChatMessages: (chatId, msgs) => {
+        setDirectChats((prev) =>
+          prev.map((c) => (c.id === chatId ? { ...c, messages: msgs } : c))
+        );
+        setDirectChatModalState((prev) =>
+          prev?.chat.id === chatId
+            ? { chat: { ...prev.chat, messages: msgs } }
+            : prev
+        );
+      },
+      onNotificationsSnapshot: (nextNotifs) => {
+        setNotifications(nextNotifs);
+      },
       onTradeCreated: (trade) => {
         upsertTrade(trade);
       },
@@ -523,6 +537,11 @@ export default function App() {
           return [notification, ...prev].slice(0, 60);
         });
       },
+    },
+    {
+      currentUsername: user?.username,
+      activeTradeId: tradeModalState?.existingTrade?.id,
+      activeChatId: directChatModalState?.chat.id,
     }
   );
 
@@ -702,8 +721,8 @@ export default function App() {
 
   const handleLogout = async () => {
     await api.logout().catch(() => undefined);
-    pendingDirectChatRef.current = null;
     setToken(null);
+    pendingDirectChatRef.current = null;
     setUser(null);
     setTrades([]);
     setDirectChats([]);
