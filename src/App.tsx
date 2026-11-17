@@ -1,7 +1,7 @@
 import { ArrowUpDown, ChevronDown, Lock, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SEED_OFFERS, SEED_TRADERS } from '../server/seedData';
-import { ApiError, api, getToken, setToken } from './api';
+import { ApiError, api, enrichTradeMessages, getToken, setToken } from './api';
 import { AccountView } from './components/AccountView';
 import { AuthModal } from './components/AuthModal';
 import { CoinIcon } from './components/CoinIcon';
@@ -441,11 +441,21 @@ export default function App() {
       },
       onActiveTradeMessages: (tradeId, msgs) => {
         setTrades((prev) =>
-          prev.map((t) => (t.id === tradeId ? { ...t, messages: msgs } : t))
+          prev.map((t) =>
+            t.id === tradeId
+              ? { ...t, messages: enrichTradeMessages(msgs, t.lastReadAtBy, false) }
+              : t
+          )
         );
         setTradeModalState((prev) =>
           prev?.existingTrade?.id === tradeId
-            ? { ...prev, existingTrade: { ...prev.existingTrade, messages: msgs } }
+            ? {
+                ...prev,
+                existingTrade: {
+                  ...prev.existingTrade,
+                  messages: enrichTradeMessages(msgs, prev.existingTrade.lastReadAtBy, false),
+                },
+              }
             : prev
         );
       },
@@ -1386,6 +1396,9 @@ export default function App() {
           }}
           onTradeUpdated={(updatedTrade, updatedUser) => {
             upsertTrade(updatedTrade);
+            setTradeModalState((prev) =>
+              prev ? { ...prev, existingTrade: updatedTrade } : prev
+            );
             if (updatedUser) setUser(updatedUser);
             loadMarketplace();
           }}

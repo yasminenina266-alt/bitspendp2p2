@@ -195,3 +195,60 @@ export function processImageFile(
     reader.readAsDataURL(file);
   });
 }
+
+export function processChatImageFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Please select a PNG, JPEG, WebP, or GIF image file.'));
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      reject(new Error('Image file must be smaller than 10 MB.'));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to read image file.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Invalid or corrupted image file.'));
+      img.onload = () => {
+        const encode = (maxDim: number, quality: number): string => {
+          const scale = Math.min(1, maxDim / Math.max(img.width, img.height, 1));
+          const outW = Math.max(1, Math.round(img.width * scale));
+          const outH = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = outW;
+          canvas.height = outH;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('Browser canvas is unavailable.');
+          ctx.drawImage(img, 0, 0, outW, outH);
+          let url = canvas.toDataURL('image/webp', quality);
+          if (!url.startsWith('data:image/webp')) {
+            url = canvas.toDataURL('image/jpeg', quality);
+          }
+          return url;
+        };
+
+        try {
+          let dataUrl = encode(760, 0.76);
+          if (dataUrl.length > 95_000) {
+            dataUrl = encode(560, 0.62);
+          }
+          if (dataUrl.length > 120_000) {
+            dataUrl = encode(420, 0.5);
+          }
+          if (dataUrl.length > 440_000) {
+            reject(new Error('Image is still too large after compression. Please choose a smaller image.'));
+            return;
+          }
+          resolve(dataUrl);
+        } catch (err) {
+          reject(err instanceof Error ? err : new Error('Failed to process image.'));
+        }
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}

@@ -181,6 +181,7 @@ export function useRealtime(
             (t.status === 'cancelled' &&
               ((t.sellerUid === uid &&
                 t.sellerRefunded !== true &&
+                t.lastReadAtBy?.__adminEscrowOverride !== '1' &&
                 (t.lastReadAtBy?.__escrowState === 'funded' ||
                   (t.side === 'buy_crypto' &&
                     t.lastReadAtBy?.__escrowState !== 'awaiting_seller'))) ||

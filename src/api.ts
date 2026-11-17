@@ -5,6 +5,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
@@ -531,6 +532,27 @@ export interface InternalTradeFields {
   sellerRefunded?: boolean;
 }
 
+export function enrichTradeMessages(
+  messages: TradeMessage[],
+  lastReadAtBy?: Record<string, string>,
+  includeDeleted = false
+): TradeMessage[] {
+  const meta = lastReadAtBy ?? {};
+  return messages
+    .filter((m) => includeDeleted || meta[`__deleted_${m.id}`] !== '1')
+    .map((m) => {
+      const img = typeof meta[`__img_${m.id}`] === 'string' && meta[`__img_${m.id}`] ? meta[`__img_${m.id}`] : undefined;
+      const imageHidden = meta[`__imgHidden_${m.id}`] === '1';
+      const deleted = meta[`__deleted_${m.id}`] === '1';
+      return {
+        ...m,
+        ...(img ? { imageUrl: img } : {}),
+        ...(imageHidden ? { imageHidden: true } : {}),
+        ...(deleted ? { deleted: true } : {}),
+      };
+    });
+}
+
 export function normalizeTradeDoc(
   data: DocumentData,
   messages: TradeMessage[] = [],
@@ -539,6 +561,8 @@ export function normalizeTradeDoc(
   const feedbackBy = (data.feedbackBy ?? undefined) as
     | Record<string, { positive: boolean; comment: string }>
     | undefined;
+  const lastReadAtBy = (data.lastReadAtBy ?? undefined) as Record<string, string> | undefined;
+  const enrichedMessages = enrichTradeMessages(messages, lastReadAtBy, false);
   return {
     id: String(data.id ?? ''),
     offerId: String(data.offerId ?? ''),
@@ -561,9 +585,9 @@ export function normalizeTradeDoc(
     status: data.status as TradeOrder['status'],
     createdAt: tsToIso(data.createdAt),
     expiresAt: String(data.expiresAt ?? new Date(Date.now() + 30 * 60_000).toISOString()),
-    messages,
+    messages: enrichedMessages,
     counterpartyIsReal: Boolean(data.counterpartyIsReal),
-    lastReadAtBy: (data.lastReadAtBy ?? undefined) as Record<string, string> | undefined,
+    lastReadAtBy,
     feedbackBy,
     feedbackGiven: viewerUsername && feedbackBy ? feedbackBy[viewerUsername] : undefined,
     _internal: {
@@ -940,8 +964,9 @@ export async function claimPendingTradeSettlements(
       }
     } else if (status === 'cancelled') {
       const sellerHadFunded =
-        t.lastReadAtBy?.__escrowState === 'funded' ||
-        (side === 'buy_crypto' && t.lastReadAtBy?.__escrowState !== 'awaiting_seller');
+        (t.lastReadAtBy?.__escrowState === 'funded' ||
+          (side === 'buy_crypto' && t.lastReadAtBy?.__escrowState !== 'awaiting_seller')) &&
+        t.lastReadAtBy?.__adminEscrowOverride !== '1';
       if (
         sellerUid === uid &&
         t.sellerRefunded !== true &&
@@ -2229,11 +2254,20 @@ export const api = {
     }
   },
 
-  async sendTradeMessage(tradeId: string, text: string): Promise<{ trade: TradeOrder }> {
+  async sendTradeMessage(
+    tradeId: string,
+    text: string,
+    imageUrl?: string
+  ): Promise<{ trade: TradeOrder }> {
     const { uid, user } = await requireCurrentAccount();
     const clean = text.trim().slice(0, 2000);
-    if (!clean) throw new ApiError('Message cannot be empty', 400);
+    const cleanImage = imageUrl ? sanitizeImageField(imageUrl) : undefined;
+    if (imageUrl && !cleanImage) {
+      throw new ApiError('Invalid image format or size.', 400);
+    }
+    if (!clean && !cleanImage) throw new ApiError('Message cannot be empty', 400);
 
+    const msgText = clean || '[Photo uploaded]';
     const path = `trades/${tradeId}`;
     try {
       const ref = doc(db, 'trades', tradeId);
@@ -2243,17 +2277,24 @@ export const api = {
       const msgId = `msg-${randomHex(4)}`;
       const nowIso = new Date().toISOString();
       const prevRead = (tData.lastReadAtBy ?? {}) as Record<string, string>;
+      const nextRead: Record<string, string> = {
+        ...prevRead,
+        [user.username]: nowIso,
+      };
+      if (cleanImage) {
+        nextRead[`__img_${msgId}`] = cleanImage;
+      }
 
       const batch = writeBatch(db);
       batch.set(doc(db, 'trades', tradeId, 'messages', msgId), {
         id: msgId,
         sender: user.username,
         senderUid: uid,
-        text: clean,
+        text: msgText,
         createdAt: serverTimestamp(),
       });
       batch.update(ref, {
-        lastReadAtBy: { ...prevRead, [user.username]: nowIso },
+        lastReadAtBy: nextRead,
         updatedAt: serverTimestamp(),
       });
 
@@ -2262,6 +2303,7 @@ export const api = {
 
       if (tData.counterpartyIsReal) {
         const notifId = `ntf-${randomHex(4)}`;
+        const notifPreview = clean || 'Sent an image attachment in trade chat.';
         batch.set(
           doc(db, 'notifications', notifId),
           createNotificationPayload({
@@ -2270,15 +2312,17 @@ export const api = {
             fromUid: uid,
             type: 'trade_message',
             title: `Message from ${user.username}`,
-            body: clean.length > 90 ? `${clean.slice(0, 87)}...` : clean,
+            body: notifPreview.length > 90 ? `${notifPreview.slice(0, 87)}...` : notifPreview,
             tradeId,
             fromUsername: user.username,
           })
         );
       } else if (tData.status === 'escrow_funded' || tData.status === 'payment_sent') {
-        const lower = clean.toLowerCase();
+        const lower = msgText.toLowerCase();
         let reply = `Received. Keeping an eye on ${tData.paymentMethod} for trade ${tradeId}.`;
-        if (
+        if (cleanImage && !clean) {
+          reply = `Thanks, I can see the image you shared for trade ${tradeId}. Let me know once you're ready for the next step.`;
+        } else if (
           lower.includes('detail') ||
           lower.includes('account') ||
           lower.includes('where') ||
@@ -2303,7 +2347,7 @@ export const api = {
       const msgs = await fetchTradeMessages(tradeId);
       return {
         trade: normalizeTradeDoc(
-          { ...tData, lastReadAtBy: { ...prevRead, [user.username]: nowIso } },
+          { ...tData, lastReadAtBy: nextRead },
           msgs,
           user.username
         ),
@@ -3749,5 +3793,420 @@ export const api = {
     }
 
     return { ok: true, importedUsers: 0, importedOffers };
+  },
+
+  // -------------------------------------------------------------------------
+  // Admin Live Trades Console Methods
+  // -------------------------------------------------------------------------
+  adminSubscribeAllTrades(
+    onTrades: (trades: TradeOrder[]) => void,
+    onError?: (err: Error) => void
+  ): () => void {
+    return onSnapshot(
+      collection(db, 'trades'),
+      (snap) => {
+        const list = snap.docs
+          .map((d) => normalizeTradeDoc(d.data(), []))
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        onTrades(list);
+      },
+      (err) => {
+        if (onError) {
+          onError(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
+    );
+  },
+
+  adminSubscribeTradeMessages(
+    tradeId: string,
+    onMessages: (messages: TradeMessage[]) => void,
+    onError?: (err: Error) => void
+  ): () => void {
+    const q = query(collection(db, 'trades', tradeId, 'messages'), orderBy('createdAt', 'asc'));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const msgs: TradeMessage[] = snap.docs.map((d) => {
+          const m = d.data();
+          return {
+            id: String(m.id ?? d.id),
+            sender: String(m.sender ?? 'System'),
+            text: String(m.text ?? ''),
+            timestamp: tsToIso(m.createdAt),
+            isSystem: typeof m.isSystem === 'boolean' ? m.isSystem : undefined,
+          };
+        });
+        onMessages(msgs);
+      },
+      (err) => {
+        if (onError) {
+          onError(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
+    );
+  },
+
+  async adminSendTradeMessage(
+    tradeId: string,
+    text: string,
+    options?: { isSystem?: boolean; imageUrl?: string; senderName?: string }
+  ): Promise<void> {
+    const clean = text.trim().slice(0, 2000);
+    const cleanImage = options?.imageUrl ? sanitizeImageField(options.imageUrl) : undefined;
+    if (options?.imageUrl && !cleanImage) {
+      throw new ApiError('Invalid image format or size.', 400);
+    }
+    if (!clean && !cleanImage) {
+      throw new ApiError('Message or image cannot be empty.', 400);
+    }
+
+    const session = await getSessionContext();
+    const senderUid = session?.uid || 'escrow_admin';
+    const sender = (
+      options?.senderName || (options?.isSystem ? 'Escrow System' : 'Escrow Admin')
+    ).slice(0, 64);
+    const msgText = clean || '[Photo uploaded]';
+    const tradeRef = doc(db, 'trades', tradeId);
+
+    try {
+      const snap = await getDoc(tradeRef);
+      if (!snap.exists()) throw new ApiError('Trade not found', 404);
+      const tData = snap.data();
+      const prevRead = (tData.lastReadAtBy ?? {}) as Record<string, string>;
+      const msgId = `msg-${randomHex(4)}`;
+      const nextRead = { ...prevRead };
+      if (cleanImage) {
+        nextRead[`__img_${msgId}`] = cleanImage;
+      }
+
+      const batch = writeBatch(db);
+      batch.set(
+        doc(db, 'trades', tradeId, 'messages', msgId),
+        stripUndefined({
+          id: msgId,
+          sender,
+          senderUid,
+          text: msgText,
+          isSystem: Boolean(options?.isSystem),
+          createdAt: serverTimestamp(),
+        })
+      );
+      batch.update(tradeRef, {
+        lastReadAtBy: nextRead,
+        updatedAt: serverTimestamp(),
+      });
+
+      const buyerUid = String(tData.buyerUid ?? '');
+      const sellerUid = String(tData.sellerUid ?? '');
+      const preview = clean || 'Attached an image in trade chat.';
+      for (const targetUid of [buyerUid, sellerUid]) {
+        if (targetUid && !targetUid.startsWith('seed_') && targetUid !== senderUid) {
+          const notifId = `ntf-${randomHex(4)}`;
+          batch.set(
+            doc(db, 'notifications', notifId),
+            createNotificationPayload({
+              id: notifId,
+              toUid: targetUid,
+              fromUid: senderUid,
+              type: 'trade_message',
+              title: `${sender} posted in ${tradeId}`,
+              body: preview.length > 90 ? `${preview.slice(0, 87)}...` : preview,
+              tradeId,
+              fromUsername: sender.slice(0, 40),
+            })
+          );
+        }
+      }
+
+      await batch.commit();
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.WRITE, `trades/${tradeId}`);
+    }
+  },
+
+  async adminSetTradeMessageImageHidden(
+    tradeId: string,
+    msgId: string,
+    hidden: boolean
+  ): Promise<void> {
+    const tradeRef = doc(db, 'trades', tradeId);
+    try {
+      const snap = await getDoc(tradeRef);
+      if (!snap.exists()) throw new ApiError('Trade not found', 404);
+      const tData = snap.data();
+      const nextRead = { ...((tData.lastReadAtBy ?? {}) as Record<string, string>) };
+      const key = `__imgHidden_${msgId}`;
+      if (hidden) {
+        nextRead[key] = '1';
+      } else {
+        delete nextRead[key];
+      }
+      await updateDoc(tradeRef, {
+        lastReadAtBy: nextRead,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `trades/${tradeId}`);
+    }
+  },
+
+  async adminDeleteTradeMessage(tradeId: string, msgId: string): Promise<void> {
+    const tradeRef = doc(db, 'trades', tradeId);
+    try {
+      const snap = await getDoc(tradeRef);
+      if (!snap.exists()) throw new ApiError('Trade not found', 404);
+      const tData = snap.data();
+      const nextRead = { ...((tData.lastReadAtBy ?? {}) as Record<string, string>) };
+      nextRead[`__deleted_${msgId}`] = '1';
+      delete nextRead[`__img_${msgId}`];
+      delete nextRead[`__imgHidden_${msgId}`];
+      await updateDoc(tradeRef, {
+        lastReadAtBy: nextRead,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `trades/${tradeId}`);
+    }
+  },
+
+  async adminTradeAction(
+    tradeId: string,
+    action: 'fund_escrow' | 'mark_paid' | 'release' | 'cancel' | 'dispute' | 'reopen',
+    note?: string
+  ): Promise<TradeOrder> {
+    const session = await getSessionContext();
+    const actorUid = session?.uid || 'escrow_admin';
+    const tradeRef = doc(db, 'trades', tradeId);
+
+    const snap = await getDoc(tradeRef).catch((err) =>
+      wrapFirestoreError(err, OperationType.GET, `trades/${tradeId}`)
+    );
+    if (!snap.exists()) throw new ApiError('Trade not found', 404);
+
+    const tData = snap.data();
+    const trade = normalizeTradeDoc(tData, []);
+    const { buyerUid, sellerUid } = trade._internal;
+    const buyerIsReal = Boolean(buyerUid) && !buyerUid.startsWith('seed_');
+    const sellerIsReal = Boolean(sellerUid) && !sellerUid.startsWith('seed_');
+
+    const nextLastReadAtBy: Record<string, string> = {
+      ...((tData.lastReadAtBy ?? {}) as Record<string, string>),
+    };
+    const escrowState = nextLastReadAtBy.__escrowState;
+    const nowIso = new Date().toISOString();
+    const batch = writeBatch(db);
+
+    let nextStatus = trade.status;
+    let buyerSettled = Boolean(tData.buyerSettled);
+    let sellerSettled = Boolean(tData.sellerSettled);
+    let buyerRefunded = Boolean(tData.buyerRefunded);
+    let sellerRefunded = Boolean(tData.sellerRefunded);
+    let sysText = '';
+    let notifTitle = '';
+    let notifBody = '';
+
+    if (action === 'fund_escrow') {
+      if (trade.status === 'completed' || trade.status === 'cancelled' || trade.status === 'disputed') {
+        nextStatus = 'escrow_funded';
+      }
+      if (escrowState === 'awaiting_seller') {
+        let deductedFromSeller = false;
+        if (sellerIsReal) {
+          const sellerSnap = await getDoc(doc(db, 'users', sellerUid)).catch(() => null);
+          if (sellerSnap?.exists()) {
+            const sellerAcct = normalizeUserDoc(sellerSnap.data());
+            if ((sellerAcct.balances[trade.crypto] ?? 0) >= trade.cryptoAmount - 1e-8) {
+              const nextBal = {
+                ...sellerAcct.balances,
+                [trade.crypto]: Number(
+                  Math.max(0, (sellerAcct.balances[trade.crypto] ?? 0) - trade.cryptoAmount).toFixed(8)
+                ),
+              };
+              batch.update(doc(db, 'users', sellerUid), {
+                balances: nextBal,
+                updatedAt: serverTimestamp(),
+              });
+              deductedFromSeller = true;
+            }
+          }
+        }
+        if (deductedFromSeller) {
+          delete nextLastReadAtBy.__adminEscrowOverride;
+          sellerRefunded = false;
+        } else {
+          nextLastReadAtBy.__adminEscrowOverride = '1';
+          sellerRefunded = true;
+        }
+      }
+      nextLastReadAtBy.__escrowState = 'funded';
+      delete nextLastReadAtBy.__closedByAdmin;
+      sysText =
+        note?.trim() ||
+        `Escrow Admin marked ${trade.cryptoAmount.toFixed(6)} ${trade.crypto} escrow as funded on ${trade.id}.`;
+      notifTitle = `Escrow funded by Admin (${trade.id})`;
+      notifBody = `Escrow is now marked funded on trade ${trade.id}.`;
+    } else if (action === 'mark_paid') {
+      nextStatus = 'payment_sent';
+      nextLastReadAtBy.__escrowState = 'funded';
+      delete nextLastReadAtBy.__closedByAdmin;
+      sysText =
+        note?.trim() ||
+        `Escrow Admin marked ${trade.paymentMethod} payment as sent for trade ${trade.id}.`;
+      notifTitle = `Payment marked sent (${trade.id})`;
+      notifBody = `Escrow Admin updated trade ${trade.id} to Payment Sent.`;
+    } else if (action === 'release') {
+      const alreadyFunded = escrowState === 'funded';
+      if (!alreadyFunded && sellerIsReal && (trade.side === 'sell_crypto' || trade.side === 'swap_crypto')) {
+        const sellerSnap = await getDoc(doc(db, 'users', sellerUid)).catch(() => null);
+        if (sellerSnap?.exists()) {
+          const sellerAcct = normalizeUserDoc(sellerSnap.data());
+          if ((sellerAcct.balances[trade.crypto] ?? 0) >= trade.cryptoAmount - 1e-8) {
+            const nextBal = {
+              ...sellerAcct.balances,
+              [trade.crypto]: Number(
+                Math.max(0, (sellerAcct.balances[trade.crypto] ?? 0) - trade.cryptoAmount).toFixed(8)
+              ),
+            };
+            batch.update(doc(db, 'users', sellerUid), {
+              balances: nextBal,
+              updatedAt: serverTimestamp(),
+            });
+          }
+        }
+      }
+
+      nextStatus = 'completed';
+      nextLastReadAtBy.__escrowState = 'funded';
+      nextLastReadAtBy.__closedByAdmin = nowIso;
+      buyerSettled = buyerIsReal ? false : true;
+      sellerSettled = trade.side === 'swap_crypto' && sellerIsReal ? false : true;
+
+      const updateTraderRecord = async (
+        tName: string,
+        recSide: 'Bought' | 'Sold',
+        counterName: string
+      ) => {
+        const tSnap = await getDoc(doc(db, 'traders', tName)).catch(() => null);
+        if (!tSnap?.exists()) return;
+        const t = normalizeTraderDoc(tSnap.data());
+        const nextHistory = [
+          {
+            id: trade.id,
+            asset: trade.crypto,
+            cryptoAmount: Number(trade.cryptoAmount.toFixed(6)),
+            fiatAmount: Number(trade.fiatAmount.toFixed(2)),
+            fiat: trade.fiat,
+            paymentMethod: trade.paymentMethod,
+            side: recSide,
+            counterparty: counterName,
+            completedAt: 'Just now',
+          },
+          ...(t.tradeHistory ?? []),
+        ].slice(0, 40);
+        batch.update(doc(db, 'traders', tName), {
+          tradesCount: t.tradesCount + 1,
+          tradeHistory: nextHistory,
+          lastTradeId: trade.id,
+          updatedAt: serverTimestamp(),
+        });
+      };
+
+      await updateTraderRecord(trade.buyerUsername, 'Bought', trade.sellerUsername);
+      await updateTraderRecord(trade.sellerUsername, 'Sold', trade.buyerUsername);
+
+      sysText =
+        note?.trim() ||
+        `Escrow Admin completed trade ${trade.id} and released ${trade.cryptoAmount.toFixed(6)} ${trade.crypto} to @${trade.buyerUsername}.`;
+      notifTitle = `Trade ${trade.id} completed by Admin`;
+      notifBody = `${trade.cryptoAmount.toFixed(6)} ${trade.crypto} released to @${trade.buyerUsername}.`;
+    } else if (action === 'cancel') {
+      nextStatus = 'cancelled';
+      nextLastReadAtBy.__closedByAdmin = nowIso;
+      const sellerHadFunded =
+        (escrowState === 'funded' ||
+          (trade.side === 'buy_crypto' && escrowState !== 'awaiting_seller')) &&
+        nextLastReadAtBy.__adminEscrowOverride !== '1';
+      sellerRefunded = sellerHadFunded && sellerIsReal ? false : true;
+      buyerRefunded = trade.side === 'swap_crypto' && buyerIsReal ? false : true;
+      sysText =
+        note?.trim() ||
+        `Trade ${trade.id} was closed & cancelled by Escrow Admin.`;
+      notifTitle = `Trade ${trade.id} closed by Admin`;
+      notifBody = `Escrow Admin closed and cancelled trade ${trade.id}.`;
+    } else if (action === 'dispute') {
+      nextStatus = 'disputed';
+      sysText =
+        note?.trim() ||
+        `Escrow Admin placed trade ${trade.id} into Dispute Freeze for review.`;
+      notifTitle = `Trade ${trade.id} frozen in dispute`;
+      notifBody = `Escrow Admin flagged trade ${trade.id} for dispute arbitration.`;
+    } else {
+      nextStatus = 'escrow_funded';
+      delete nextLastReadAtBy.__closedByAdmin;
+      sysText =
+        note?.trim() ||
+        `Trade ${trade.id} reopened by Escrow Admin.`;
+      notifTitle = `Trade ${trade.id} reopened`;
+      notifBody = `Escrow Admin reopened trade ${trade.id}.`;
+    }
+
+    batch.update(tradeRef, {
+      status: nextStatus,
+      buyerSettled,
+      sellerSettled,
+      buyerRefunded,
+      sellerRefunded,
+      lastReadAtBy: nextLastReadAtBy,
+      updatedAt: serverTimestamp(),
+    });
+
+    const sysId = `msg-${randomHex(4)}`;
+    batch.set(doc(db, 'trades', tradeId, 'messages', sysId), {
+      id: sysId,
+      sender: 'Escrow System',
+      senderUid: actorUid,
+      text: sysText,
+      isSystem: true,
+      createdAt: serverTimestamp(),
+    });
+
+    for (const targetUid of [buyerUid, sellerUid]) {
+      if (targetUid && !targetUid.startsWith('seed_')) {
+        const notifId = `ntf-${randomHex(4)}`;
+        batch.set(
+          doc(db, 'notifications', notifId),
+          createNotificationPayload({
+            id: notifId,
+            toUid: targetUid,
+            fromUid: actorUid,
+            type: 'trade_status',
+            title: notifTitle,
+            body: notifBody,
+            tradeId: trade.id,
+            fromUsername: 'Escrow Admin',
+          })
+        );
+      }
+    }
+
+    try {
+      await batch.commit();
+      const msgs = await fetchTradeMessages(tradeId);
+      return normalizeTradeDoc(
+        {
+          ...tData,
+          status: nextStatus,
+          buyerSettled,
+          sellerSettled,
+          buyerRefunded,
+          sellerRefunded,
+          lastReadAtBy: nextLastReadAtBy,
+        },
+        msgs
+      );
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.WRITE, `trades/${tradeId}`);
+    }
   },
 };

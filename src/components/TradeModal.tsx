@@ -4,7 +4,9 @@ import {
   CheckCircle2,
   Clock,
   Copy,
+  EyeOff,
   FileText,
+  ImagePlus,
   Link2,
   Lock,
   MessageSquare,
@@ -16,9 +18,10 @@ import {
   ThumbsUp,
   X,
 } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { api } from '../api';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { api, enrichTradeMessages } from '../api';
 import { CHAIN_OPTIONS, formatCrypto, formatFiat } from '../constants/market';
+import { processChatImageFile } from '../utils/profileMedia';
 import type {
   MarketPrices,
   P2POffer,
@@ -85,6 +88,9 @@ export function TradeModal({
   });
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [messageText, setMessageText] = useState('');
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
   const [feedbackComment, setFeedbackComment] = useState('');
   const [feedbackPositive, setFeedbackPositive] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -93,6 +99,7 @@ export function TradeModal({
   const [copiedOfferUrl, setCopiedOfferUrl] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(1800);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -599,17 +606,39 @@ export function TradeModal({
     }
   };
 
+  const handleSelectImage = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setError('');
+    setImageBusy(true);
+    try {
+      const dataUrl = await processChatImageFile(file);
+      setPendingImage(dataUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to attach picture.');
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
   const handleSendMsg = async (e: FormEvent) => {
     e.preventDefault();
-    if (!messageText.trim() || busy) return;
+    if ((!messageText.trim() && !pendingImage) || busy || imageBusy) return;
     setBusy(true);
+    setError('');
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     onTyping?.(trade.id, false);
     try {
-      const res = await api.sendTradeMessage(trade.id, messageText);
+      const res = await api.sendTradeMessage(
+        trade.id,
+        messageText,
+        pendingImage ?? undefined
+      );
       setTrade(res.trade);
       onTradeUpdated(res.trade);
       setMessageText('');
+      setPendingImage(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
@@ -1067,7 +1096,7 @@ export function TradeModal({
           {/* Right: Dynamic Live Escrow Chat */}
           <div className="flex h-[380px] flex-col sm:h-[440px] md:col-span-7 md:h-[520px]">
             <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
-              {trade.messages.map((m) => {
+              {enrichTradeMessages(trade.messages, trade.lastReadAtBy, false).map((m) => {
                 const isMe = Boolean(
                   user && m.sender.toLowerCase() === user.username.toLowerCase()
                 );
@@ -1087,6 +1116,9 @@ export function TradeModal({
                     </div>
                   );
                 }
+                const hasImage = Boolean(m.imageUrl);
+                const showCaption =
+                  Boolean(m.text) && !(hasImage && m.text === '[Photo uploaded]');
                 return (
                   <div
                     key={m.id}
@@ -1099,13 +1131,38 @@ export function TradeModal({
                       </span>
                     </div>
                     <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                      className={`max-w-[85%] space-y-2 rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                         isMe
                           ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
                           : 'border border-[#E3E7E7] bg-[#F8FAFA] text-[#0E1715] dark:border-[#222D2C] dark:bg-[#182120] dark:text-[#EDF3F2]'
                       }`}
                     >
-                      {m.text}
+                      {hasImage && m.imageHidden && (
+                        <div
+                          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium ${
+                            isMe
+                              ? 'border-white/25 bg-black/20 text-white/90 dark:border-[#082213]/25 dark:bg-black/10 dark:text-[#082213]'
+                              : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-300'
+                          }`}
+                        >
+                          <EyeOff className="h-3.5 w-3.5 shrink-0" />
+                          <span>Picture hidden by Escrow Admin</span>
+                        </div>
+                      )}
+                      {hasImage && !m.imageHidden && m.imageUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewImageUrl(m.imageUrl ?? null)}
+                          className="block overflow-hidden rounded-xl border border-black/10 bg-black/5 dark:border-white/10"
+                        >
+                          <img
+                            src={m.imageUrl}
+                            alt="Uploaded chat attachment"
+                            className="max-h-56 w-auto max-w-full rounded-xl object-contain"
+                          />
+                        </button>
+                      )}
+                      {showCaption && <div className="break-words">{m.text}</div>}
                     </div>
                   </div>
                 );
@@ -1136,13 +1193,52 @@ export function TradeModal({
               </div>
             )}
 
+            {pendingImage && (
+              <div className="flex items-center justify-between gap-3 border-t border-[#ECEFEF] bg-[#F8FAFA] px-3.5 py-2 dark:border-[#202B2A] dark:bg-[#0F1515]">
+                <div className="flex items-center gap-2.5">
+                  <img
+                    src={pendingImage}
+                    alt="Pending upload preview"
+                    className="h-12 w-12 rounded-lg border border-[#DCE2E1] object-cover dark:border-[#263130]"
+                  />
+                  <span className="text-xs font-medium text-[#394241] dark:text-[#C5D1CF]">
+                    Picture ready to send
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPendingImage(null)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#DCE2E1] px-2 py-1 text-xs font-semibold text-[#5C6665] hover:bg-white dark:border-[#263130] dark:text-[#98A4A2] dark:hover:bg-[#1A2423]"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>Remove</span>
+                </button>
+              </div>
+            )}
+
             <form
               onSubmit={handleSendMsg}
               className="flex items-center gap-2 border-t border-[#ECEFEF] p-3.5 dark:border-[#202B2A]"
             >
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleSelectImage}
+                className="hidden"
+              />
               <button
                 type="button"
-                title="Attach payment receipt"
+                title="Upload picture or screenshot"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={busy || imageBusy || trade.status === 'completed' || trade.status === 'cancelled'}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#DCE2E1] text-[#5C6665] hover:bg-[#F5F7F7] disabled:opacity-40 dark:border-[#263130] dark:text-[#98A4A2]"
+              >
+                <ImagePlus className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                title="Attach payment receipt note"
                 onClick={handleAttachReceipt}
                 disabled={busy || trade.status === 'completed' || trade.status === 'cancelled'}
                 className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#DCE2E1] text-[#5C6665] hover:bg-[#F5F7F7] disabled:opacity-40 dark:border-[#263130] dark:text-[#98A4A2]"
@@ -1153,12 +1249,16 @@ export function TradeModal({
                 type="text"
                 value={messageText}
                 onChange={(e) => emitTypingChange(e.target.value)}
-                placeholder={`Message @${counterparty} or share payment info...`}
+                placeholder={
+                  pendingImage
+                    ? 'Add an optional caption for this picture...'
+                    : `Message @${counterparty} or share payment info...`
+                }
                 className="h-10 flex-1 rounded-xl border border-[#DCE2E1] bg-white px-3.5 text-sm text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
               />
               <button
                 type="submit"
-                disabled={busy || !messageText.trim()}
+                disabled={busy || imageBusy || (!messageText.trim() && !pendingImage)}
                 aria-label="Send message"
                 className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0B3B2E] text-white hover:bg-[#082B21] disabled:opacity-50 dark:bg-[#7FE85B] dark:text-[#082213]"
               >
@@ -1168,6 +1268,32 @@ export function TradeModal({
           </div>
         </div>
       </div>
+
+      {previewImageUrl && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setPreviewImageUrl(null)}
+        >
+          <div
+            className="relative max-h-[90vh] max-w-3xl overflow-hidden rounded-2xl bg-[#0E1715] p-2 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewImageUrl(null)}
+              aria-label="Close picture preview"
+              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <img
+              src={previewImageUrl}
+              alt="Full size chat picture"
+              className="max-h-[85vh] w-auto max-w-full rounded-xl object-contain"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

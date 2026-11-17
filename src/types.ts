@@ -148,6 +148,9 @@ export interface TradeMessage {
   text: string;
   timestamp: string;
   isSystem?: boolean;
+  imageUrl?: string;
+  imageHidden?: boolean;
+  deleted?: boolean;
 }
 
 export type TradeStatus =

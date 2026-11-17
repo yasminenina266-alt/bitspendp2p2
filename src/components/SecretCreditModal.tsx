@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   Award,
   CheckCircle2,
   Coins,
@@ -6,31 +7,50 @@ import {
   DollarSign,
   Download,
   ExternalLink,
+  Eye,
+  EyeOff,
   FileJson,
+  ImagePlus,
+  Lock,
+  MessageSquare,
   MessageSquarePlus,
   RefreshCw,
+  Search,
+  Send,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
+  Trash2,
   Upload,
   Users,
   Wallet,
   X,
+  XCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { api, type DirectoryUser, type TablesSummaryResponse } from '../api';
+import {
+  api,
+  enrichTradeMessages,
+  type DirectoryUser,
+  type TablesSummaryResponse,
+} from '../api';
 import {
   CRYPTO_ASSETS,
   FIAT_CURRENCIES,
   PAYMENT_METHODS,
   formatCrypto,
+  formatFiat,
 } from '../constants/market';
 import type {
   CryptoAsset,
   FiatCurrency,
   MarketPrices,
+  TradeMessage,
+  TradeOrder,
   TraderProfile,
   UserAccount,
 } from '../types';
+import { processChatImageFile } from '../utils/profileMedia';
 import { CoinIcon } from './CoinIcon';
 
 interface SecretCreditModalProps {
@@ -65,10 +85,31 @@ export function SecretCreditModal({
   onNavigateProfile,
   onOpenWallet,
 }: SecretCreditModalProps) {
-  const [vaultTab, setVaultTab] = useState<'credit' | 'reputation' | 'tables'>('credit');
+  const [vaultTab, setVaultTab] = useState<'credit' | 'reputation' | 'trades' | 'tables'>('credit');
   const [directory, setDirectory] = useState<DirectoryUser[]>([]);
   const [targetUsername, setTargetUsername] = useState<string>(user?.username ?? '');
   const [userSearch, setUserSearch] = useState('');
+
+  // Live Trades Admin tab state
+  const [allTrades, setAllTrades] = useState<TradeOrder[]>([]);
+  const [tradesLoading, setTradesLoading] = useState(true);
+  const [tradesError, setTradesError] = useState('');
+  const [tradeSearch, setTradeSearch] = useState('');
+  const [tradeStatusFilter, setTradeStatusFilter] = useState<
+    'all' | 'active' | 'disputed' | 'completed' | 'cancelled'
+  >('all');
+  const [selectedTradeId, setSelectedTradeId] = useState<string>('');
+  const [selectedTradeRawMsgs, setSelectedTradeRawMsgs] = useState<TradeMessage[]>([]);
+  const [adminMsgText, setAdminMsgText] = useState('');
+  const [adminPendingImage, setAdminPendingImage] = useState<string | null>(null);
+  const [adminMsgAsSystem, setAdminMsgAsSystem] = useState(false);
+  const [adminMsgBusy, setAdminMsgBusy] = useState(false);
+  const [tradeActionBusy, setTradeActionBusy] = useState(false);
+  const [tradeActionMsg, setTradeActionMsg] = useState('');
+  const [tradeActionError, setTradeActionError] = useState('');
+  const [adminPreviewImageUrl, setAdminPreviewImageUrl] = useState<string | null>(null);
+  const adminImageInputRef = useRef<HTMLInputElement | null>(null);
+  const adminChatBottomRef = useRef<HTMLDivElement | null>(null);
 
   // Saved Tables tab state
   const [tablesSummary, setTablesSummary] = useState<TablesSummaryResponse | null>(null);
@@ -156,6 +197,51 @@ export function SecretCreditModal({
     loadDirectory();
     loadTablesSummary();
   }, []);
+
+  // Live Firestore listener for ALL platform trades
+  useEffect(() => {
+    setTradesLoading(true);
+    const unsub = api.adminSubscribeAllTrades(
+      (list) => {
+        setAllTrades(list);
+        setTradesLoading(false);
+        setTradesError('');
+        setSelectedTradeId((prev) => {
+          if (prev && list.some((t) => t.id === prev)) return prev;
+          return list[0]?.id ?? '';
+        });
+      },
+      (err) => {
+        setTradesLoading(false);
+        setTradesError(err.message || 'Unable to subscribe to live trades.');
+      }
+    );
+    return () => unsub();
+  }, []);
+
+  // Live Firestore subcollection listener for currently selected trade chat
+  useEffect(() => {
+    if (vaultTab !== 'trades' || !selectedTradeId) {
+      setSelectedTradeRawMsgs([]);
+      return;
+    }
+    const unsub = api.adminSubscribeTradeMessages(
+      selectedTradeId,
+      (msgs) => {
+        setSelectedTradeRawMsgs(msgs);
+      },
+      (err) => {
+        setTradeActionError(err.message || 'Unable to subscribe to trade chat.');
+      }
+    );
+    return () => unsub();
+  }, [vaultTab, selectedTradeId]);
+
+  useEffect(() => {
+    if (vaultTab === 'trades') {
+      adminChatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [vaultTab, selectedTradeId, selectedTradeRawMsgs.length]);
 
   useEffect(() => {
     if (vaultTab === 'tables') {
@@ -364,9 +450,139 @@ export function SecretCreditModal({
     }
   };
 
+  const filteredTrades = useMemo(() => {
+    const q = tradeSearch.trim().toLowerCase();
+    return allTrades.filter((t) => {
+      if (tradeStatusFilter === 'active') {
+        if (t.status !== 'escrow_funded' && t.status !== 'payment_sent') return false;
+      } else if (tradeStatusFilter !== 'all' && t.status !== tradeStatusFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        t.id.toLowerCase().includes(q) ||
+        t.buyerUsername.toLowerCase().includes(q) ||
+        t.sellerUsername.toLowerCase().includes(q) ||
+        t.crypto.toLowerCase().includes(q) ||
+        t.fiat.toLowerCase().includes(q) ||
+        t.paymentMethod.toLowerCase().includes(q)
+      );
+    });
+  }, [allTrades, tradeSearch, tradeStatusFilter]);
+
+  const selectedTrade = useMemo(
+    () => allTrades.find((t) => t.id === selectedTradeId) ?? filteredTrades[0] ?? null,
+    [allTrades, filteredTrades, selectedTradeId]
+  );
+
+  const selectedTradeMessages = useMemo(() => {
+    if (!selectedTrade) return [];
+    return enrichTradeMessages(selectedTradeRawMsgs, selectedTrade.lastReadAtBy, false);
+  }, [selectedTrade, selectedTradeRawMsgs]);
+
+  const activeTradesCount = useMemo(
+    () =>
+      allTrades.filter(
+        (t) => t.status === 'escrow_funded' || t.status === 'payment_sent' || t.status === 'disputed'
+      ).length,
+    [allTrades]
+  );
+
+  const handleAdminTradeAction = async (
+    action: 'fund_escrow' | 'mark_paid' | 'release' | 'cancel' | 'dispute' | 'reopen'
+  ) => {
+    if (!selectedTrade || tradeActionBusy) return;
+    setTradeActionBusy(true);
+    setTradeActionError('');
+    setTradeActionMsg('');
+    try {
+      await api.adminTradeAction(selectedTrade.id, action);
+      const labelMap = {
+        fund_escrow: 'Marked escrow as funded.',
+        mark_paid: 'Marked trade as payment sent.',
+        release: 'Trade completed & crypto released.',
+        cancel: 'Trade closed & cancelled (escrow refunded).',
+        dispute: 'Trade frozen in dispute.',
+        reopen: 'Trade reopened.',
+      };
+      setTradeActionMsg(labelMap[action]);
+      onDataSynced?.();
+    } catch (err) {
+      setTradeActionError(err instanceof Error ? err.message : 'Admin trade action failed.');
+    } finally {
+      setTradeActionBusy(false);
+    }
+  };
+
+  const handleAdminToggleImageHidden = async (msgId: string, currentlyHidden: boolean) => {
+    if (!selectedTrade) return;
+    setTradeActionError('');
+    setTradeActionMsg('');
+    try {
+      await api.adminSetTradeMessageImageHidden(selectedTrade.id, msgId, !currentlyHidden);
+      setTradeActionMsg(
+        !currentlyHidden ? 'Picture hidden from regular users.' : 'Picture made visible to users.'
+      );
+      onDataSynced?.();
+    } catch (err) {
+      setTradeActionError(err instanceof Error ? err.message : 'Unable to update image visibility.');
+    }
+  };
+
+  const handleAdminDeleteMessage = async (msgId: string) => {
+    if (!selectedTrade) return;
+    setTradeActionError('');
+    setTradeActionMsg('');
+    try {
+      await api.adminDeleteTradeMessage(selectedTrade.id, msgId);
+      setTradeActionMsg('Message removed from trade chat.');
+      onDataSynced?.();
+    } catch (err) {
+      setTradeActionError(err instanceof Error ? err.message : 'Unable to remove message.');
+    }
+  };
+
+  const handleAdminSelectImage = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setTradeActionError('');
+    try {
+      const dataUrl = await processChatImageFile(file);
+      setAdminPendingImage(dataUrl);
+    } catch (err) {
+      setTradeActionError(err instanceof Error ? err.message : 'Failed to process image.');
+    }
+  };
+
+  const handleAdminSendMessage = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedTrade || adminMsgBusy) return;
+    if (!adminMsgText.trim() && !adminPendingImage) return;
+    setAdminMsgBusy(true);
+    setTradeActionError('');
+    try {
+      await api.adminSendTradeMessage(selectedTrade.id, adminMsgText, {
+        isSystem: adminMsgAsSystem,
+        imageUrl: adminPendingImage ?? undefined,
+      });
+      setAdminMsgText('');
+      setAdminPendingImage(null);
+      onDataSynced?.();
+    } catch (err) {
+      setTradeActionError(err instanceof Error ? err.message : 'Failed to send admin message.');
+    } finally {
+      setAdminMsgBusy(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-xs sm:items-center sm:p-4">
-      <div className="relative max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-2xl border border-[#DCE2E1] bg-white p-5 shadow-2xl sm:rounded-2xl sm:p-6 dark:border-[#243230] dark:bg-[#121918]">
+      <div
+        className={`relative max-h-[92vh] w-full overflow-y-auto rounded-t-2xl border border-[#DCE2E1] bg-white p-5 shadow-2xl transition-all sm:rounded-2xl sm:p-6 dark:border-[#243230] dark:bg-[#121918] ${
+          vaultTab === 'trades' ? 'max-w-5xl' : 'max-w-xl'
+        }`}
+      >
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -383,7 +599,7 @@ export function SecretCreditModal({
                 </span>
               </div>
               <p className="text-xs text-[#5C6665] dark:text-[#8E9B98]">
-                Credit any registered account or add trades &amp; feedback to public profiles
+                Manage balances, public reputation, live trades &amp; escrow chat moderation
               </p>
             </div>
           </div>
@@ -398,7 +614,7 @@ export function SecretCreditModal({
         </div>
 
         {/* Mode Switcher Tabs */}
-        <div className="mt-4 grid grid-cols-3 gap-1.5 rounded-xl border border-[#DCE2E1] bg-[#F4F6F6] p-1 dark:border-[#24302F] dark:bg-[#0E1413]">
+        <div className="mt-4 grid grid-cols-2 gap-1.5 rounded-xl border border-[#DCE2E1] bg-[#F4F6F6] p-1 sm:grid-cols-4 dark:border-[#24302F] dark:bg-[#0E1413]">
           <button
             type="button"
             onClick={() => setVaultTab('credit')}
@@ -425,6 +641,23 @@ export function SecretCreditModal({
           </button>
           <button
             type="button"
+            onClick={() => setVaultTab('trades')}
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${
+              vaultTab === 'trades'
+                ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
+                : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
+            }`}
+          >
+            <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Live Trades</span>
+            {allTrades.length > 0 && (
+              <span className="rounded-md bg-[#0B3B2E] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#7FE85B] dark:bg-[#7FE85B] dark:text-[#082213]">
+                {activeTradesCount > 0 ? activeTradesCount : allTrades.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
             onClick={() => setVaultTab('tables')}
             className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${
               vaultTab === 'tables'
@@ -438,7 +671,7 @@ export function SecretCreditModal({
         </div>
 
         {/* Target Registered Account Picker */}
-        {vaultTab !== 'tables' && (
+        {(vaultTab === 'credit' || vaultTab === 'reputation') && (
         <div className="mt-4 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3.5 dark:border-[#222E2C] dark:bg-[#0E1413]">
           <div className="mb-2 flex items-center justify-between text-xs">
             <span className="inline-flex items-center gap-1.5 font-semibold text-[#1E2726] dark:text-[#DCE4E3]">
@@ -986,6 +1219,504 @@ export function SecretCreditModal({
           </form>
         )}
 
+        {/* TAB 3: Live Trades Admin & Chat Moderation */}
+        {vaultTab === 'trades' && (
+          <div className="mt-4 space-y-3">
+            {tradesError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                {tradesError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+              {/* Left: Live Trades Feed */}
+              <div className="flex flex-col rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3 lg:col-span-5 dark:border-[#222E2C] dark:bg-[#0E1413]">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#7B8684]" />
+                  <input
+                    type="text"
+                    value={tradeSearch}
+                    onChange={(e) => setTradeSearch(e.target.value)}
+                    placeholder="Search ID, buyer, seller, crypto..."
+                    className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white pl-8 pr-3 text-xs text-[#0E1715] placeholder-[#7B8684] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                  />
+                </div>
+
+                <div className="mt-2.5 flex flex-wrap gap-1">
+                  {(
+                    [
+                      { id: 'all', label: `All (${allTrades.length})` },
+                      { id: 'active', label: 'Active' },
+                      { id: 'disputed', label: 'Disputed' },
+                      { id: 'completed', label: 'Completed' },
+                      { id: 'cancelled', label: 'Closed' },
+                    ] as const
+                  ).map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setTradeStatusFilter(f.id)}
+                      className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
+                        tradeStatusFilter === f.id
+                          ? 'bg-[#0B3B2E] text-[#7FE85B] dark:bg-[#7FE85B] dark:text-[#082213]'
+                          : 'bg-white text-[#5C6665] hover:text-[#0E1715] dark:bg-[#151D1C] dark:text-[#8E9B98] dark:hover:text-white'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-3 max-h-[460px] flex-1 space-y-2 overflow-y-auto pr-1">
+                  {tradesLoading ? (
+                    <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-4 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
+                      Loading live trades...
+                    </div>
+                  ) : filteredTrades.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-4 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
+                      No trades match this filter.
+                    </div>
+                  ) : (
+                    filteredTrades.map((t) => {
+                      const isSelected = selectedTrade?.id === t.id;
+                      const awaitingFunding =
+                        t.status === 'escrow_funded' &&
+                        t.lastReadAtBy?.__escrowState === 'awaiting_seller';
+                      const photoCount = Object.keys(t.lastReadAtBy ?? {}).filter((k) =>
+                        k.startsWith('__img_')
+                      ).length;
+                      const hiddenPhotoCount = Object.keys(t.lastReadAtBy ?? {}).filter(
+                        (k) => k.startsWith('__imgHidden_') && t.lastReadAtBy?.[k] === '1'
+                      ).length;
+
+                      const badgeClass =
+                        t.status === 'completed'
+                          ? 'bg-[#E8F8EE] text-[#0D6832] dark:bg-[#152D21] dark:text-[#7FE85B]'
+                          : t.status === 'cancelled'
+                            ? 'bg-slate-200/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                            : t.status === 'disputed'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300'
+                              : awaitingFunding
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300';
+
+                      const badgeText = awaitingFunding
+                        ? 'Awaiting Escrow'
+                        : t.status === 'escrow_funded'
+                          ? 'Funded'
+                          : t.status === 'payment_sent'
+                            ? 'Paid'
+                            : t.status === 'completed'
+                              ? 'Completed'
+                              : t.status === 'cancelled'
+                                ? 'Closed'
+                                : 'Disputed';
+
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedTradeId(t.id);
+                            setTradeActionMsg('');
+                            setTradeActionError('');
+                          }}
+                          className={`w-full rounded-xl border p-3 text-left transition-colors ${
+                            isSelected
+                              ? 'border-[#0B3B2E] bg-white shadow-xs dark:border-[#7FE85B] dark:bg-[#15221E]'
+                              : 'border-[#DCE2E1] bg-white hover:border-[#9EB0AD] dark:border-[#24302F] dark:bg-[#131A1A] dark:hover:border-[#394A48]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-xs font-bold text-[#0E1715] dark:text-white">
+                              {t.id}
+                            </span>
+                            <span
+                              className={`rounded-md px-1.5 py-0.5 font-mono text-[10px] font-semibold ${badgeClass}`}
+                            >
+                              {badgeText}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex items-center justify-between gap-2 text-xs font-semibold text-[#1E2726] dark:text-[#DCE4E3]">
+                            <span className="truncate">
+                              @{t.buyerUsername} ↔ @{t.sellerUsername}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                            <span>
+                              {formatCrypto(t.cryptoAmount, t.crypto)} · {formatFiat(t.fiatAmount, t.fiat)}
+                            </span>
+                            {photoCount > 0 && (
+                              <span className="text-[10px] font-semibold text-[#0B3B2E] dark:text-[#7FE85B]">
+                                {photoCount} img{photoCount === 1 ? '' : 's'}
+                                {hiddenPhotoCount > 0 ? ` (${hiddenPhotoCount} hidden)` : ''}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Selected Trade Full Inspector & Live Chat Moderation */}
+              <div className="flex flex-col rounded-xl border border-[#DCE2E1] bg-white lg:col-span-7 dark:border-[#222E2C] dark:bg-[#0E1413]">
+                {!selectedTrade ? (
+                  <div className="flex h-full min-h-[420px] flex-col items-center justify-center p-6 text-center text-xs text-[#5C6665] dark:text-[#8E9B98]">
+                    <MessageSquare className="mb-2 h-6 w-6 opacity-50" />
+                    <p>Select any live trade on the left to inspect its chat and manage escrow.</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Trade Summary & Full Admin Controls */}
+                    <div className="space-y-3 border-b border-[#ECEFEF] p-3.5 dark:border-[#202B2A]">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-sm font-bold text-[#0E1715] dark:text-white">
+                              {selectedTrade.id}
+                            </span>
+                            <span className="rounded bg-[#F2F5F5] px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase text-[#394241] dark:bg-[#192322] dark:text-[#C5D1CF]">
+                              {selectedTrade.side.replace('_', ' ')}
+                            </span>
+                            <span className="rounded bg-[#E8F8EE] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#0B3B2E] dark:bg-[#152D21] dark:text-[#7FE85B]">
+                              {selectedTrade.lastReadAtBy?.__escrowState === 'awaiting_seller'
+                                ? 'Escrow Unfunded'
+                                : 'Escrow Funded'}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-xs text-[#5C6665] dark:text-[#8E9B98]">
+                            Buyer:{' '}
+                            <strong className="text-[#0E1715] dark:text-white">
+                              @{selectedTrade.buyerUsername}
+                            </strong>{' '}
+                            · Seller:{' '}
+                            <strong className="text-[#0E1715] dark:text-white">
+                              @{selectedTrade.sellerUsername}
+                            </strong>{' '}
+                            · {selectedTrade.paymentMethod}
+                          </div>
+                          <div className="mt-0.5 font-mono text-[11px] text-[#0D6832] dark:text-[#7FE85B]">
+                            {formatCrypto(selectedTrade.cryptoAmount, selectedTrade.crypto)} ↔{' '}
+                            {selectedTrade.side === 'swap_crypto' &&
+                            selectedTrade.swapToCrypto &&
+                            selectedTrade.swapToAmount
+                              ? formatCrypto(selectedTrade.swapToAmount, selectedTrade.swapToCrypto)
+                              : formatFiat(selectedTrade.fiatAmount, selectedTrade.fiat)}
+                          </div>
+                        </div>
+
+                        <div className="text-right font-mono text-[10px] text-[#5C6665] dark:text-[#8E9B98]">
+                          <div>Status: {selectedTrade.status}</div>
+                          <div>Offer: {selectedTrade.offerId}</div>
+                        </div>
+                      </div>
+
+                      {/* Admin Action Controls */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedTrade.lastReadAtBy?.__escrowState === 'awaiting_seller' &&
+                          selectedTrade.status !== 'cancelled' &&
+                          selectedTrade.status !== 'completed' && (
+                            <button
+                              type="button"
+                              disabled={tradeActionBusy}
+                              onClick={() => handleAdminTradeAction('fund_escrow')}
+                              className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2.5 text-[11px] font-semibold text-[#0E1715] hover:border-[#0B3B2E] disabled:opacity-50 dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                            >
+                              <Lock className="h-3 w-3 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                              <span>Mark Escrow Funded</span>
+                            </button>
+                          )}
+
+                        {selectedTrade.status === 'escrow_funded' && (
+                          <button
+                            type="button"
+                            disabled={tradeActionBusy}
+                            onClick={() => handleAdminTradeAction('mark_paid')}
+                            className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2.5 text-[11px] font-semibold text-[#0E1715] hover:border-[#0B3B2E] disabled:opacity-50 dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                          >
+                            <ShieldCheck className="h-3 w-3 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                            <span>Mark Paid</span>
+                          </button>
+                        )}
+
+                        {selectedTrade.status !== 'completed' && (
+                          <button
+                            type="button"
+                            disabled={tradeActionBusy}
+                            onClick={() => handleAdminTradeAction('release')}
+                            className="inline-flex h-8 items-center gap-1 rounded-lg bg-[#7FE85B] px-2.5 text-[11px] font-semibold text-[#082213] hover:bg-[#6AD845] disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="h-3 w-3" />
+                            <span>Complete &amp; Release</span>
+                          </button>
+                        )}
+
+                        {selectedTrade.status !== 'cancelled' && (
+                          <button
+                            type="button"
+                            disabled={tradeActionBusy}
+                            onClick={() => handleAdminTradeAction('cancel')}
+                            className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-300 bg-red-50 px-2.5 text-[11px] font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/70"
+                          >
+                            <XCircle className="h-3 w-3" />
+                            <span>Close Trade (Cancel)</span>
+                          </button>
+                        )}
+
+                        {(selectedTrade.status === 'escrow_funded' ||
+                          selectedTrade.status === 'payment_sent') && (
+                          <button
+                            type="button"
+                            disabled={tradeActionBusy}
+                            onClick={() => handleAdminTradeAction('dispute')}
+                            className="inline-flex h-8 items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
+                          >
+                            <AlertTriangle className="h-3 w-3" />
+                            <span>Freeze Dispute</span>
+                          </button>
+                        )}
+
+                        {(selectedTrade.status === 'completed' ||
+                          selectedTrade.status === 'cancelled' ||
+                          selectedTrade.status === 'disputed') && (
+                          <button
+                            type="button"
+                            disabled={tradeActionBusy}
+                            onClick={() => handleAdminTradeAction('reopen')}
+                            className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-[11px] font-semibold text-[#1E2726] hover:bg-[#F2F5F5] disabled:opacity-50 dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3]"
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                            <span>Reopen Trade</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {tradeActionMsg && (
+                        <div className="rounded-lg border border-[#8CE89E] bg-[#EAFBF0] px-2.5 py-1.5 text-[11px] font-semibold text-[#0B3B2E] dark:border-[#1E4D33] dark:bg-[#112A1D] dark:text-[#7FE85B]">
+                          {tradeActionMsg}
+                        </div>
+                      )}
+                      {tradeActionError && (
+                        <div className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                          {tradeActionError}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Live Trade Chat Feed with Moderation */}
+                    <div className="max-h-[300px] min-h-[260px] flex-1 space-y-2.5 overflow-y-auto p-3.5">
+                      {selectedTradeMessages.length === 0 ? (
+                        <div className="py-10 text-center text-xs text-[#5C6665] dark:text-[#8E9B98]">
+                          No messages in this trade chat yet.
+                        </div>
+                      ) : (
+                        selectedTradeMessages.map((m) => {
+                          const isBuyerSender =
+                            m.sender.toLowerCase() === selectedTrade.buyerUsername.toLowerCase();
+                          const isSellerSender =
+                            m.sender.toLowerCase() === selectedTrade.sellerUsername.toLowerCase();
+                          const roleTag = m.isSystem
+                            ? 'System'
+                            : m.sender === 'Escrow Admin'
+                              ? 'Admin'
+                              : isBuyerSender
+                                ? 'Buyer'
+                                : isSellerSender
+                                  ? 'Seller'
+                                  : 'User';
+
+                          return (
+                            <div
+                              key={m.id}
+                              className={`rounded-xl border p-2.5 text-xs ${
+                                m.isSystem
+                                  ? 'border-[#E3E7E7] bg-[#F6F8F8] text-[#4B5554] dark:border-[#202B2A] dark:bg-[#131A1A] dark:text-[#98A4A2]'
+                                  : 'border-[#DCE2E1] bg-[#FAFCFC] text-[#0E1715] dark:border-[#24302F] dark:bg-[#131B1A] dark:text-[#EAF0EF]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="font-bold text-[#0E1715] dark:text-white">
+                                    {m.sender}
+                                  </span>
+                                  <span className="rounded bg-[#E9EFEE] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#394241] dark:bg-[#1E2A28] dark:text-[#C5D1CF]">
+                                    {roleTag}
+                                  </span>
+                                  <span className="font-mono text-[10px] text-[#7B8684]">
+                                    {new Date(m.timestamp).toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  {m.imageUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleAdminToggleImageHidden(m.id, Boolean(m.imageHidden))
+                                      }
+                                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                                        m.imageHidden
+                                          ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                                          : 'border-[#DCE2E1] bg-white text-[#394241] hover:bg-[#F2F5F5] dark:border-[#263130] dark:bg-[#1A2423] dark:text-[#DCE4E3]'
+                                      }`}
+                                    >
+                                      {m.imageHidden ? (
+                                        <>
+                                          <Eye className="h-3 w-3" />
+                                          <span>Show Picture</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <EyeOff className="h-3 w-3" />
+                                          <span>Hide Picture</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    title="Remove message"
+                                    onClick={() => handleAdminDeleteMessage(m.id)}
+                                    className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:bg-[#1A2020] dark:text-red-400 dark:hover:bg-red-950/40"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                    <span>Remove</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {m.imageUrl && (
+                                <div className="mt-2 space-y-1.5">
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold ${
+                                        m.imageHidden
+                                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                          : 'bg-[#E8F8EE] text-[#0D6832] dark:bg-[#152D21] dark:text-[#7FE85B]'
+                                      }`}
+                                    >
+                                      {m.imageHidden ? 'Hidden from users' : 'Visible to users'}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAdminPreviewImageUrl(m.imageUrl ?? null)}
+                                    className="block overflow-hidden rounded-lg border border-[#DCE2E1] bg-black/5 dark:border-[#263130]"
+                                  >
+                                    <img
+                                      src={m.imageUrl}
+                                      alt="Trade chat upload"
+                                      className={`max-h-40 w-auto max-w-full rounded-lg object-contain ${
+                                        m.imageHidden ? 'opacity-65' : ''
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
+                              )}
+
+                              {!(m.imageUrl && m.text === '[Photo uploaded]') && (
+                                <p className="mt-1.5 break-words leading-relaxed">{m.text}</p>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                      <div ref={adminChatBottomRef} />
+                    </div>
+
+                    {/* Admin Message Composer */}
+                    <div className="border-t border-[#ECEFEF] p-3 dark:border-[#202B2A]">
+                      {adminPendingImage && (
+                        <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2.5 py-1.5 dark:border-[#263130] dark:bg-[#131A1A]">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={adminPendingImage}
+                              alt="Admin upload preview"
+                              className="h-10 w-10 rounded object-cover"
+                            />
+                            <span className="text-[11px] font-medium text-[#394241] dark:text-[#C5D1CF]">
+                              Admin image ready
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setAdminPendingImage(null)}
+                            className="text-[11px] font-semibold text-red-600 hover:underline dark:text-red-400"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+
+                      <form onSubmit={handleAdminSendMessage} className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            ref={adminImageInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleAdminSelectImage}
+                            className="hidden"
+                          />
+                          <button
+                            type="button"
+                            title="Attach picture"
+                            onClick={() => adminImageInputRef.current?.click()}
+                            disabled={adminMsgBusy}
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#DCE2E1] bg-white text-[#5C6665] hover:bg-[#F2F5F5] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#98A4A2]"
+                          >
+                            <ImagePlus className="h-4 w-4" />
+                          </button>
+                          <input
+                            type="text"
+                            value={adminMsgText}
+                            onChange={(e) => setAdminMsgText(e.target.value)}
+                            placeholder={`Post into ${selectedTrade.id} chat as ${
+                              adminMsgAsSystem ? 'Escrow System' : 'Escrow Admin'
+                            }...`}
+                            className="h-9 flex-1 rounded-lg border border-[#DCE2E1] bg-white px-3 text-xs text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                          />
+                          <button
+                            type="submit"
+                            disabled={adminMsgBusy || (!adminMsgText.trim() && !adminPendingImage)}
+                            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[#0B3B2E] px-3 text-xs font-semibold text-white hover:bg-[#082E24] disabled:opacity-50 dark:bg-[#7FE85B] dark:text-[#082213]"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            <span>Send</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px]">
+                          <label className="inline-flex cursor-pointer items-center gap-1.5 font-medium text-[#5C6665] dark:text-[#8E9B98]">
+                            <input
+                              type="checkbox"
+                              checked={adminMsgAsSystem}
+                              onChange={(e) => setAdminMsgAsSystem(e.target.checked)}
+                              className="h-3.5 w-3.5 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                            />
+                            <span>Send as Escrow System Notice</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={onClose}
+                            className="font-semibold text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white"
+                          >
+                            Close Console
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* TAB 3: Saved Website JSON Tables */}
         {vaultTab === 'tables' && (
           <div className="mt-4 space-y-4">
@@ -1194,6 +1925,32 @@ export function SecretCreditModal({
           </div>
         )}
       </div>
+
+      {adminPreviewImageUrl && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setAdminPreviewImageUrl(null)}
+        >
+          <div
+            className="relative max-h-[90vh] max-w-3xl overflow-hidden rounded-2xl bg-[#0E1715] p-2 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setAdminPreviewImageUrl(null)}
+              aria-label="Close picture preview"
+              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <img
+              src={adminPreviewImageUrl}
+              alt="Admin inspection preview"
+              className="max-h-[85vh] w-auto max-w-full rounded-xl object-contain"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
