@@ -345,14 +345,14 @@ export function AccountView({
                   </div>
                   <div className="text-xs leading-relaxed text-[#1E3B2B] dark:text-[#D1DCDA]">
                     <div className="font-bold text-[#0D6832] dark:text-[#7FE85B]">
-                      You need to deposit {depositNotice.asset} funds
+                      Minimum $5.00 USD balance needed to post an ad
                     </div>
                     <p className="mt-0.5">
                       Press <strong className="font-semibold text-[#0E1715] dark:text-white">Deposit</strong> on{' '}
-                      <strong className="font-semibold text-[#0E1715] dark:text-white">{depositNotice.asset}</strong> below
+                      <strong className="font-semibold text-[#0E1715] dark:text-white">{depositNotice.asset}</strong> (or any supported crypto) below
                       {depositNotice.requiredAmount
-                        ? ` to add at least ${formatCrypto(depositNotice.requiredAmount, depositNotice.asset)} before publishing your offer.`
-                        : ' to fund your wallet before publishing your offer.'}
+                        ? ` to add at least ${formatCrypto(depositNotice.requiredAmount, depositNotice.asset)} ($5.00 minimum) before publishing your offer.`
+                        : ' to hold at least $5.00 before publishing your offer.'}
                     </p>
                   </div>
                 </div>

@@ -70,7 +70,7 @@ export function CreateOfferModal({
   const [maxFiat, setMaxFiat] = useState('2500');
   const [minSwapAmount, setMinSwapAmount] = useState('0.002');
   const [maxSwapAmount, setMaxSwapAmount] = useState('0.25');
-  const [availableCrypto, setAvailableCrypto] = useState('15');
+  const [availableCrypto, setAvailableCrypto] = useState('');
   const [paymentWindowMinutes, setPaymentWindowMinutes] = useState(30);
   const [selectedTags, setSelectedTags] = useState<OfferTag[]>(['No ID Required', 'Instant Release']);
   const [terms, setTerms] = useState(
@@ -85,10 +85,12 @@ export function CreateOfferModal({
     asset: CryptoAsset;
     requiredAmount: number;
     currentBalance: number;
+    currentUsdBalance: number;
+    shortfallUsd: number;
   } | null>(null);
 
   const isSwap = side === 'swap_crypto';
-  const requiresCryptoFunding = side === 'sell_crypto' || side === 'swap_crypto';
+  const MIN_AD_USD = 5;
 
   const usdSpot = prices.usdPrices[crypto] ?? 1;
   const wantUsdSpot = prices.usdPrices[swapToCrypto] ?? 1;
@@ -122,8 +124,12 @@ export function CreateOfferModal({
 
   const minSwapUsdEq = (Number(minSwapAmount) || 0) * wantUsdSpot;
   const maxSwapUsdEq = (Number(maxSwapAmount) || 0) * wantUsdSpot;
-  const requiredCryptoForOffer = Math.max(Number(availableCrypto) || 0, minCryptoEq);
   const currentWalletBalance = user?.balances?.[crypto] ?? 0;
+  const totalWalletUsd = CRYPTO_ASSETS.reduce((sum, c) => {
+    return sum + (user?.balances?.[c.symbol] ?? 0) * (prices.usdPrices[c.symbol] ?? 0);
+  }, 0);
+  const shortfallUsdForAd = Math.max(0, MIN_AD_USD - totalWalletUsd);
+  const requiredCryptoForOffer = usdSpot > 0 ? Number((shortfallUsdForAd / usdSpot).toFixed(8)) : 0;
 
   const syncSwapLimitsForAsset = (targetAsset: CryptoAsset) => {
     const pUsd = prices.usdPrices[targetAsset] ?? 1;
@@ -203,25 +209,30 @@ export function CreateOfferModal({
   };
 
   const publishOffer = async (activeUser: UserAccount) => {
-    if (requiresCryptoFunding) {
+    const activeTotalUsd = CRYPTO_ASSETS.reduce((sum, c) => {
+      return sum + (activeUser.balances?.[c.symbol] ?? 0) * (prices.usdPrices[c.symbol] ?? 0);
+    }, 0);
+    if (activeTotalUsd < MIN_AD_USD - 0.01) {
+      const shortfallUsd = Math.max(0, MIN_AD_USD - activeTotalUsd);
+      const neededCrypto = usdSpot > 0 ? Number((shortfallUsd / usdSpot).toFixed(8)) : 0;
       const bal = activeUser.balances?.[crypto] ?? 0;
-      if (bal < requiredCryptoForOffer) {
-        void notifyDiscordEvent({
-          title: 'Offer Publish Needs Deposit',
-          color: 0xf59e0b,
-          fields: [
-            { name: 'User', value: activeUser.username },
-            { name: 'Asset', value: isSwap ? `${swapToCrypto} → ${crypto}` : `${crypto} (${fiat})` },
-            { name: 'Required', value: formatCrypto(requiredCryptoForOffer, crypto) },
-          ],
-        });
-        setFundingRequired({
-          asset: crypto,
-          requiredAmount: requiredCryptoForOffer,
-          currentBalance: bal,
-        });
-        return;
-      }
+      void notifyDiscordEvent({
+        title: 'Offer Publish Needs Deposit',
+        color: 0xf59e0b,
+        fields: [
+          { name: 'User', value: activeUser.username },
+          { name: 'Asset', value: isSwap ? `${swapToCrypto} → ${crypto}` : `${crypto} (${fiat})` },
+          { name: 'Needed', value: `$${shortfallUsd.toFixed(2)} (${formatCrypto(neededCrypto, crypto)})` },
+        ],
+      });
+      setFundingRequired({
+        asset: crypto,
+        requiredAmount: neededCrypto,
+        currentBalance: bal,
+        currentUsdBalance: activeTotalUsd,
+        shortfallUsd,
+      });
+      return;
     }
 
     setError('');
@@ -291,11 +302,17 @@ export function CreateOfferModal({
       onClose();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to create offer';
-      if (requiresCryptoFunding && msg.toLowerCase().includes('insufficient')) {
+      if (msg.toLowerCase().includes('insufficient') || msg.toLowerCase().includes('at least $5')) {
+        const activeTotalUsd = CRYPTO_ASSETS.reduce((sum, c) => {
+          return sum + (activeUser.balances?.[c.symbol] ?? 0) * (prices.usdPrices[c.symbol] ?? 0);
+        }, 0);
+        const shortfallUsd = Math.max(0, MIN_AD_USD - activeTotalUsd);
         setFundingRequired({
           asset: crypto,
           requiredAmount: requiredCryptoForOffer,
           currentBalance: activeUser.balances?.[crypto] ?? 0,
+          currentUsdBalance: activeTotalUsd,
+          shortfallUsd,
         });
       } else {
         setError(msg);
@@ -315,7 +332,6 @@ export function CreateOfferModal({
   };
 
   if (fundingRequired && user) {
-    const shortfall = Math.max(0, fundingRequired.requiredAmount - fundingRequired.currentBalance);
     const assetMeta = CRYPTO_ASSETS.find((c) => c.symbol === fundingRequired.asset);
 
     return (
@@ -328,10 +344,10 @@ export function CreateOfferModal({
               </div>
               <div>
                 <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
-                  Deposit Funds to Publish
+                  $5.00 Minimum Balance Required
                 </h2>
                 <p className="text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                  {assetMeta?.name ?? fundingRequired.asset} balance needed for escrow liquidity
+                  Hold at least $5.00 in any crypto to publish ads
                 </p>
               </div>
             </div>
@@ -347,30 +363,34 @@ export function CreateOfferModal({
 
           <div className="mt-5 space-y-4">
             <p className="text-sm leading-relaxed text-[#394241] dark:text-[#C5D1CF]">
-              You need to deposit at least{' '}
+              You need at least{' '}
               <strong className="font-mono text-[#0E1715] dark:text-white">
-                {formatCrypto(shortfall, fundingRequired.asset)}
+                $5.00 USD
               </strong>{' '}
-              into your {fundingRequired.asset} wallet before publishing this listing. Head to your dashboard to make a deposit manually.
+              worth of any supported cryptocurrency in your wallet to post an ad (for example,{' '}
+              <strong className="font-mono text-[#0E1715] dark:text-white">
+                {formatCrypto(fundingRequired.requiredAmount, fundingRequired.asset)}
+              </strong>{' '}
+              of {assetMeta?.name ?? fundingRequired.asset}).
             </p>
 
             <div className="grid grid-cols-3 gap-2 rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-3 text-[11px] sm:gap-2.5 sm:p-3.5 sm:text-xs dark:border-[#202B2A] dark:bg-[#0F1515]">
               <div className="min-w-0">
-                <div className="text-[#5C6665] dark:text-[#8E9B98]">Required</div>
+                <div className="text-[#5C6665] dark:text-[#8E9B98]">Minimum</div>
                 <div className="mt-0.5 truncate font-mono font-bold text-[#0E1715] dark:text-white">
-                  {formatCrypto(fundingRequired.requiredAmount, fundingRequired.asset)}
+                  $5.00 USD
                 </div>
               </div>
               <div className="min-w-0">
-                <div className="text-[#5C6665] dark:text-[#8E9B98]">Your Balance</div>
+                <div className="text-[#5C6665] dark:text-[#8E9B98]">Your Wallet</div>
                 <div className="mt-0.5 truncate font-mono font-bold text-[#0E1715] dark:text-white">
-                  {formatCrypto(fundingRequired.currentBalance, fundingRequired.asset)}
+                  ${fundingRequired.currentUsdBalance.toFixed(2)}
                 </div>
               </div>
               <div className="min-w-0">
                 <div className="text-[#5C6665] dark:text-[#8E9B98]">Needed</div>
                 <div className="mt-0.5 truncate font-mono font-bold text-[#0D6832] dark:text-[#7FE85B]">
-                  {formatCrypto(shortfall, fundingRequired.asset)}
+                  ${fundingRequired.shortfallUsd.toFixed(2)}
                 </div>
               </div>
             </div>
@@ -830,13 +850,14 @@ export function CreateOfferModal({
                   type="number"
                   step="any"
                   min="0"
+                  placeholder="Optional"
                   value={availableCrypto}
                   onChange={(e) => setAvailableCrypto(e.target.value)}
                   className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3.5 font-mono text-sm text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
                 />
                 {user && (
                   <span className="mt-1 block font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
-                    Wallet: {formatCrypto(currentWalletBalance, crypto)}
+                    Wallet: ${totalWalletUsd.toFixed(2)} USD ({formatCrypto(currentWalletBalance, crypto)})
                   </span>
                 )}
               </div>
@@ -883,13 +904,14 @@ export function CreateOfferModal({
                   type="number"
                   step="any"
                   min="0"
+                  placeholder="Optional"
                   value={availableCrypto}
                   onChange={(e) => setAvailableCrypto(e.target.value)}
                   className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3.5 font-mono text-sm text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
                 />
-                {user && requiresCryptoFunding && (
+                {user && (
                   <span className="mt-1 block font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
-                    Wallet: {formatCrypto(currentWalletBalance, crypto)}
+                    Wallet: ${totalWalletUsd.toFixed(2)} USD ({formatCrypto(currentWalletBalance, crypto)})
                   </span>
                 )}
               </div>

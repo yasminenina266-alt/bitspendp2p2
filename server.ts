@@ -702,6 +702,28 @@ async function startServer() {
       return res.status(400).json({ error: 'Missing required offer fields.' });
     }
 
+    const prices = await getLivePrices();
+    const totalUsdBalance = (Object.keys(user.balances) as CryptoAsset[]).reduce((sum, sym) => {
+      const bal = user.balances[sym] ?? 0;
+      const usd = prices.usdPrices[sym] ?? DEFAULT_USD_PRICES[sym] ?? 0;
+      return sum + bal * usd;
+    }, 0);
+    const MIN_AD_USD = 5;
+    if (totalUsdBalance < MIN_AD_USD - 0.01) {
+      const shortfallUsd = Math.max(0, MIN_AD_USD - totalUsdBalance);
+      const assetUsd = prices.usdPrices[body.crypto] ?? DEFAULT_USD_PRICES[body.crypto] ?? 1;
+      const requiredCrypto = Number((shortfallUsd / assetUsd).toFixed(8));
+      return res.status(400).json({
+        error: `You need at least $${MIN_AD_USD.toFixed(2)} worth of any cryptocurrency in your account to post an ad (current balance: $${totalUsdBalance.toFixed(2)}).`,
+        code: 'INSUFFICIENT_FUNDS',
+        asset: body.crypto,
+        requiredCrypto,
+        requiredUsd: MIN_AD_USD,
+        currentUsdBalance: Number(totalUsdBalance.toFixed(2)),
+        availableBalance: user.balances[body.crypto] ?? 0,
+      });
+    }
+
     const isSwap = body.side === 'swap_crypto';
     if (isSwap) {
       if (!body.swapToCrypto || body.swapToCrypto === body.crypto) {
@@ -712,29 +734,7 @@ async function startServer() {
       if (!Number.isFinite(minSwap) || !Number.isFinite(maxSwap) || minSwap <= 0 || maxSwap < minSwap) {
         return res.status(400).json({ error: 'Maximum swap limit must be greater than or equal to minimum.' });
       }
-      const prices = await getLivePrices();
       const wantUsd = prices.usdPrices[body.swapToCrypto] ?? DEFAULT_USD_PRICES[body.swapToCrypto];
-      const offerUsd = prices.usdPrices[body.crypto] ?? DEFAULT_USD_PRICES[body.crypto];
-      const crossRate = wantUsd > 0 ? offerUsd / wantUsd : 1;
-      const unitPrice =
-        body.pricingMode === 'fixed' && Number(body.fixedPrice) > 0
-          ? Number(body.fixedPrice)
-          : crossRate * (1 + (Number.isFinite(Number(body.marginPct)) ? Number(body.marginPct) : 0) / 100);
-      const minCryptoEq = unitPrice > 0 ? minSwap / unitPrice : 0;
-      const requestedAvailable =
-        body.availableCrypto && Number(body.availableCrypto) > 0 ? Number(body.availableCrypto) : 0;
-      const requiredCrypto = Math.max(requestedAvailable, minCryptoEq);
-      const currentBalance = user.balances[body.crypto] ?? 0;
-
-      if (currentBalance < requiredCrypto) {
-        return res.status(400).json({
-          error: `Insufficient ${body.crypto} funds to publish this swap listing. You need at least ${requiredCrypto.toFixed(6)} ${body.crypto} (current balance: ${currentBalance.toFixed(6)} ${body.crypto}).`,
-          code: 'INSUFFICIENT_FUNDS',
-          asset: body.crypto,
-          requiredCrypto,
-          availableBalance: currentBalance,
-        });
-      }
 
       const newOffer: P2POffer = {
         id: `off-${crypto.randomBytes(3).toString('hex')}`,
@@ -777,32 +777,6 @@ async function startServer() {
     const maxFiat = Number(body.maxFiat);
     if (!Number.isFinite(minFiat) || !Number.isFinite(maxFiat) || minFiat <= 0 || maxFiat < minFiat) {
       return res.status(400).json({ error: 'Maximum trade limit must be greater than or equal to minimum.' });
-    }
-
-    if (body.side === 'sell_crypto') {
-      const prices = await getLivePrices();
-      const usdSpot = prices.usdPrices[body.crypto] ?? DEFAULT_USD_PRICES[body.crypto];
-      const fiatRate = prices.fiatRatesFromUsd[body.fiat] ?? 1;
-      const margin = Number.isFinite(Number(body.marginPct)) ? Number(body.marginPct) : 0;
-      const unitPrice =
-        body.pricingMode === 'fixed' && Number(body.fixedPrice) > 0
-          ? Number(body.fixedPrice)
-          : usdSpot * fiatRate * (1 + margin / 100);
-      const minCryptoEq = unitPrice > 0 ? minFiat / unitPrice : 0;
-      const requestedAvailable =
-        body.availableCrypto && Number(body.availableCrypto) > 0 ? Number(body.availableCrypto) : 0;
-      const requiredCrypto = Math.max(requestedAvailable, minCryptoEq);
-      const currentBalance = user.balances[body.crypto] ?? 0;
-
-      if (currentBalance < requiredCrypto) {
-        return res.status(400).json({
-          error: `Insufficient ${body.crypto} funds to publish this listing. You need at least ${requiredCrypto.toFixed(6)} ${body.crypto} (current balance: ${currentBalance.toFixed(6)} ${body.crypto}).`,
-          code: 'INSUFFICIENT_FUNDS',
-          asset: body.crypto,
-          requiredCrypto,
-          availableBalance: currentBalance,
-        });
-      }
     }
 
     const newOffer: P2POffer = {
