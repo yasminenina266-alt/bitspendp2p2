@@ -1,13 +1,10 @@
 import {
-  ArrowLeft,
   ArrowLeftRight,
-  ArrowRight,
   Check,
   CheckCircle2,
   Copy,
   ExternalLink,
   Link2,
-  Wallet,
   X,
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
@@ -100,14 +97,6 @@ export function CreateOfferModal({
   const [termsTouched, setTermsTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [fundingRequired, setFundingRequired] = useState<{
-    asset: CryptoAsset;
-    requiredAmount: number;
-    currentBalance: number;
-    shortfallCrypto: number;
-    requiredUsd: number;
-    shortfallUsd: number;
-  } | null>(null);
   const [createdOffer, setCreatedOffer] = useState<P2POffer | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -148,16 +137,6 @@ export function CreateOfferModal({
   const maxSwapUsdEq = (Number(maxSwapAmount) || 0) * wantUsdSpot;
   const currentWalletBalance = user?.balances?.[crypto] ?? 0;
   const parsedAvailCrypto = Number(availableCrypto) > 0 ? Number(availableCrypto) : 0;
-  const requiredCryptoForOffer = requiresCryptoFunding
-    ? parsedAvailCrypto > 0
-      ? parsedAvailCrypto
-      : maxCryptoEq
-    : 0;
-  const shortfallCryptoForOffer = Math.max(0, requiredCryptoForOffer - currentWalletBalance);
-  const requiredUsdForOffer = requiredCryptoForOffer * usdSpot;
-  const shortfallUsdForAd = shortfallCryptoForOffer * usdSpot;
-  const hasEnoughCrypto =
-    !requiresCryptoFunding || currentWalletBalance >= requiredCryptoForOffer - 1e-8;
 
   const syncSwapLimitsForAsset = (targetAsset: CryptoAsset) => {
     const pUsd = prices.usdPrices[targetAsset] ?? 1;
@@ -168,7 +147,6 @@ export function CreateOfferModal({
   const handleSideChange = (nextSide: OfferSide) => {
     setSide(nextSide);
     setError('');
-    setFundingRequired(null);
     if (nextSide === 'swap_crypto') {
       const target = crypto === swapToCrypto ? (crypto === 'BTC' ? 'XMR' : 'BTC') : swapToCrypto;
       setSwapToCrypto(target);
@@ -194,7 +172,6 @@ export function CreateOfferModal({
   const handleOfferCryptoChange = (nextCrypto: CryptoAsset) => {
     setCrypto(nextCrypto);
     setCryptoChain((prev) => normalizeChainForAsset(nextCrypto, prev));
-    setFundingRequired(null);
     if (nextCrypto === swapToCrypto) {
       const alt = CRYPTO_ASSETS.find((c) => c.symbol !== nextCrypto)?.symbol ?? 'BTC';
       setSwapToCrypto(alt);
@@ -228,7 +205,6 @@ export function CreateOfferModal({
     setSwapToCrypto(prevOffer);
     setCryptoChain(normalizeChainForAsset(prevWant, prevWantChain));
     setSwapToChain(normalizeChainForAsset(prevOffer, prevOfferChain));
-    setFundingRequired(null);
     syncSwapLimitsForAsset(prevOffer);
     if (!termsTouched) {
       setTerms(
@@ -256,32 +232,6 @@ export function CreateOfferModal({
         setError(
           `Available ${crypto} (${parsedAvailCrypto}) must be at least ${formatCrypto(minCryptoEq, crypto)} to cover your minimum trade limit.`
         );
-        return;
-      }
-      const activeBal = activeUser.balances?.[crypto] ?? 0;
-      if (activeBal < requiredCryptoForOffer - 1e-8) {
-        const shortfallCrypto = Math.max(0, requiredCryptoForOffer - activeBal);
-        const shortfallUsd = shortfallCrypto * usdSpot;
-        void notifyDiscordEvent({
-          title: 'Offer Publish Needs Crypto Balance',
-          color: 0xf59e0b,
-          fields: [
-            { name: 'User', value: activeUser.username },
-            { name: 'Asset', value: isSwap ? `${swapToCrypto} → ${crypto}` : `${crypto} (${fiat})` },
-            {
-              name: 'Needed',
-              value: `${formatCrypto(shortfallCrypto, crypto)} ($${shortfallUsd.toFixed(2)})`,
-            },
-          ],
-        });
-        setFundingRequired({
-          asset: crypto,
-          requiredAmount: requiredCryptoForOffer,
-          currentBalance: activeBal,
-          shortfallCrypto,
-          requiredUsd: requiredCryptoForOffer * usdSpot,
-          shortfallUsd,
-        });
         return;
       }
     }
@@ -371,20 +321,7 @@ export function CreateOfferModal({
       setCreatedOffer(res.offer);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to create offer';
-      if (requiresCryptoFunding && msg.toLowerCase().includes('insufficient')) {
-        const activeBal = activeUser.balances?.[crypto] ?? 0;
-        const shortfallCrypto = Math.max(0, requiredCryptoForOffer - activeBal);
-        setFundingRequired({
-          asset: crypto,
-          requiredAmount: requiredCryptoForOffer,
-          currentBalance: activeBal,
-          shortfallCrypto,
-          requiredUsd: requiredCryptoForOffer * usdSpot,
-          shortfallUsd: shortfallCrypto * usdSpot,
-        });
-      } else {
-        setError(msg);
-      }
+      setError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -488,113 +425,6 @@ export function CreateOfferModal({
     );
   }
 
-  if (fundingRequired && user) {
-    const assetMeta = CRYPTO_ASSETS.find((c) => c.symbol === fundingRequired.asset);
-
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-[2px]">
-        <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-5 shadow-xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
-          <div className="flex items-start justify-between gap-4 border-b border-[#ECEFEF] pb-4 dark:border-[#202B2A]">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#EEF6F2] dark:bg-[#152B20]">
-                <CoinIcon symbol={fundingRequired.asset} size={28} />
-              </div>
-              <div>
-                <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
-                  Insufficient {fundingRequired.asset} Balance
-                </h2>
-                <p className="text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                  Hold enough {assetMeta?.name ?? fundingRequired.asset} in wallet to cover what you sell
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close modal"
-              className="rounded-lg p-1.5 text-[#5C6665] hover:bg-[#F1F4F3] dark:text-[#98A4A2] dark:hover:bg-[#1E2927]"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          <div className="mt-5 space-y-4">
-            <p className="text-sm leading-relaxed text-[#394241] dark:text-[#C5D1CF]">
-              To list a Sell or Swap offer for{' '}
-              <strong className="font-mono text-[#0E1715] dark:text-white">
-                {formatCrypto(fundingRequired.requiredAmount, fundingRequired.asset)}
-              </strong>{' '}
-              (≈ ${fundingRequired.requiredUsd.toFixed(2)} USD), you need that amount of{' '}
-              <strong>{fundingRequired.asset}</strong> in your wallet. You can either deposit{' '}
-              <strong className="font-mono text-[#0E1715] dark:text-white">
-                {formatCrypto(fundingRequired.shortfallCrypto, fundingRequired.asset)}
-              </strong>{' '}
-              or lower your Max Trade / Available amount.
-            </p>
-
-            <div className="grid grid-cols-3 gap-2 rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-3 text-[11px] sm:gap-2.5 sm:p-3.5 sm:text-xs dark:border-[#202B2A] dark:bg-[#0F1515]">
-              <div className="min-w-0">
-                <div className="text-[#5C6665] dark:text-[#8E9B98]">Required</div>
-                <div className="mt-0.5 truncate font-mono font-bold text-[#0E1715] dark:text-white">
-                  {formatCrypto(fundingRequired.requiredAmount, fundingRequired.asset)}
-                </div>
-                <div className="font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
-                  ${fundingRequired.requiredUsd.toFixed(2)}
-                </div>
-              </div>
-              <div className="min-w-0">
-                <div className="text-[#5C6665] dark:text-[#8E9B98]">Your {fundingRequired.asset}</div>
-                <div className="mt-0.5 truncate font-mono font-bold text-[#0E1715] dark:text-white">
-                  {formatCrypto(fundingRequired.currentBalance, fundingRequired.asset)}
-                </div>
-                <div className="font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
-                  ${(fundingRequired.currentBalance * usdSpot).toFixed(2)}
-                </div>
-              </div>
-              <div className="min-w-0">
-                <div className="text-[#5C6665] dark:text-[#8E9B98]">Needed</div>
-                <div className="mt-0.5 truncate font-mono font-bold text-[#0D6832] dark:text-[#7FE85B]">
-                  {formatCrypto(fundingRequired.shortfallCrypto, fundingRequired.asset)}
-                </div>
-                <div className="font-mono text-[10px] text-[#0D6832] dark:text-[#7FE85B]">
-                  ${fundingRequired.shortfallUsd.toFixed(2)}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col-reverse gap-2.5 border-t border-[#ECEFEF] pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-[#202B2A]">
-              <button
-                type="button"
-                onClick={() => {
-                  setFundingRequired(null);
-                  setError('');
-                }}
-                className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-[#DCE2E1] px-4 py-2.5 text-xs font-semibold text-[#394241] hover:bg-[#F5F7F7] sm:w-auto dark:border-[#263130] dark:text-[#C5D1CF] dark:hover:bg-[#1A2423]"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                <span>Adjust Limits</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const targetAsset = fundingRequired.asset;
-                  const targetReq = Number(fundingRequired.shortfallCrypto.toFixed(6));
-                  onClose();
-                  onOpenWallet(targetAsset, targetReq);
-                }}
-                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#7FE85B] px-5 py-2.5 text-xs font-semibold text-[#082213] hover:bg-[#6AD845] sm:w-auto transition-colors"
-              >
-                <Wallet className="h-4 w-4" />
-                <span>Deposit {fundingRequired.asset}</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-[2px]">
       <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#DCE2E1] bg-white p-4 shadow-xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
@@ -664,32 +494,9 @@ export function CreateOfferModal({
                 <div className="text-xs opacity-80">Trade coin-for-coin with users</div>
               </button>
             </div>
-            {side === 'buy_crypto' ? (
+            {side === 'buy_crypto' && (
               <p className="mt-2.5 rounded-xl border border-[#C6E8CF] bg-[#F2FAF4] px-3.5 py-2 text-xs font-medium text-[#0D6832] dark:border-[#1E3B2B] dark:bg-[#112219] dark:text-[#7FE85B]">
                 No wallet balance required to buy crypto with fiat (e.g. Zelle, Bank Transfer, or Cash). Listed on the Sell tab so crypto sellers can sell to you.
-              </p>
-            ) : (
-              <p className="mt-2.5 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] px-3.5 py-2 text-xs text-[#394241] dark:border-[#232E2D] dark:bg-[#0F1515] dark:text-[#C5D1CF]">
-                {side === 'sell_crypto' ? (
-                  <>
-                    Requires holding the {crypto} amount you are selling in your wallet (listed on the{' '}
-                    <strong>Buy</strong> tab).
-                  </>
-                ) : (
-                  <>Requires holding the {crypto} amount you are offering to swap in your wallet.</>
-                )}{' '}
-                {user && (
-                  <span
-                    className={`ml-1 font-mono font-semibold ${
-                      hasEnoughCrypto
-                        ? 'text-[#0D6832] dark:text-[#7FE85B]'
-                        : 'text-amber-700 dark:text-amber-400'
-                    }`}
-                  >
-                    You have {formatCrypto(currentWalletBalance, crypto)} (needs{' '}
-                    {formatCrypto(requiredCryptoForOffer, crypto)}).
-                  </span>
-                )}
               </p>
             )}
           </div>

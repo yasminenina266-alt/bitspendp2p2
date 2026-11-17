@@ -1691,22 +1691,6 @@ export const api = {
         );
       }
 
-      const requiredCrypto = Number(
-        (Number.isFinite(parsedAvail) && parsedAvail > 0 ? parsedAvail : maxCryptoEq).toFixed(8)
-      );
-      const currentBalance = user.balances[payload.crypto] ?? 0;
-      if (currentBalance < requiredCrypto - 1e-8) {
-        const err = new ApiError(
-          `Insufficient ${payload.crypto} balance to publish this swap ad. You need ${requiredCrypto.toFixed(6)} ${payload.crypto} in your wallet (current balance: ${currentBalance.toFixed(6)} ${payload.crypto}).`,
-          400,
-          'INSUFFICIENT_FUNDS'
-        );
-        err.asset = payload.crypto;
-        err.requiredCrypto = requiredCrypto;
-        err.shortfallCrypto = Number(Math.max(0, requiredCrypto - currentBalance).toFixed(8));
-        throw err;
-      }
-
       const minFiat = Math.max(1, Math.round(minSwap * wantUsd));
       const maxFiat = Math.max(minFiat, Math.round(maxSwap * wantUsd));
       const nowIso = new Date().toISOString();
@@ -1782,22 +1766,6 @@ export const api = {
           `Available ${payload.crypto} (${parsedAvail}) must be at least ${minCryptoEq.toFixed(6)} ${payload.crypto} to cover your minimum ${minFiat} ${payload.fiat} trade limit.`,
           400
         );
-      }
-
-      const requiredCrypto = Number(
-        (Number.isFinite(parsedAvail) && parsedAvail > 0 ? parsedAvail : maxCryptoEq).toFixed(8)
-      );
-      const currentBalance = user.balances[payload.crypto] ?? 0;
-      if (currentBalance < requiredCrypto - 1e-8) {
-        const err = new ApiError(
-          `Insufficient ${payload.crypto} balance to publish this Sell ad. You need at least ${requiredCrypto.toFixed(6)} ${payload.crypto} in your wallet to cover what you are selling (current balance: ${currentBalance.toFixed(6)} ${payload.crypto}).`,
-          400,
-          'INSUFFICIENT_FUNDS'
-        );
-        err.asset = payload.crypto;
-        err.requiredCrypto = requiredCrypto;
-        err.shortfallCrypto = Number(Math.max(0, requiredCrypto - currentBalance).toFixed(8));
-        throw err;
       }
     }
 
