@@ -2,6 +2,8 @@ import { ArrowLeft, ArrowLeftRight, ArrowRight, Wallet, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { api } from '../api';
 import {
+  ASSET_CHAINS,
+  CHAIN_OPTIONS,
   COUNTRIES,
   COUNTRY_TO_CURRENCY,
   CRYPTO_ASSETS,
@@ -12,6 +14,7 @@ import {
   formatFiat,
 } from '../constants/market';
 import type {
+  ChainId,
   CryptoAsset,
   FiatCurrency,
   MarketPrices,
@@ -21,7 +24,7 @@ import type {
   UserAccount,
 } from '../types';
 import { notifyDiscordEvent } from '../utils/discordWebhook';
-import { CoinIcon } from './CoinIcon';
+import { ChainIcon, CoinIcon } from './CoinIcon';
 
 interface CreateOfferModalProps {
   prices: MarketPrices;
@@ -57,7 +60,9 @@ export function CreateOfferModal({
 }: CreateOfferModalProps) {
   const [side, setSide] = useState<OfferSide>(initialSide ?? 'sell_crypto');
   const [crypto, setCrypto] = useState<CryptoAsset>('XMR');
+  const [cryptoChain, setCryptoChain] = useState<ChainId>('ETH');
   const [swapToCrypto, setSwapToCrypto] = useState<CryptoAsset>('BTC');
+  const [swapToChain, setSwapToChain] = useState<ChainId>('ETH');
   const [swapMethod, setSwapMethod] = useState(SWAP_SETTLEMENT_METHODS[0]);
   const [country, setCountry] = useState('United States');
   const [fiat, setFiat] = useState<FiatCurrency>('USD');
@@ -157,12 +162,20 @@ export function CreateOfferModal({
     }
   };
 
+  const normalizeChainForAsset = (asset: CryptoAsset, currentChain: ChainId): ChainId => {
+    const chains = ASSET_CHAINS[asset];
+    if (!chains || chains.length === 0) return 'ETH';
+    return chains.some((c) => c.id === currentChain) ? currentChain : chains[0].id;
+  };
+
   const handleOfferCryptoChange = (nextCrypto: CryptoAsset) => {
     setCrypto(nextCrypto);
+    setCryptoChain((prev) => normalizeChainForAsset(nextCrypto, prev));
     setFundingRequired(null);
     if (nextCrypto === swapToCrypto) {
       const alt = CRYPTO_ASSETS.find((c) => c.symbol !== nextCrypto)?.symbol ?? 'BTC';
       setSwapToCrypto(alt);
+      setSwapToChain((prev) => normalizeChainForAsset(alt, prev));
       if (isSwap) syncSwapLimitsForAsset(alt);
     }
   };
@@ -171,8 +184,10 @@ export function CreateOfferModal({
     if (nextWant === crypto) {
       const alt = CRYPTO_ASSETS.find((c) => c.symbol !== nextWant)?.symbol ?? 'XMR';
       setCrypto(alt);
+      setCryptoChain((prev) => normalizeChainForAsset(alt, prev));
     }
     setSwapToCrypto(nextWant);
+    setSwapToChain((prev) => normalizeChainForAsset(nextWant, prev));
     syncSwapLimitsForAsset(nextWant);
     if (isSwap && !termsTouched) {
       setTerms(
@@ -184,8 +199,12 @@ export function CreateOfferModal({
   const handleFlipSwapPair = () => {
     const prevOffer = crypto;
     const prevWant = swapToCrypto;
+    const prevOfferChain = cryptoChain;
+    const prevWantChain = swapToChain;
     setCrypto(prevWant);
     setSwapToCrypto(prevOffer);
+    setCryptoChain(normalizeChainForAsset(prevWant, prevWantChain));
+    setSwapToChain(normalizeChainForAsset(prevOffer, prevOfferChain));
     setFundingRequired(null);
     syncSwapLimitsForAsset(prevOffer);
     if (!termsTouched) {
@@ -239,10 +258,18 @@ export function CreateOfferModal({
     setSubmitting(true);
     try {
       if (isSwap) {
+        const activeOfferChain = ASSET_CHAINS[crypto]
+          ? normalizeChainForAsset(crypto, cryptoChain)
+          : undefined;
+        const activeSwapChain = ASSET_CHAINS[swapToCrypto]
+          ? normalizeChainForAsset(swapToCrypto, swapToChain)
+          : undefined;
         const res = await api.createOffer({
           side: 'swap_crypto',
           crypto,
+          cryptoChain: activeOfferChain,
           swapToCrypto,
+          swapToChain: activeSwapChain,
           fiat: 'USD',
           country: 'Global',
           paymentMethod: swapMethod,
@@ -262,7 +289,10 @@ export function CreateOfferModal({
           color: 0x7fe85b,
           fields: [
             { name: 'User', value: activeUser.username },
-            { name: 'Pair', value: `${swapToCrypto} → ${crypto}` },
+            {
+              name: 'Pair',
+              value: `${swapToCrypto}${activeSwapChain ? ` (${CHAIN_OPTIONS[activeSwapChain].standard})` : ''} → ${crypto}${activeOfferChain ? ` (${CHAIN_OPTIONS[activeOfferChain].standard})` : ''}`,
+            },
             { name: 'Margin', value: `${marginPct}%` },
           ],
         });
@@ -272,9 +302,13 @@ export function CreateOfferModal({
       }
 
       const pmDef = PAYMENT_METHODS.find((p) => p.name === paymentMethod);
+      const activeOfferChain = ASSET_CHAINS[crypto]
+        ? normalizeChainForAsset(crypto, cryptoChain)
+        : undefined;
       const res = await api.createOffer({
         side,
         crypto,
+        cryptoChain: activeOfferChain,
         fiat,
         country,
         paymentMethod,
@@ -295,7 +329,10 @@ export function CreateOfferModal({
         fields: [
           { name: 'User', value: activeUser.username },
           { name: 'Side', value: side === 'sell_crypto' ? 'Sell Crypto' : 'Buy Crypto' },
-          { name: 'Market', value: `${crypto} / ${fiat} (${paymentMethod})` },
+          {
+            name: 'Market',
+            value: `${crypto}${activeOfferChain ? ` (${CHAIN_OPTIONS[activeOfferChain].standard})` : ''} / ${fiat} (${paymentMethod})`,
+          },
         ],
       });
       onCreated(res.offer);
@@ -583,6 +620,79 @@ export function CreateOfferModal({
                   </select>
                 </div>
               </div>
+
+              {ASSET_CHAINS[crypto] && (
+                <div>
+                  <label className="mb-2 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                    Select {crypto} Network / Chain (You Offer)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {ASSET_CHAINS[crypto]!.map((ch, idx) => {
+                      const activeId = normalizeChainForAsset(crypto, cryptoChain);
+                      const isSelected = ch.id === activeId;
+                      const isLastOddMobile =
+                        ASSET_CHAINS[crypto]!.length % 2 === 1 && idx === ASSET_CHAINS[crypto]!.length - 1;
+                      return (
+                        <button
+                          key={ch.id}
+                          type="button"
+                          onClick={() => setCryptoChain(ch.id)}
+                          className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-xs transition-colors ${
+                            isLastOddMobile ? 'col-span-2 sm:col-span-1' : ''
+                          } ${
+                            isSelected
+                              ? 'border-[#0B3B2E] bg-[#EEF6F2] text-[#0E1715] font-bold dark:border-[#7FE85B] dark:bg-[#152B20] dark:text-white'
+                              : 'border-[#DCE2E1] bg-white text-[#4B5554] hover:border-[#9CA8A6] dark:border-[#263130] dark:bg-[#0D1313] dark:text-[#98A4A2]'
+                          }`}
+                        >
+                          <ChainIcon chain={ch.id} size={18} />
+                          <div className="min-w-0">
+                            <div className="truncate leading-tight">{ch.name}</div>
+                            <div className="font-mono text-[10px] opacity-75">{ch.standard}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {ASSET_CHAINS[swapToCrypto] && (
+                <div>
+                  <label className="mb-2 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                    Select {swapToCrypto} Network / Chain (You Receive)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {ASSET_CHAINS[swapToCrypto]!.map((ch, idx) => {
+                      const activeId = normalizeChainForAsset(swapToCrypto, swapToChain);
+                      const isSelected = ch.id === activeId;
+                      const isLastOddMobile =
+                        ASSET_CHAINS[swapToCrypto]!.length % 2 === 1 &&
+                        idx === ASSET_CHAINS[swapToCrypto]!.length - 1;
+                      return (
+                        <button
+                          key={ch.id}
+                          type="button"
+                          onClick={() => setSwapToChain(ch.id)}
+                          className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-xs transition-colors ${
+                            isLastOddMobile ? 'col-span-2 sm:col-span-1' : ''
+                          } ${
+                            isSelected
+                              ? 'border-[#0B3B2E] bg-[#EEF6F2] text-[#0E1715] font-bold dark:border-[#7FE85B] dark:bg-[#152B20] dark:text-white'
+                              : 'border-[#DCE2E1] bg-white text-[#4B5554] hover:border-[#9CA8A6] dark:border-[#263130] dark:bg-[#0D1313] dark:text-[#98A4A2]'
+                          }`}
+                        >
+                          <ChainIcon chain={ch.id} size={18} />
+                          <div className="min-w-0">
+                            <div className="truncate leading-tight">{ch.name}</div>
+                            <div className="font-mono text-[10px] opacity-75">{ch.standard}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -642,6 +752,42 @@ export function CreateOfferModal({
                   </select>
                 </div>
               </div>
+
+              {ASSET_CHAINS[crypto] && (
+                <div>
+                  <label className="mb-2 block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                    Select {crypto} Network / Chain
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {ASSET_CHAINS[crypto]!.map((ch, idx) => {
+                      const activeId = normalizeChainForAsset(crypto, cryptoChain);
+                      const isSelected = ch.id === activeId;
+                      const isLastOddMobile =
+                        ASSET_CHAINS[crypto]!.length % 2 === 1 && idx === ASSET_CHAINS[crypto]!.length - 1;
+                      return (
+                        <button
+                          key={ch.id}
+                          type="button"
+                          onClick={() => setCryptoChain(ch.id)}
+                          className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-xs transition-colors ${
+                            isLastOddMobile ? 'col-span-2 sm:col-span-1' : ''
+                          } ${
+                            isSelected
+                              ? 'border-[#0B3B2E] bg-[#EEF6F2] text-[#0E1715] font-bold dark:border-[#7FE85B] dark:bg-[#152B20] dark:text-white'
+                              : 'border-[#DCE2E1] bg-white text-[#4B5554] hover:border-[#9CA8A6] dark:border-[#263130] dark:bg-[#0D1313] dark:text-[#98A4A2]'
+                          }`}
+                        >
+                          <ChainIcon chain={ch.id} size={18} />
+                          <div className="min-w-0">
+                            <div className="truncate leading-tight">{ch.name}</div>
+                            <div className="font-mono text-[10px] opacity-75">{ch.standard}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Payment Method & Window */}
               <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">

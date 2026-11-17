@@ -1,5 +1,7 @@
 export type CryptoAsset = 'BTC' | 'XMR' | 'ETH' | 'USDT' | 'LTC' | 'SOL' | 'USDC';
 
+export type ChainId = 'ETH' | 'SOL' | 'TRX' | 'BSC' | 'POLYGON';
+
 export type FiatCurrency =
   | 'USD'
   | 'EUR'
@@ -74,7 +76,9 @@ export interface P2POffer {
   side: OfferSide; // 'sell_crypto' = buy with fiat, 'buy_crypto' = sell for fiat, 'swap_crypto' = P2P crypto-to-crypto swap
   traderUsername: string;
   crypto: CryptoAsset; // For swap_crypto, asset maker is offering (taker receives)
+  cryptoChain?: ChainId; // Optional network chain for multi-chain assets (USDT, USDC)
   swapToCrypto?: CryptoAsset; // For swap_crypto, asset maker wants in exchange (taker sends)
+  swapToChain?: ChainId; // Optional network chain for swapToCrypto (USDT, USDC)
   fiat: FiatCurrency;
   country: string;
   paymentMethod: string;
@@ -122,7 +126,9 @@ export interface TradeOrder {
   buyerUsername: string;
   sellerUsername: string;
   crypto: CryptoAsset;
+  cryptoChain?: ChainId;
   swapToCrypto?: CryptoAsset;
+  swapToChain?: ChainId;
   swapToAmount?: number;
   fiat: FiatCurrency;
   fiatAmount: number;

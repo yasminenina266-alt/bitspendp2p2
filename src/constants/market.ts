@@ -1,4 +1,6 @@
-import type { CryptoAsset, FiatCurrency, OfferTag } from '../types';
+import type { ChainId, CryptoAsset, FiatCurrency, OfferTag } from '../types';
+
+export type { ChainId };
 
 export interface CryptoMeta {
   symbol: CryptoAsset;
@@ -8,8 +10,6 @@ export interface CryptoMeta {
   networkFee: number;
   networkName: string;
 }
-
-export type ChainId = 'ETH' | 'SOL' | 'TRX' | 'BSC' | 'POLYGON';
 
 export interface ChainOption {
   id: ChainId;

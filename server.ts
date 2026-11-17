@@ -12,6 +12,7 @@ import {
   generateTraderTradesPage,
 } from './server/seedData.ts';
 import type {
+  ChainId,
   CryptoAsset,
   FiatCurrency,
   MarketPrices,
@@ -24,6 +25,20 @@ import type {
   VirtualCard,
   WalletTx,
 } from './src/types.ts';
+
+const ALLOWED_ASSET_CHAINS: Partial<Record<CryptoAsset, ChainId[]>> = {
+  USDT: ['ETH', 'SOL', 'TRX', 'BSC', 'POLYGON'],
+  USDC: ['ETH', 'SOL', 'BSC', 'POLYGON'],
+};
+
+function resolveAssetChain(asset: CryptoAsset, requested?: unknown): ChainId | undefined {
+  const allowed = ALLOWED_ASSET_CHAINS[asset];
+  if (!allowed) return undefined;
+  if (typeof requested === 'string' && (allowed as string[]).includes(requested)) {
+    return requested as ChainId;
+  }
+  return allowed[0];
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
@@ -741,7 +756,9 @@ async function startServer() {
         side: 'swap_crypto',
         traderUsername: user.username,
         crypto: body.crypto,
+        cryptoChain: resolveAssetChain(body.crypto, body.cryptoChain),
         swapToCrypto: body.swapToCrypto,
+        swapToChain: resolveAssetChain(body.swapToCrypto, body.swapToChain),
         fiat: 'USD',
         country: body.country || 'Global',
         paymentMethod: body.paymentMethod || 'OOSAB P2P Escrow Swap',
@@ -784,6 +801,7 @@ async function startServer() {
       side: body.side,
       traderUsername: user.username,
       crypto: body.crypto,
+      cryptoChain: resolveAssetChain(body.crypto, body.cryptoChain),
       fiat: body.fiat,
       country: body.country || 'Global',
       paymentMethod: body.paymentMethod,
@@ -892,7 +910,9 @@ async function startServer() {
         buyerUsername: user.username,
         sellerUsername: offer.traderUsername,
         crypto: offer.crypto,
+        cryptoChain: offer.cryptoChain,
         swapToCrypto: offer.swapToCrypto,
+        swapToChain: offer.swapToChain,
         swapToAmount: sendAmt,
         fiat: 'USD',
         fiatAmount: usdVal,
@@ -963,6 +983,7 @@ async function startServer() {
       buyerUsername: offer.side === 'sell_crypto' ? user.username : offer.traderUsername,
       sellerUsername: offer.side === 'sell_crypto' ? offer.traderUsername : user.username,
       crypto: offer.crypto,
+      cryptoChain: offer.cryptoChain,
       fiat: offer.fiat,
       fiatAmount: amount,
       cryptoAmount,

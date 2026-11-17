@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api } from '../api';
-import { formatCrypto, formatFiat } from '../constants/market';
+import { CHAIN_OPTIONS, formatCrypto, formatFiat } from '../constants/market';
 import type {
   MarketPrices,
   P2POffer,
@@ -23,7 +23,7 @@ import type {
   TraderProfile,
   UserAccount,
 } from '../types';
-import { CoinIcon } from './CoinIcon';
+import { ChainIcon, CoinIcon } from './CoinIcon';
 import { getOfferUnitPrice } from './OfferRow';
 
 interface TradeModalProps {
@@ -189,10 +189,28 @@ export function TradeModal({
                       ? `Buy ${offer.crypto} via ${offer.paymentMethod}`
                       : `Sell ${offer.crypto} via ${offer.paymentMethod}`}
                 </h2>
-                <p className="text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                  Offer by <span className="font-semibold text-[#0E1715] dark:text-white">{offer.traderUsername}</span>{' '}
-                  · {trader?.ratingPct ?? 100}% Trust ({trader?.tradesCount ?? 0} trades) ·{' '}
-                  {offer.paymentWindowMinutes}m escrow window
+                <p className="flex flex-wrap items-center gap-1.5 text-xs text-[#5C6665] dark:text-[#98A4A2]">
+                  <span>
+                    Offer by <span className="font-semibold text-[#0E1715] dark:text-white">{offer.traderUsername}</span>{' '}
+                    · {trader?.ratingPct ?? 100}% Trust ({trader?.tradesCount ?? 0} trades) ·{' '}
+                    {offer.paymentWindowMinutes}m escrow window
+                  </span>
+                  {offer.cryptoChain && CHAIN_OPTIONS[offer.cryptoChain] && (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-[#DCE2E1] bg-[#F8FAFA] px-1.5 py-0.5 font-mono text-[11px] font-medium text-[#394241] dark:border-[#263130] dark:bg-[#172120] dark:text-[#C5D1CF]">
+                      <ChainIcon chain={offer.cryptoChain} size={12} />
+                      <span>
+                        {offer.crypto} on {CHAIN_OPTIONS[offer.cryptoChain].name} ({CHAIN_OPTIONS[offer.cryptoChain].standard})
+                      </span>
+                    </span>
+                  )}
+                  {isSwap && offer.swapToChain && CHAIN_OPTIONS[offer.swapToChain] && (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-[#DCE2E1] bg-[#F8FAFA] px-1.5 py-0.5 font-mono text-[11px] font-medium text-[#394241] dark:border-[#263130] dark:bg-[#172120] dark:text-[#C5D1CF]">
+                      <ChainIcon chain={offer.swapToChain} size={12} />
+                      <span>
+                        {swapTargetAsset} on {CHAIN_OPTIONS[offer.swapToChain].name} ({CHAIN_OPTIONS[offer.swapToChain].standard})
+                      </span>
+                    </span>
+                  )}
                 </p>
               </div>
             </div>

@@ -1,8 +1,8 @@
 import { ChevronDown, ChevronUp, Star } from 'lucide-react';
 import { useState } from 'react';
-import { formatCrypto, formatFiat } from '../constants/market';
+import { CHAIN_OPTIONS, formatCrypto, formatFiat } from '../constants/market';
 import type { MarketPrices, P2POffer, TraderProfile } from '../types';
-import { CoinIcon } from './CoinIcon';
+import { ChainIcon, CoinIcon } from './CoinIcon';
 
 interface OfferRowProps {
   offer: P2POffer;
@@ -200,6 +200,22 @@ export function OfferRow({
               >
                 {marginLabel}
               </span>
+              {offer.cryptoChain && CHAIN_OPTIONS[offer.cryptoChain] && (
+                <span className="inline-flex items-center gap-1 rounded-md border border-[#DCE2E1] bg-[#F8FAFA] px-1.5 py-0.5 font-mono text-[11px] font-medium text-[#394241] dark:border-[#263130] dark:bg-[#172120] dark:text-[#C5D1CF]">
+                  <ChainIcon chain={offer.cryptoChain} size={12} />
+                  <span>
+                    {offer.crypto} {CHAIN_OPTIONS[offer.cryptoChain].standard}
+                  </span>
+                </span>
+              )}
+              {isSwap && offer.swapToChain && CHAIN_OPTIONS[offer.swapToChain] && (
+                <span className="inline-flex items-center gap-1 rounded-md border border-[#DCE2E1] bg-[#F8FAFA] px-1.5 py-0.5 font-mono text-[11px] font-medium text-[#394241] dark:border-[#263130] dark:bg-[#172120] dark:text-[#C5D1CF]">
+                  <ChainIcon chain={offer.swapToChain} size={12} />
+                  <span>
+                    {swapTargetAsset} {CHAIN_OPTIONS[offer.swapToChain].standard}
+                  </span>
+                </span>
+              )}
             </div>
             <div className="font-mono text-xs tabular-nums text-[#64706E] dark:text-[#8E9B98]">
               {isSwap ? (

@@ -6,6 +6,7 @@ import {
   generateTraderTradesPage,
 } from '../server/seedData';
 import type {
+  ChainId,
   CryptoAsset,
   FiatCurrency,
   MarketPrices,
@@ -20,6 +21,20 @@ import type {
   VirtualCard,
   WalletTx,
 } from './types';
+
+const ALLOWED_ASSET_CHAINS: Partial<Record<CryptoAsset, ChainId[]>> = {
+  USDT: ['ETH', 'SOL', 'TRX', 'BSC', 'POLYGON'],
+  USDC: ['ETH', 'SOL', 'BSC', 'POLYGON'],
+};
+
+function resolveAssetChain(asset: CryptoAsset, requested?: unknown): ChainId | undefined {
+  const allowed = ALLOWED_ASSET_CHAINS[asset];
+  if (!allowed) return undefined;
+  if (typeof requested === 'string' && (allowed as string[]).includes(requested)) {
+    return requested as ChainId;
+  }
+  return allowed[0];
+}
 
 const LOCAL_DB_KEY = 'oosab_local_state_v1';
 const TOKEN_KEY = 'oosab_session_token';
@@ -570,7 +585,9 @@ export const localEngine = {
         side: 'swap_crypto',
         traderUsername: user.username,
         crypto: body.crypto,
+        cryptoChain: resolveAssetChain(body.crypto, body.cryptoChain),
         swapToCrypto: body.swapToCrypto,
+        swapToChain: resolveAssetChain(body.swapToCrypto, body.swapToChain),
         fiat: 'USD',
         country: body.country || 'Global',
         paymentMethod: body.paymentMethod || 'OOSAB P2P Escrow Swap',
@@ -608,6 +625,7 @@ export const localEngine = {
       side: body.side,
       traderUsername: user.username,
       crypto: body.crypto,
+      cryptoChain: resolveAssetChain(body.crypto, body.cryptoChain),
       fiat: body.fiat,
       country: body.country || 'Global',
       paymentMethod: body.paymentMethod,
@@ -692,7 +710,9 @@ export const localEngine = {
         buyerUsername: user.username,
         sellerUsername: offer.traderUsername,
         crypto: offer.crypto,
+        cryptoChain: offer.cryptoChain,
         swapToCrypto: offer.swapToCrypto,
+        swapToChain: offer.swapToChain,
         swapToAmount: sendAmt,
         fiat: 'USD',
         fiatAmount: usdVal,
@@ -740,6 +760,7 @@ export const localEngine = {
       buyerUsername: offer.side === 'sell_crypto' ? user.username : offer.traderUsername,
       sellerUsername: offer.side === 'sell_crypto' ? offer.traderUsername : user.username,
       crypto: offer.crypto,
+      cryptoChain: offer.cryptoChain,
       fiat: offer.fiat,
       fiatAmount: amount,
       cryptoAmount,
