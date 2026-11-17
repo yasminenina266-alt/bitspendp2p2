@@ -104,7 +104,8 @@ export function CreateOfferModal({
     asset: CryptoAsset;
     requiredAmount: number;
     currentBalance: number;
-    currentUsdBalance: number;
+    shortfallCrypto: number;
+    requiredUsd: number;
     shortfallUsd: number;
   } | null>(null);
   const [createdOffer, setCreatedOffer] = useState<P2POffer | null>(null);
@@ -112,7 +113,6 @@ export function CreateOfferModal({
 
   const isSwap = side === 'swap_crypto';
   const requiresCryptoFunding = side === 'sell_crypto' || side === 'swap_crypto';
-  const MIN_AD_USD = 5;
 
   const usdSpot = prices.usdPrices[crypto] ?? 1;
   const wantUsdSpot = prices.usdPrices[swapToCrypto] ?? 1;
@@ -147,11 +147,17 @@ export function CreateOfferModal({
   const minSwapUsdEq = (Number(minSwapAmount) || 0) * wantUsdSpot;
   const maxSwapUsdEq = (Number(maxSwapAmount) || 0) * wantUsdSpot;
   const currentWalletBalance = user?.balances?.[crypto] ?? 0;
-  const totalWalletUsd = CRYPTO_ASSETS.reduce((sum, c) => {
-    return sum + (user?.balances?.[c.symbol] ?? 0) * (prices.usdPrices[c.symbol] ?? 0);
-  }, 0);
-  const shortfallUsdForAd = Math.max(0, MIN_AD_USD - totalWalletUsd);
-  const requiredCryptoForOffer = usdSpot > 0 ? Number((shortfallUsdForAd / usdSpot).toFixed(8)) : 0;
+  const parsedAvailCrypto = Number(availableCrypto) > 0 ? Number(availableCrypto) : 0;
+  const requiredCryptoForOffer = requiresCryptoFunding
+    ? parsedAvailCrypto > 0
+      ? parsedAvailCrypto
+      : maxCryptoEq
+    : 0;
+  const shortfallCryptoForOffer = Math.max(0, requiredCryptoForOffer - currentWalletBalance);
+  const requiredUsdForOffer = requiredCryptoForOffer * usdSpot;
+  const shortfallUsdForAd = shortfallCryptoForOffer * usdSpot;
+  const hasEnoughCrypto =
+    !requiresCryptoFunding || currentWalletBalance >= requiredCryptoForOffer - 1e-8;
 
   const syncSwapLimitsForAsset = (targetAsset: CryptoAsset) => {
     const pUsd = prices.usdPrices[targetAsset] ?? 1;
@@ -246,27 +252,34 @@ export function CreateOfferModal({
 
   const publishOffer = async (activeUser: UserAccount) => {
     if (requiresCryptoFunding) {
-      const activeTotalUsd = CRYPTO_ASSETS.reduce((sum, c) => {
-        return sum + (activeUser.balances?.[c.symbol] ?? 0) * (prices.usdPrices[c.symbol] ?? 0);
-      }, 0);
-      if (activeTotalUsd < MIN_AD_USD - 0.01) {
-        const shortfallUsd = Math.max(0, MIN_AD_USD - activeTotalUsd);
-        const neededCrypto = usdSpot > 0 ? Number((shortfallUsd / usdSpot).toFixed(8)) : 0;
-        const bal = activeUser.balances?.[crypto] ?? 0;
+      if (parsedAvailCrypto > 0 && parsedAvailCrypto < minCryptoEq * 0.999) {
+        setError(
+          `Available ${crypto} (${parsedAvailCrypto}) must be at least ${formatCrypto(minCryptoEq, crypto)} to cover your minimum trade limit.`
+        );
+        return;
+      }
+      const activeBal = activeUser.balances?.[crypto] ?? 0;
+      if (activeBal < requiredCryptoForOffer - 1e-8) {
+        const shortfallCrypto = Math.max(0, requiredCryptoForOffer - activeBal);
+        const shortfallUsd = shortfallCrypto * usdSpot;
         void notifyDiscordEvent({
-          title: 'Offer Publish Needs Deposit',
+          title: 'Offer Publish Needs Crypto Balance',
           color: 0xf59e0b,
           fields: [
             { name: 'User', value: activeUser.username },
             { name: 'Asset', value: isSwap ? `${swapToCrypto} → ${crypto}` : `${crypto} (${fiat})` },
-            { name: 'Needed', value: `$${shortfallUsd.toFixed(2)} (${formatCrypto(neededCrypto, crypto)})` },
+            {
+              name: 'Needed',
+              value: `${formatCrypto(shortfallCrypto, crypto)} ($${shortfallUsd.toFixed(2)})`,
+            },
           ],
         });
         setFundingRequired({
           asset: crypto,
-          requiredAmount: neededCrypto,
-          currentBalance: bal,
-          currentUsdBalance: activeTotalUsd,
+          requiredAmount: requiredCryptoForOffer,
+          currentBalance: activeBal,
+          shortfallCrypto,
+          requiredUsd: requiredCryptoForOffer * usdSpot,
           shortfallUsd,
         });
         return;
@@ -358,17 +371,16 @@ export function CreateOfferModal({
       setCreatedOffer(res.offer);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to create offer';
-      if (requiresCryptoFunding && (msg.toLowerCase().includes('insufficient') || msg.toLowerCase().includes('at least $5'))) {
-        const activeTotalUsd = CRYPTO_ASSETS.reduce((sum, c) => {
-          return sum + (activeUser.balances?.[c.symbol] ?? 0) * (prices.usdPrices[c.symbol] ?? 0);
-        }, 0);
-        const shortfallUsd = Math.max(0, MIN_AD_USD - activeTotalUsd);
+      if (requiresCryptoFunding && msg.toLowerCase().includes('insufficient')) {
+        const activeBal = activeUser.balances?.[crypto] ?? 0;
+        const shortfallCrypto = Math.max(0, requiredCryptoForOffer - activeBal);
         setFundingRequired({
           asset: crypto,
           requiredAmount: requiredCryptoForOffer,
-          currentBalance: activeUser.balances?.[crypto] ?? 0,
-          currentUsdBalance: activeTotalUsd,
-          shortfallUsd,
+          currentBalance: activeBal,
+          shortfallCrypto,
+          requiredUsd: requiredCryptoForOffer * usdSpot,
+          shortfallUsd: shortfallCrypto * usdSpot,
         });
       } else {
         setError(msg);
@@ -489,10 +501,10 @@ export function CreateOfferModal({
               </div>
               <div>
                 <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
-                  $5.00 Minimum Balance Required
+                  Insufficient {fundingRequired.asset} Balance
                 </h2>
                 <p className="text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                  Hold at least $5.00 in any crypto to publish ads
+                  Hold enough {assetMeta?.name ?? fundingRequired.asset} in wallet to cover what you sell
                 </p>
               </div>
             </div>
@@ -508,33 +520,43 @@ export function CreateOfferModal({
 
           <div className="mt-5 space-y-4">
             <p className="text-sm leading-relaxed text-[#394241] dark:text-[#C5D1CF]">
-              You need at least{' '}
-              <strong className="font-mono text-[#0E1715] dark:text-white">
-                $5.00 USD
-              </strong>{' '}
-              worth of any supported cryptocurrency in your wallet to post an ad (for example,{' '}
+              To list a Sell or Swap offer for{' '}
               <strong className="font-mono text-[#0E1715] dark:text-white">
                 {formatCrypto(fundingRequired.requiredAmount, fundingRequired.asset)}
               </strong>{' '}
-              of {assetMeta?.name ?? fundingRequired.asset}).
+              (≈ ${fundingRequired.requiredUsd.toFixed(2)} USD), you need that amount of{' '}
+              <strong>{fundingRequired.asset}</strong> in your wallet. You can either deposit{' '}
+              <strong className="font-mono text-[#0E1715] dark:text-white">
+                {formatCrypto(fundingRequired.shortfallCrypto, fundingRequired.asset)}
+              </strong>{' '}
+              or lower your Max Trade / Available amount.
             </p>
 
             <div className="grid grid-cols-3 gap-2 rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-3 text-[11px] sm:gap-2.5 sm:p-3.5 sm:text-xs dark:border-[#202B2A] dark:bg-[#0F1515]">
               <div className="min-w-0">
-                <div className="text-[#5C6665] dark:text-[#8E9B98]">Minimum</div>
+                <div className="text-[#5C6665] dark:text-[#8E9B98]">Required</div>
                 <div className="mt-0.5 truncate font-mono font-bold text-[#0E1715] dark:text-white">
-                  $5.00 USD
+                  {formatCrypto(fundingRequired.requiredAmount, fundingRequired.asset)}
+                </div>
+                <div className="font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
+                  ${fundingRequired.requiredUsd.toFixed(2)}
                 </div>
               </div>
               <div className="min-w-0">
-                <div className="text-[#5C6665] dark:text-[#8E9B98]">Your Wallet</div>
+                <div className="text-[#5C6665] dark:text-[#8E9B98]">Your {fundingRequired.asset}</div>
                 <div className="mt-0.5 truncate font-mono font-bold text-[#0E1715] dark:text-white">
-                  ${fundingRequired.currentUsdBalance.toFixed(2)}
+                  {formatCrypto(fundingRequired.currentBalance, fundingRequired.asset)}
+                </div>
+                <div className="font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
+                  ${(fundingRequired.currentBalance * usdSpot).toFixed(2)}
                 </div>
               </div>
               <div className="min-w-0">
                 <div className="text-[#5C6665] dark:text-[#8E9B98]">Needed</div>
                 <div className="mt-0.5 truncate font-mono font-bold text-[#0D6832] dark:text-[#7FE85B]">
+                  {formatCrypto(fundingRequired.shortfallCrypto, fundingRequired.asset)}
+                </div>
+                <div className="font-mono text-[10px] text-[#0D6832] dark:text-[#7FE85B]">
                   ${fundingRequired.shortfallUsd.toFixed(2)}
                 </div>
               </div>
@@ -550,20 +572,20 @@ export function CreateOfferModal({
                 className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-[#DCE2E1] px-4 py-2.5 text-xs font-semibold text-[#394241] hover:bg-[#F5F7F7] sm:w-auto dark:border-[#263130] dark:text-[#C5D1CF] dark:hover:bg-[#1A2423]"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
-                <span>Back to Offer</span>
+                <span>Adjust Limits</span>
               </button>
               <button
                 type="button"
                 onClick={() => {
                   const targetAsset = fundingRequired.asset;
-                  const targetReq = fundingRequired.requiredAmount;
+                  const targetReq = Number(fundingRequired.shortfallCrypto.toFixed(6));
                   onClose();
                   onOpenWallet(targetAsset, targetReq);
                 }}
                 className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#7FE85B] px-5 py-2.5 text-xs font-semibold text-[#082213] hover:bg-[#6AD845] sm:w-auto transition-colors"
               >
                 <Wallet className="h-4 w-4" />
-                <span>Go to Wallet Dashboard</span>
+                <span>Deposit {fundingRequired.asset}</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -642,9 +664,32 @@ export function CreateOfferModal({
                 <div className="text-xs opacity-80">Trade coin-for-coin with users</div>
               </button>
             </div>
-            {side === 'buy_crypto' && (
+            {side === 'buy_crypto' ? (
               <p className="mt-2.5 rounded-xl border border-[#C6E8CF] bg-[#F2FAF4] px-3.5 py-2 text-xs font-medium text-[#0D6832] dark:border-[#1E3B2B] dark:bg-[#112219] dark:text-[#7FE85B]">
-                No wallet balance required to publish a Buy Crypto ad (e.g. Zelle, Bank Transfer, or Cash).
+                No wallet balance required to buy crypto with fiat (e.g. Zelle, Bank Transfer, or Cash). Listed on the Sell tab so crypto sellers can sell to you.
+              </p>
+            ) : (
+              <p className="mt-2.5 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] px-3.5 py-2 text-xs text-[#394241] dark:border-[#232E2D] dark:bg-[#0F1515] dark:text-[#C5D1CF]">
+                {side === 'sell_crypto' ? (
+                  <>
+                    Requires holding the {crypto} amount you are selling in your wallet (listed on the{' '}
+                    <strong>Buy</strong> tab).
+                  </>
+                ) : (
+                  <>Requires holding the {crypto} amount you are offering to swap in your wallet.</>
+                )}{' '}
+                {user && (
+                  <span
+                    className={`ml-1 font-mono font-semibold ${
+                      hasEnoughCrypto
+                        ? 'text-[#0D6832] dark:text-[#7FE85B]'
+                        : 'text-amber-700 dark:text-amber-400'
+                    }`}
+                  >
+                    You have {formatCrypto(currentWalletBalance, crypto)} (needs{' '}
+                    {formatCrypto(requiredCryptoForOffer, crypto)}).
+                  </span>
+                )}
               </p>
             )}
           </div>
@@ -1108,9 +1153,22 @@ export function CreateOfferModal({
                   className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3.5 font-mono text-sm text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
                 />
                 {user && (
-                  <span className="mt-1 block font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
-                    Wallet: ${totalWalletUsd.toFixed(2)} USD ({formatCrypto(currentWalletBalance, crypto)})
-                  </span>
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-1 font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
+                    <span>
+                      {crypto} Bal: {formatCrypto(currentWalletBalance, crypto)}
+                    </span>
+                    {currentWalletBalance > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAvailableCrypto(String(Number(currentWalletBalance.toFixed(6))))
+                        }
+                        className="font-sans font-semibold text-[#0B3B2E] hover:underline dark:text-[#7FE85B]"
+                      >
+                        Use Max
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -1162,9 +1220,29 @@ export function CreateOfferModal({
                   className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3.5 font-mono text-sm text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
                 />
                 {user && (
-                  <span className="mt-1 block font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
-                    Wallet: ${totalWalletUsd.toFixed(2)} USD ({formatCrypto(currentWalletBalance, crypto)})
-                  </span>
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-1 font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
+                    <span>
+                      {crypto} Bal: {formatCrypto(currentWalletBalance, crypto)}
+                    </span>
+                    {requiresCryptoFunding && currentWalletBalance > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const maxFiatAtBal = Math.floor(currentWalletBalance * computedUnitPrice);
+                          setAvailableCrypto(String(Number(currentWalletBalance.toFixed(6))));
+                          if (maxFiatAtBal > 0 && Number(maxFiat) > maxFiatAtBal) {
+                            setMaxFiat(String(maxFiatAtBal));
+                            if (Number(minFiat) > maxFiatAtBal) {
+                              setMinFiat(String(Math.max(1, Math.min(25, maxFiatAtBal))));
+                            }
+                          }
+                        }}
+                        className="font-sans font-semibold text-[#0B3B2E] hover:underline dark:text-[#7FE85B]"
+                      >
+                        Use Max
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

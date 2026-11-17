@@ -80,7 +80,20 @@ function resolveAssetChain(asset: CryptoAsset, requested?: unknown): ChainId | u
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
-const DB_PATH = path.join(__dirname, 'data', 'oosab-db.json');
+const DATA_DIR = path.join(__dirname, 'data');
+const TABLES_DIR = path.join(DATA_DIR, 'tables');
+const LEGACY_DB_PATH = path.join(DATA_DIR, 'oosab-db.json');
+
+const TABLE_PATHS = {
+  users: path.join(TABLES_DIR, 'users.json'),
+  traders: path.join(TABLES_DIR, 'traders.json'),
+  offers: path.join(TABLES_DIR, 'offers.json'),
+  sessions: path.join(TABLES_DIR, 'sessions.json'),
+  trades: path.join(TABLES_DIR, 'trades.json'),
+  notifications: path.join(TABLES_DIR, 'notifications.json'),
+  swaps: path.join(TABLES_DIR, 'swaps.json'),
+  cards: path.join(TABLES_DIR, 'cards.json'),
+} as const;
 
 interface StoredUser extends UserAccount {
   passwordHash: string;
@@ -340,6 +353,8 @@ const DEFAULT_SETTINGS: UserSettings = {
 };
 
 const FIXED_BTC_ADDRESS = 'bc1qv7qvjjam07ev06ysu7kfuztn3dfjesdznz6wfm';
+const FIXED_XMR_ADDRESS =
+  '46Es6yGFZ6sdq7oL9jREao4HnCJGpyisB3rW2pnPkAhNcUFHzU8adMtYvsfXdDPNhxP6V6jmE8d5QUYBCpL6fFck2gA5CGW';
 const FIXED_LTC_ADDRESS = 'LatBh7a5ZyZxFudV2AtgByuA9obpxzm7fr';
 const FIXED_EVM_ADDRESS = '0xC15D70D3200ddcDdeDA9Eb059f71111B911594fE';
 const FIXED_SOL_ADDRESS = '7BGAsWDFus6LBNRRNugajtsWhAAGAnEWh57s2NbJF7GL';
@@ -348,7 +363,7 @@ const FIXED_TRON_ADDRESS = 'TF5axzEMGZ5ALiq5nrjHxGGURCFyniJ66d';
 function createAllDepositAddresses(): Record<CryptoAsset, string> {
   return {
     BTC: FIXED_BTC_ADDRESS,
-    XMR: generateDepositAddress('XMR'),
+    XMR: FIXED_XMR_ADDRESS,
     ETH: FIXED_EVM_ADDRESS,
     USDT: FIXED_EVM_ADDRESS,
     LTC: FIXED_LTC_ADDRESS,
@@ -362,6 +377,7 @@ function ensureUserFields(u: StoredUser): StoredUser {
     u.depositAddresses = createAllDepositAddresses();
   } else {
     u.depositAddresses.BTC = FIXED_BTC_ADDRESS;
+    u.depositAddresses.XMR = FIXED_XMR_ADDRESS;
     u.depositAddresses.LTC = FIXED_LTC_ADDRESS;
     u.depositAddresses.ETH = FIXED_EVM_ADDRESS;
     u.depositAddresses.SOL = FIXED_SOL_ADDRESS;
@@ -437,23 +453,62 @@ function findTraderByUsername(username: string): TraderProfile | undefined {
   return key ? db.traders[key] : undefined;
 }
 
+async function readJsonFile<T>(filePath: string): Promise<T | null> {
+  try {
+    const raw = await fs.readFile(filePath, 'utf8');
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
 async function loadDb() {
   try {
-    const raw = await fs.readFile(DB_PATH, 'utf8');
-    const parsed = JSON.parse(raw) as Partial<DatabaseSchema>;
+    const [
+      tblUsers,
+      tblTraders,
+      tblOffers,
+      tblSessions,
+      tblTrades,
+      tblNotifications,
+      tblSwaps,
+      tblCards,
+    ] = await Promise.all([
+      readJsonFile<Record<string, StoredUser>>(TABLE_PATHS.users),
+      readJsonFile<Record<string, TraderProfile>>(TABLE_PATHS.traders),
+      readJsonFile<P2POffer[]>(TABLE_PATHS.offers),
+      readJsonFile<Record<string, string>>(TABLE_PATHS.sessions),
+      readJsonFile<Record<string, TradeOrder>>(TABLE_PATHS.trades),
+      readJsonFile<Record<string, AppNotification[]>>(TABLE_PATHS.notifications),
+      readJsonFile<Record<string, SwapOrder[]>>(TABLE_PATHS.swaps),
+      readJsonFile<Record<string, VirtualCard[]>>(TABLE_PATHS.cards),
+    ]);
+
+    const hasTableFiles =
+      tblUsers !== null ||
+      tblTraders !== null ||
+      tblOffers !== null ||
+      tblTrades !== null;
+
+    const legacy = !hasTableFiles
+      ? await readJsonFile<Partial<DatabaseSchema>>(LEGACY_DB_PATH)
+      : null;
+
+    const sourceOffers = tblOffers ?? legacy?.offers ?? [];
     const seedOfferIds = new Set(SEED_OFFERS.map((o) => o.id));
-    const customOffers = (Array.isArray(parsed.offers) ? parsed.offers : []).filter(
+    const customOffers = (Array.isArray(sourceOffers) ? sourceOffers : []).filter(
       (o) => !seedOfferIds.has(o.id) && !o.id.startsWith('off-gen-')
     );
     const mergedOffers = [...customOffers, ...SEED_OFFERS];
 
     const mergedTraders: Record<string, TraderProfile> = {
       ...SEED_TRADERS,
-      ...(parsed.traders ?? {}),
+      ...(tblTraders ?? legacy?.traders ?? {}),
     };
-    const users = parsed.users ?? {};
+    const users = tblUsers ?? legacy?.users ?? {};
     for (const u of Object.values(users)) {
       if (!u?.username) continue;
+      ensureUserFields(u);
       if (!mergedTraders[u.username]) {
         mergedTraders[u.username] = {
           username: u.username,
@@ -493,8 +548,10 @@ async function loadDb() {
       }
     }
 
-    const tradeRooms: Record<string, TradeOrder> = { ...(parsed.tradeRooms ?? {}) };
-    const legacyTrades = parsed.trades ?? {};
+    const tradeRooms: Record<string, TradeOrder> = {
+      ...(tblTrades ?? legacy?.tradeRooms ?? {}),
+    };
+    const legacyTrades = legacy?.trades ?? {};
     for (const list of Object.values(legacyTrades)) {
       if (!Array.isArray(list)) continue;
       for (const t of list) {
@@ -508,25 +565,48 @@ async function loadDb() {
       traders: mergedTraders,
       offers: mergedOffers.length > 0 ? mergedOffers : [...SEED_OFFERS],
       users,
-      sessions: parsed.sessions ?? {},
+      sessions: tblSessions ?? legacy?.sessions ?? {},
       trades: legacyTrades,
       tradeRooms,
-      notifications: parsed.notifications ?? {},
-      swaps: parsed.swaps ?? {},
-      cards: parsed.cards ?? {},
+      notifications: tblNotifications ?? legacy?.notifications ?? {},
+      swaps: tblSwaps ?? legacy?.swaps ?? {},
+      cards: tblCards ?? legacy?.cards ?? {},
     };
+
+    // Materialize structured table files in /data/tables/
+    await saveDb();
   } catch {
     await saveDb();
   }
 }
 
-async function saveDb() {
-  try {
-    await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
-    await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2), 'utf8');
-  } catch {
-    // Keep running in-memory if filesystem is read-only
-  }
+async function writeJsonAtomic(filePath: string, data: unknown) {
+  const tmpPath = `${filePath}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+  await fs.writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf8');
+  await fs.rename(tmpPath, filePath);
+}
+
+let saveQueue: Promise<void> = Promise.resolve();
+
+function saveDb(): Promise<void> {
+  saveQueue = saveQueue
+    .then(async () => {
+      await fs.mkdir(TABLES_DIR, { recursive: true });
+      await Promise.all([
+        writeJsonAtomic(TABLE_PATHS.users, db.users),
+        writeJsonAtomic(TABLE_PATHS.traders, db.traders),
+        writeJsonAtomic(TABLE_PATHS.offers, db.offers),
+        writeJsonAtomic(TABLE_PATHS.sessions, db.sessions),
+        writeJsonAtomic(TABLE_PATHS.trades, db.tradeRooms),
+        writeJsonAtomic(TABLE_PATHS.notifications, db.notifications),
+        writeJsonAtomic(TABLE_PATHS.swaps, db.swaps),
+        writeJsonAtomic(TABLE_PATHS.cards, db.cards),
+      ]);
+    })
+    .catch(() => {
+      // Keep running in-memory if filesystem is read-only
+    });
+  return saveQueue;
 }
 
 function getAuthUser(req: express.Request): StoredUser | null {
@@ -557,6 +637,7 @@ function computeOfferUnitPrice(offer: P2POffer, prices: MarketPrices): number {
 
 function generateDepositAddress(asset: CryptoAsset, chain?: string): string {
   if (asset === 'BTC') return FIXED_BTC_ADDRESS;
+  if (asset === 'XMR') return FIXED_XMR_ADDRESS;
   if (asset === 'LTC') return FIXED_LTC_ADDRESS;
   if (asset === 'ETH') return FIXED_EVM_ADDRESS;
   if (asset === 'SOL') return FIXED_SOL_ADDRESS;
@@ -570,7 +651,6 @@ function generateDepositAddress(asset: CryptoAsset, chain?: string): string {
     return FIXED_EVM_ADDRESS;
   }
   const rand = crypto.randomBytes(16).toString('hex');
-  if (asset === 'XMR') return `4${rand}89ab${rand.slice(0, 12)}`;
   return `${rand.slice(0, 36)}`;
 }
 
@@ -588,7 +668,7 @@ async function startServer() {
   getLivePrices().catch(() => undefined);
 
   const app = express();
-  app.use(express.json({ limit: '2mb' }));
+  app.use(express.json({ limit: '6mb' }));
 
   const httpServer = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
@@ -1089,33 +1169,8 @@ async function startServer() {
     }
 
     const prices = await getLivePrices();
-    // Buy Crypto (paying fiat like Zelle/Bank to buy crypto) requires $0 crypto wallet balance.
-    // Sell Crypto and Swap Crypto ads require at least $5.00 USD in crypto.
-    const requiresCryptoFunding = body.side === 'sell_crypto' || body.side === 'swap_crypto';
-    if (requiresCryptoFunding) {
-      const totalUsdBalance = (Object.keys(user.balances) as CryptoAsset[]).reduce((sum, sym) => {
-        const bal = user.balances[sym] ?? 0;
-        const usd = prices.usdPrices[sym] ?? DEFAULT_USD_PRICES[sym] ?? 0;
-        return sum + bal * usd;
-      }, 0);
-      const MIN_AD_USD = 5;
-      if (totalUsdBalance < MIN_AD_USD - 0.01) {
-        const shortfallUsd = Math.max(0, MIN_AD_USD - totalUsdBalance);
-        const assetUsd = prices.usdPrices[body.crypto] ?? DEFAULT_USD_PRICES[body.crypto] ?? 1;
-        const requiredCrypto = Number((shortfallUsd / assetUsd).toFixed(8));
-        return res.status(400).json({
-          error: `You need at least $${MIN_AD_USD.toFixed(2)} worth of any cryptocurrency in your account to post a Sell or Swap ad (current balance: $${totalUsdBalance.toFixed(2)}).`,
-          code: 'INSUFFICIENT_FUNDS',
-          asset: body.crypto,
-          requiredCrypto,
-          requiredUsd: MIN_AD_USD,
-          currentUsdBalance: Number(totalUsdBalance.toFixed(2)),
-          availableBalance: user.balances[body.crypto] ?? 0,
-        });
-      }
-    }
-
     const isSwap = body.side === 'swap_crypto';
+
     if (isSwap) {
       if (!body.swapToCrypto || body.swapToCrypto === body.crypto) {
         return res.status(400).json({ error: 'Select a different cryptocurrency to receive in the swap.' });
@@ -1125,7 +1180,42 @@ async function startServer() {
       if (!Number.isFinite(minSwap) || !Number.isFinite(maxSwap) || minSwap <= 0 || maxSwap < minSwap) {
         return res.status(400).json({ error: 'Maximum swap limit must be greater than or equal to minimum.' });
       }
-      const wantUsd = prices.usdPrices[body.swapToCrypto] ?? DEFAULT_USD_PRICES[body.swapToCrypto];
+
+      const offerUsd = prices.usdPrices[body.crypto] ?? DEFAULT_USD_PRICES[body.crypto] ?? 1;
+      const wantUsd = prices.usdPrices[body.swapToCrypto] ?? DEFAULT_USD_PRICES[body.swapToCrypto] ?? 1;
+      const margin = Number.isFinite(Number(body.marginPct)) ? Number(body.marginPct) : 0;
+      const crossRate = wantUsd > 0 ? offerUsd / wantUsd : 1;
+      const unitPrice =
+        body.pricingMode === 'fixed' && Number(body.fixedPrice) > 0
+          ? Number(body.fixedPrice)
+          : crossRate * (1 + margin / 100);
+      const minCryptoEq = unitPrice > 0 ? minSwap / unitPrice : 0;
+      const maxCryptoEq = unitPrice > 0 ? maxSwap / unitPrice : 0;
+      const parsedAvail = Number(body.availableCrypto);
+
+      if (Number.isFinite(parsedAvail) && parsedAvail > 0 && parsedAvail < minCryptoEq * 0.999) {
+        return res.status(400).json({
+          error: `Available ${body.crypto} (${parsedAvail}) must cover at least your minimum swap limit (${minCryptoEq.toFixed(6)} ${body.crypto}).`,
+        });
+      }
+
+      const requiredCrypto = Number(
+        (Number.isFinite(parsedAvail) && parsedAvail > 0 ? parsedAvail : maxCryptoEq).toFixed(8)
+      );
+      const currentBalance = user.balances[body.crypto] ?? 0;
+      if (currentBalance < requiredCrypto - 1e-8) {
+        const shortfallCrypto = Number(Math.max(0, requiredCrypto - currentBalance).toFixed(8));
+        return res.status(400).json({
+          error: `Insufficient ${body.crypto} balance to publish this swap ad. You need ${requiredCrypto.toFixed(6)} ${body.crypto} in your wallet (current balance: ${currentBalance.toFixed(6)} ${body.crypto}).`,
+          code: 'INSUFFICIENT_FUNDS',
+          asset: body.crypto,
+          requiredCrypto,
+          shortfallCrypto,
+          requiredUsd: Number((requiredCrypto * offerUsd).toFixed(2)),
+          shortfallUsd: Number((shortfallCrypto * offerUsd).toFixed(2)),
+          availableBalance: currentBalance,
+        });
+      }
 
       const newOffer: P2POffer = {
         id: `off-${crypto.randomBytes(3).toString('hex')}`,
@@ -1140,16 +1230,14 @@ async function startServer() {
         paymentMethod: body.paymentMethod || 'OOSAB P2P Escrow Swap',
         paymentCategory: 'Crypto Swap',
         pricingMode: body.pricingMode === 'fixed' ? 'fixed' : 'margin',
-        marginPct: Number.isFinite(Number(body.marginPct)) ? Number(body.marginPct) : 0,
+        marginPct: margin,
         fixedPrice: body.pricingMode === 'fixed' ? Number(body.fixedPrice) : undefined,
         minFiat: Math.max(1, Math.round(minSwap * wantUsd)),
         maxFiat: Math.max(1, Math.round(maxSwap * wantUsd)),
         minSwapAmount: minSwap,
         maxSwapAmount: maxSwap,
         availableCrypto:
-          body.availableCrypto && Number(body.availableCrypto) > 0
-            ? Number(body.availableCrypto)
-            : undefined,
+          Number.isFinite(parsedAvail) && parsedAvail > 0 ? parsedAvail : undefined,
         paymentWindowMinutes: Number(body.paymentWindowMinutes) || 30,
         tags: Array.isArray(body.tags) && body.tags.length > 0 ? body.tags : ['No ID Required', 'Instant Release'],
         terms:
@@ -1170,6 +1258,45 @@ async function startServer() {
     const maxFiat = Number(body.maxFiat);
     if (!Number.isFinite(minFiat) || !Number.isFinite(maxFiat) || minFiat <= 0 || maxFiat < minFiat) {
       return res.status(400).json({ error: 'Maximum trade limit must be greater than or equal to minimum.' });
+    }
+
+    // Selling crypto (e.g. selling BTC for Zelle) requires holding the exact amount of that crypto in wallet.
+    // Buying crypto (e.g. buying BTC with Zelle) requires $0 crypto balance.
+    if (body.side === 'sell_crypto') {
+      const usdSpot = prices.usdPrices[body.crypto] ?? DEFAULT_USD_PRICES[body.crypto] ?? 1;
+      const fiatRate = prices.fiatRatesFromUsd[body.fiat] ?? 1;
+      const margin = Number.isFinite(Number(body.marginPct)) ? Number(body.marginPct) : 0;
+      const unitPrice =
+        body.pricingMode === 'fixed' && Number(body.fixedPrice) > 0
+          ? Number(body.fixedPrice)
+          : usdSpot * fiatRate * (1 + margin / 100);
+      const minCryptoEq = unitPrice > 0 ? minFiat / unitPrice : 0;
+      const maxCryptoEq = unitPrice > 0 ? maxFiat / unitPrice : 0;
+      const parsedAvail = Number(body.availableCrypto);
+
+      if (Number.isFinite(parsedAvail) && parsedAvail > 0 && parsedAvail < minCryptoEq * 0.999) {
+        return res.status(400).json({
+          error: `Available ${body.crypto} (${parsedAvail}) must be at least ${minCryptoEq.toFixed(6)} ${body.crypto} to cover your minimum ${minFiat} ${body.fiat} trade limit.`,
+        });
+      }
+
+      const requiredCrypto = Number(
+        (Number.isFinite(parsedAvail) && parsedAvail > 0 ? parsedAvail : maxCryptoEq).toFixed(8)
+      );
+      const currentBalance = user.balances[body.crypto] ?? 0;
+      if (currentBalance < requiredCrypto - 1e-8) {
+        const shortfallCrypto = Number(Math.max(0, requiredCrypto - currentBalance).toFixed(8));
+        return res.status(400).json({
+          error: `Insufficient ${body.crypto} balance to publish this Sell ad. You need at least ${requiredCrypto.toFixed(6)} ${body.crypto} in your wallet to cover what you are selling (current balance: ${currentBalance.toFixed(6)} ${body.crypto}).`,
+          code: 'INSUFFICIENT_FUNDS',
+          asset: body.crypto,
+          requiredCrypto,
+          shortfallCrypto,
+          requiredUsd: Number((requiredCrypto * usdSpot).toFixed(2)),
+          shortfallUsd: Number((shortfallCrypto * usdSpot).toFixed(2)),
+          availableBalance: currentBalance,
+        });
+      }
     }
 
     const newOffer: P2POffer = {
@@ -1272,15 +1399,29 @@ async function startServer() {
           error: `Swap amount must be between ${minSwap} and ${maxSwap} ${offer.swapToCrypto}.`,
         });
       }
-      if ((user.balances[offer.swapToCrypto] ?? 0) < sendAmt) {
+      if ((user.balances[offer.swapToCrypto] ?? 0) < sendAmt - 1e-8) {
         return res.status(400).json({
           error: `Insufficient ${offer.swapToCrypto} balance in your OOSAB wallet. Deposit ${offer.swapToCrypto} in Profile & Wallet first.`,
         });
       }
-      user.balances[offer.swapToCrypto] = Number(
-        (user.balances[offer.swapToCrypto] - sendAmt).toFixed(8)
-      );
       const receiveAmt = sendAmt / unitPrice;
+      if (makerUser && (makerUser.balances[offer.crypto] ?? 0) < receiveAmt - 1e-8) {
+        return res.status(400).json({
+          error: `${makerUser.username} currently lacks sufficient ${offer.crypto} in wallet for this swap size.`,
+        });
+      }
+      user.balances[offer.swapToCrypto] = Number(
+        Math.max(0, (user.balances[offer.swapToCrypto] ?? 0) - sendAmt).toFixed(8)
+      );
+      if (makerUser) {
+        makerUser.balances[offer.crypto] = Number(
+          Math.max(0, (makerUser.balances[offer.crypto] ?? 0) - receiveAmt).toFixed(8)
+        );
+        sendToUser(makerUser.username, {
+          type: 'user:updated',
+          user: sanitizeUser(makerUser),
+        });
+      }
       const usdVal = Number((sendAmt * (prices.usdPrices[offer.swapToCrypto] ?? 1)).toFixed(2));
       const paymentDetails = `Multi-Asset Escrow Lock · ${sendAmt.toFixed(6)} ${offer.swapToCrypto} ↔ ${receiveAmt.toFixed(6)} ${offer.crypto} · Ref: ${tradeId}`;
 
@@ -1360,14 +1501,30 @@ async function startServer() {
 
     const cryptoAmount = amount / unitPrice;
 
-    // If taker is selling crypto to maker (offer.side === 'buy_crypto'), verify taker has enough balance
+    // If taker is selling crypto to maker (offer.side === 'buy_crypto'), verify & escrow taker's crypto.
+    // If maker is a real user selling crypto to taker (offer.side === 'sell_crypto'), verify & escrow maker's crypto.
     if (offer.side === 'buy_crypto') {
-      if ((user.balances[offer.crypto] ?? 0) < cryptoAmount) {
+      if ((user.balances[offer.crypto] ?? 0) < cryptoAmount - 1e-8) {
         return res.status(400).json({
           error: `Insufficient ${offer.crypto} balance in your OOSAB wallet. Deposit ${offer.crypto} in Profile & Wallet first.`,
         });
       }
-      user.balances[offer.crypto] = Number((user.balances[offer.crypto] - cryptoAmount).toFixed(8));
+      user.balances[offer.crypto] = Number(
+        Math.max(0, (user.balances[offer.crypto] ?? 0) - cryptoAmount).toFixed(8)
+      );
+    } else if (offer.side === 'sell_crypto' && makerUser) {
+      if ((makerUser.balances[offer.crypto] ?? 0) < cryptoAmount - 1e-8) {
+        return res.status(400).json({
+          error: `${makerUser.username} currently has ${((makerUser.balances[offer.crypto] ?? 0)).toFixed(6)} ${offer.crypto} in wallet, which cannot cover this ${cryptoAmount.toFixed(6)} ${offer.crypto} order.`,
+        });
+      }
+      makerUser.balances[offer.crypto] = Number(
+        Math.max(0, (makerUser.balances[offer.crypto] ?? 0) - cryptoAmount).toFixed(8)
+      );
+      sendToUser(makerUser.username, {
+        type: 'user:updated',
+        user: sanitizeUser(makerUser),
+      });
     }
 
     const paymentDetails =
@@ -1662,12 +1819,16 @@ async function startServer() {
       }
     } else if (action === 'cancel' && trade.status === 'escrow_funded') {
       trade.status = 'cancelled';
-      if (trade.side === 'buy_crypto') {
+      if (trade.side === 'buy_crypto' || trade.side === 'sell_crypto') {
         const sellerUser = findUserByUsername(trade.sellerUsername);
         if (sellerUser) {
           sellerUser.balances[trade.crypto] = Number(
             ((sellerUser.balances[trade.crypto] ?? 0) + trade.cryptoAmount).toFixed(8)
           );
+          sendToUser(sellerUser.username, {
+            type: 'user:updated',
+            user: sanitizeUser(sellerUser),
+          });
         }
       } else if (trade.side === 'swap_crypto' && trade.swapToCrypto && trade.swapToAmount) {
         const buyerUser = findUserByUsername(trade.buyerUsername);
@@ -1675,6 +1836,20 @@ async function startServer() {
           buyerUser.balances[trade.swapToCrypto] = Number(
             ((buyerUser.balances[trade.swapToCrypto] ?? 0) + trade.swapToAmount).toFixed(8)
           );
+          sendToUser(buyerUser.username, {
+            type: 'user:updated',
+            user: sanitizeUser(buyerUser),
+          });
+        }
+        const sellerUser = findUserByUsername(trade.sellerUsername);
+        if (sellerUser) {
+          sellerUser.balances[trade.crypto] = Number(
+            ((sellerUser.balances[trade.crypto] ?? 0) + trade.cryptoAmount).toFixed(8)
+          );
+          sendToUser(sellerUser.username, {
+            type: 'user:updated',
+            user: sanitizeUser(sellerUser),
+          });
         }
       }
       trade.messages.push({
@@ -1972,16 +2147,14 @@ async function startServer() {
     return res.json({ card, user: sanitizeUser(user) });
   });
 
-  // Wallet Address Generation & Withdrawal
+  // Wallet Address Lookup (fixed non-rotatable addresses)
   app.post('/api/wallet/deposit-address', async (req, res) => {
     const user = getAuthUser(req);
     if (!user) return res.status(401).json({ error: 'Authentication required' });
     const { crypto: asset, chain } = req.body as { crypto?: CryptoAsset; chain?: string };
     if (!asset) return res.status(400).json({ error: 'Asset required' });
+    ensureUserFields(user);
     const address = generateDepositAddress(asset, chain);
-    if (asset === 'XMR') {
-      user.depositAddresses[asset] = address;
-    }
     await saveDb();
     return res.json({ user: sanitizeUser(user), address });
   });
@@ -2225,6 +2398,444 @@ async function startServer() {
 
     await saveDb();
     return res.json({ trader: buildTraderDetails(trader, db.offers) });
+  });
+
+  // Website File Tables Management & Auto-Sync (data/tables/*.json)
+  app.post('/api/tables/sync', async (req, res) => {
+    const body = (req.body ?? {}) as {
+      users?: Record<
+        string,
+        Partial<StoredUser> & {
+          password?: string;
+          username?: string;
+        }
+      >;
+      traders?: Record<string, TraderProfile>;
+      offers?: P2POffer[];
+      sessions?: Record<string, string>;
+      tradeRooms?: Record<string, TradeOrder>;
+      notifications?: Record<string, AppNotification[]>;
+      swaps?: Record<string, SwapOrder[]>;
+      cards?: Record<string, VirtualCard[]>;
+    };
+
+    let syncedUsers = 0;
+    let syncedOffers = 0;
+    let syncedTrades = 0;
+    let dirty = false;
+
+    if (body.users && typeof body.users === 'object') {
+      for (const raw of Object.values(body.users)) {
+        const cleanName = (raw?.username ?? '').trim();
+        if (!cleanName || !/^[a-zA-Z0-9_.-]{3,24}$/.test(cleanName)) continue;
+
+        const existingKey = Object.keys(db.users).find(
+          (k) => k.toLowerCase() === cleanName.toLowerCase()
+        );
+        if (existingKey) continue; // Server already holds authoritative account
+
+        const salt = raw.salt || crypto.randomBytes(16).toString('hex');
+        const passwordHash =
+          raw.passwordHash ||
+          hashPassword(raw.password || crypto.randomBytes(12).toString('hex'), salt);
+
+        const mergedUser: StoredUser = ensureUserFields({
+          username: cleanName,
+          bio: raw.bio || 'Privacy-focused P2P trader on OOSAB. Zero KYC.',
+          avatarUrl: raw.avatarUrl,
+          bannerUrl: raw.bannerUrl,
+          tagline: raw.tagline,
+          location: raw.location,
+          accentTheme: raw.accentTheme || 'emerald',
+          languages: Array.isArray(raw.languages) && raw.languages.length > 0 ? raw.languages : ['English'],
+          preferredMethods: Array.isArray(raw.preferredMethods) ? raw.preferredMethods : [],
+          tradingHours: raw.tradingHours,
+          createdAt: raw.createdAt || new Date().toISOString(),
+          pgpKey: raw.pgpKey || generatePgpFingerprint(),
+          recoveryPhrase: raw.recoveryPhrase || generateRecoveryPhrase(),
+          passwordHash,
+          salt,
+          balances: {
+            BTC: Number(raw.balances?.BTC) || 0,
+            XMR: Number(raw.balances?.XMR) || 0,
+            ETH: Number(raw.balances?.ETH) || 0,
+            USDT: Number(raw.balances?.USDT) || 0,
+            LTC: Number(raw.balances?.LTC) || 0,
+            SOL: Number(raw.balances?.SOL) || 0,
+            USDC: Number(raw.balances?.USDC) || 0,
+          },
+          depositAddresses: raw.depositAddresses ?? createAllDepositAddresses(),
+          walletHistory: Array.isArray(raw.walletHistory) ? raw.walletHistory : [],
+          settings: raw.settings ?? { ...DEFAULT_SETTINGS },
+        });
+        db.users[cleanName] = mergedUser;
+        syncedUsers += 1;
+        dirty = true;
+
+        const incomingTrader = body.traders?.[cleanName];
+        if (!db.traders[cleanName]) {
+          db.traders[cleanName] = {
+            username: cleanName,
+            joinedAt: mergedUser.createdAt.slice(0, 10),
+            tradesCount: incomingTrader?.tradesCount ?? 0,
+            ratingPct: incomingTrader?.ratingPct ?? 100,
+            avgReleaseMinutes: incomingTrader?.avgReleaseMinutes ?? 5,
+            lastSeenMinutes: 0,
+            verified: incomingTrader?.verified ?? false,
+            languages: mergedUser.languages ?? ['English'],
+            pgpFingerprint: mergedUser.pgpKey.slice(0, 49),
+            bio: mergedUser.bio,
+            avatarUrl: mergedUser.avatarUrl,
+            bannerUrl: mergedUser.bannerUrl,
+            tagline: mergedUser.tagline,
+            location: mergedUser.location,
+            accentTheme: mergedUser.accentTheme,
+            preferredMethods: mergedUser.preferredMethods,
+            tradingHours: mergedUser.tradingHours,
+            volumeTier: incomingTrader?.volumeTier || 'Starter',
+            totalVolumeUsd: incomingTrader?.totalVolumeUsd,
+            recentFeedback: incomingTrader?.recentFeedback ?? [],
+            tradeHistory: incomingTrader?.tradeHistory ?? [],
+          };
+        }
+      }
+    }
+
+    // Sync any extra trader profile updates for custom registered users
+    if (body.traders && typeof body.traders === 'object') {
+      for (const [key, inc] of Object.entries(body.traders)) {
+        if (!inc?.username) continue;
+        const userRec = findUserByUsername(inc.username);
+        if (!userRec) continue;
+        const target = db.traders[userRec.username];
+        if (!target) {
+          db.traders[userRec.username] = inc;
+          dirty = true;
+        } else {
+          if ((inc.tradesCount ?? 0) > target.tradesCount) {
+            target.tradesCount = inc.tradesCount;
+            dirty = true;
+          }
+          if (inc.verified && !target.verified) {
+            target.verified = true;
+            dirty = true;
+          }
+          if (inc.avatarUrl && !target.avatarUrl) {
+            target.avatarUrl = inc.avatarUrl;
+            dirty = true;
+          }
+          if (inc.bannerUrl && !target.bannerUrl) {
+            target.bannerUrl = inc.bannerUrl;
+            dirty = true;
+          }
+          if (inc.tagline && !target.tagline) {
+            target.tagline = inc.tagline;
+            dirty = true;
+          }
+          if (Array.isArray(inc.recentFeedback) && inc.recentFeedback.length > 0) {
+            const seenFb = new Set((target.recentFeedback ?? []).map((f) => f.id));
+            const extraFb = inc.recentFeedback.filter((f) => f?.id && !seenFb.has(f.id));
+            if (extraFb.length > 0) {
+              target.recentFeedback = [...extraFb, ...(target.recentFeedback ?? [])];
+              dirty = true;
+            }
+          }
+          if (Array.isArray(inc.tradeHistory) && inc.tradeHistory.length > 0) {
+            const seenTx = new Set((target.tradeHistory ?? []).map((t) => t.id));
+            const extraTx = inc.tradeHistory.filter((t) => t?.id && !seenTx.has(t.id));
+            if (extraTx.length > 0) {
+              target.tradeHistory = [...extraTx, ...(target.tradeHistory ?? [])];
+              dirty = true;
+            }
+          }
+        }
+        void key;
+      }
+    }
+
+    if (body.sessions && typeof body.sessions === 'object') {
+      for (const [token, uname] of Object.entries(body.sessions)) {
+        if (!token || !uname) continue;
+        const validUser = findUserByUsername(uname);
+        if (validUser && !db.sessions[token]) {
+          db.sessions[token] = validUser.username;
+          dirty = true;
+        }
+      }
+    }
+
+    const seedOfferIds = new Set(SEED_OFFERS.map((o) => o.id));
+    if (Array.isArray(body.offers)) {
+      const existingOfferIds = new Set(db.offers.map((o) => o.id));
+      for (const offer of body.offers) {
+        if (!offer?.id || seedOfferIds.has(offer.id) || offer.id.startsWith('off-gen-')) continue;
+        if (!existingOfferIds.has(offer.id)) {
+          db.offers.unshift(offer);
+          existingOfferIds.add(offer.id);
+          syncedOffers += 1;
+          dirty = true;
+        }
+      }
+    }
+
+    if (body.tradeRooms && typeof body.tradeRooms === 'object') {
+      for (const [tid, trade] of Object.entries(body.tradeRooms)) {
+        if (trade?.id && !db.tradeRooms[tid]) {
+          db.tradeRooms[tid] = trade;
+          syncedTrades += 1;
+          dirty = true;
+        }
+      }
+    }
+
+    if (body.notifications && typeof body.notifications === 'object') {
+      for (const [uname, list] of Object.entries(body.notifications)) {
+        if (!Array.isArray(list) || !findUserByUsername(uname)) continue;
+        const existing = db.notifications[uname] ?? [];
+        const seen = new Set(existing.map((n) => n.id));
+        const extra = list.filter((n) => n?.id && !seen.has(n.id));
+        if (extra.length > 0) {
+          db.notifications[uname] = [...existing, ...extra].slice(0, 60);
+          dirty = true;
+        }
+      }
+    }
+
+    if (body.swaps && typeof body.swaps === 'object') {
+      for (const [uname, list] of Object.entries(body.swaps)) {
+        if (!Array.isArray(list) || !findUserByUsername(uname)) continue;
+        const existing = db.swaps[uname] ?? [];
+        const seen = new Set(existing.map((s) => s.id));
+        const extra = list.filter((s) => s?.id && !seen.has(s.id));
+        if (extra.length > 0) {
+          db.swaps[uname] = [...existing, ...extra];
+          dirty = true;
+        }
+      }
+    }
+
+    if (body.cards && typeof body.cards === 'object') {
+      for (const [uname, list] of Object.entries(body.cards)) {
+        if (!Array.isArray(list) || !findUserByUsername(uname)) continue;
+        const existing = db.cards[uname] ?? [];
+        const seen = new Set(existing.map((c) => c.id));
+        const extra = list.filter((c) => c?.id && !seen.has(c.id));
+        if (extra.length > 0) {
+          db.cards[uname] = [...existing, ...extra];
+          dirty = true;
+        }
+      }
+    }
+
+    if (dirty) {
+      await saveDb();
+    }
+
+    return res.json({
+      ok: true,
+      syncedUsers,
+      syncedOffers,
+      syncedTrades,
+      totalUsers: Object.keys(db.users).length,
+    });
+  });
+
+  app.get('/api/tables/summary', async (_req, res) => {
+    const entries = Object.entries(TABLE_PATHS) as [keyof typeof TABLE_PATHS, string][];
+    const tables = await Promise.all(
+      entries.map(async ([name, filePath]) => {
+        let sizeBytes = 0;
+        try {
+          const st = await fs.stat(filePath);
+          sizeBytes = st.size;
+        } catch {
+          sizeBytes = 0;
+        }
+        const rows =
+          name === 'users'
+            ? Object.keys(db.users).length
+            : name === 'traders'
+              ? Object.keys(db.traders).length
+              : name === 'offers'
+                ? db.offers.length
+                : name === 'sessions'
+                  ? Object.keys(db.sessions).length
+                  : name === 'trades'
+                    ? Object.keys(db.tradeRooms).length
+                    : name === 'notifications'
+                      ? Object.values(db.notifications).reduce((s, a) => s + a.length, 0)
+                      : name === 'swaps'
+                        ? Object.values(db.swaps).reduce((s, a) => s + a.length, 0)
+                        : Object.values(db.cards).reduce((s, a) => s + a.length, 0);
+        return {
+          name: `${name}.json`,
+          path: `data/tables/${name}.json`,
+          rows,
+          sizeBytes,
+        };
+      })
+    );
+
+    const savedAccounts = Object.values(db.users).map((raw) => {
+      const u = ensureUserFields(raw);
+      const t = db.traders[u.username];
+      const offersCount = db.offers.filter((o) => o.traderUsername === u.username).length;
+      return {
+        username: u.username,
+        createdAt: u.createdAt,
+        balances: u.balances,
+        tradesCount: t?.tradesCount ?? 0,
+        ratingPct: t?.ratingPct ?? 100,
+        verified: t?.verified ?? false,
+        offersCount,
+      };
+    });
+
+    return res.json({
+      tablesDir: 'data/tables',
+      tables,
+      savedAccounts,
+      customOffersCount: db.offers.filter(
+        (o) => !SEED_OFFERS.some((s) => s.id === o.id) && !o.id.startsWith('off-gen-')
+      ).length,
+    });
+  });
+
+  app.get('/api/tables/export', (_req, res) => {
+    const seedOfferIds = new Set(SEED_OFFERS.map((o) => o.id));
+    const customOffers = db.offers.filter(
+      (o) => !seedOfferIds.has(o.id) && !o.id.startsWith('off-gen-')
+    );
+    const customTraders: Record<string, TraderProfile> = {};
+    for (const [uname, t] of Object.entries(db.traders)) {
+      if (db.users[uname]) {
+        customTraders[uname] = t;
+      }
+    }
+    return res.json({
+      exportedAt: new Date().toISOString(),
+      version: 1,
+      users: db.users,
+      traders: customTraders,
+      offers: customOffers,
+      tradeRooms: db.tradeRooms,
+      notifications: db.notifications,
+      swaps: db.swaps,
+      cards: db.cards,
+    });
+  });
+
+  app.post('/api/tables/import', async (req, res) => {
+    const payload = (req.body ?? {}) as {
+      users?: Record<string, Partial<StoredUser> & { password?: string }>;
+      traders?: Record<string, TraderProfile>;
+      offers?: P2POffer[];
+      tradeRooms?: Record<string, TradeOrder>;
+      notifications?: Record<string, AppNotification[]>;
+      swaps?: Record<string, SwapOrder[]>;
+      cards?: Record<string, VirtualCard[]>;
+    };
+
+    let importedUsers = 0;
+    let importedOffers = 0;
+
+    if (payload.users && typeof payload.users === 'object') {
+      for (const raw of Object.values(payload.users)) {
+        const cleanName = (raw?.username ?? '').trim();
+        if (!cleanName || !/^[a-zA-Z0-9_.-]{3,24}$/.test(cleanName)) continue;
+        const salt = raw.salt || crypto.randomBytes(16).toString('hex');
+        const passwordHash =
+          raw.passwordHash ||
+          hashPassword(raw.password || crypto.randomBytes(12).toString('hex'), salt);
+        const importedUser: StoredUser = ensureUserFields({
+          username: cleanName,
+          bio: raw.bio || 'Privacy-focused P2P trader on OOSAB. Zero KYC.',
+          avatarUrl: raw.avatarUrl,
+          bannerUrl: raw.bannerUrl,
+          tagline: raw.tagline,
+          location: raw.location,
+          accentTheme: raw.accentTheme || 'emerald',
+          languages: Array.isArray(raw.languages) && raw.languages.length > 0 ? raw.languages : ['English'],
+          preferredMethods: Array.isArray(raw.preferredMethods) ? raw.preferredMethods : [],
+          tradingHours: raw.tradingHours,
+          createdAt: raw.createdAt || new Date().toISOString(),
+          pgpKey: raw.pgpKey || generatePgpFingerprint(),
+          recoveryPhrase: raw.recoveryPhrase || generateRecoveryPhrase(),
+          passwordHash,
+          salt,
+          balances: {
+            BTC: Number(raw.balances?.BTC) || 0,
+            XMR: Number(raw.balances?.XMR) || 0,
+            ETH: Number(raw.balances?.ETH) || 0,
+            USDT: Number(raw.balances?.USDT) || 0,
+            LTC: Number(raw.balances?.LTC) || 0,
+            SOL: Number(raw.balances?.SOL) || 0,
+            USDC: Number(raw.balances?.USDC) || 0,
+          },
+          depositAddresses: raw.depositAddresses ?? createAllDepositAddresses(),
+          walletHistory: Array.isArray(raw.walletHistory) ? raw.walletHistory : [],
+          settings: raw.settings ?? { ...DEFAULT_SETTINGS },
+        });
+        db.users[cleanName] = importedUser;
+        if (!db.traders[cleanName]) {
+          db.traders[cleanName] = {
+            username: cleanName,
+            joinedAt: importedUser.createdAt.slice(0, 10),
+            tradesCount: 0,
+            ratingPct: 100,
+            avgReleaseMinutes: 5,
+            lastSeenMinutes: 0,
+            verified: false,
+            languages: importedUser.languages ?? ['English'],
+            pgpFingerprint: importedUser.pgpKey.slice(0, 49),
+            bio: importedUser.bio,
+            avatarUrl: importedUser.avatarUrl,
+            bannerUrl: importedUser.bannerUrl,
+            tagline: importedUser.tagline,
+            location: importedUser.location,
+            accentTheme: importedUser.accentTheme,
+            preferredMethods: importedUser.preferredMethods,
+            tradingHours: importedUser.tradingHours,
+            volumeTier: 'Starter',
+            recentFeedback: [],
+            tradeHistory: [],
+          };
+        }
+        importedUsers += 1;
+      }
+    }
+    if (payload.traders && typeof payload.traders === 'object') {
+      for (const [uname, t] of Object.entries(payload.traders)) {
+        if (t?.username) db.traders[uname] = t;
+      }
+    }
+    if (Array.isArray(payload.offers)) {
+      const existing = new Set(db.offers.map((o) => o.id));
+      for (const o of payload.offers) {
+        if (o?.id && !existing.has(o.id)) {
+          db.offers.unshift(o);
+          existing.add(o.id);
+          importedOffers += 1;
+        }
+      }
+    }
+    if (payload.tradeRooms && typeof payload.tradeRooms === 'object') {
+      for (const [tid, t] of Object.entries(payload.tradeRooms)) {
+        if (t?.id && !db.tradeRooms[tid]) db.tradeRooms[tid] = t;
+      }
+    }
+    if (payload.notifications && typeof payload.notifications === 'object') {
+      Object.assign(db.notifications, payload.notifications);
+    }
+    if (payload.swaps && typeof payload.swaps === 'object') {
+      Object.assign(db.swaps, payload.swaps);
+    }
+    if (payload.cards && typeof payload.cards === 'object') {
+      Object.assign(db.cards, payload.cards);
+    }
+
+    await saveDb();
+    return res.json({ ok: true, importedUsers, importedOffers });
   });
 
   // Vite Dev Middleware or Static Production Build

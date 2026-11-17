@@ -11,7 +11,6 @@ import {
   Play,
   Plus,
   QrCode,
-  RefreshCw,
   Settings,
   Shield,
   Trash2,
@@ -191,19 +190,6 @@ export function AccountView({
       setSettingsErr(err instanceof Error ? err.message : 'Unable to save settings');
     } finally {
       setSavingSettings(false);
-    }
-  };
-
-  const handleRotateAddress = async (asset: CryptoAsset) => {
-    setWalletBusy(true);
-    setWalletError('');
-    try {
-      const res = await api.newDepositAddress(asset);
-      onUserUpdated(res.user);
-    } catch (err) {
-      setWalletError(err instanceof Error ? err.message : 'Failed to generate new address');
-    } finally {
-      setWalletBusy(false);
     }
   };
 
@@ -1062,17 +1048,6 @@ export function AccountView({
                         {activeChainOption ? ` (${activeChainOption.name})` : ''}
                       </span>
                     </span>
-                    {activeMeta.symbol === 'XMR' && (
-                      <button
-                        type="button"
-                        disabled={walletBusy}
-                        onClick={() => handleRotateAddress(activeMeta.symbol)}
-                        className="inline-flex items-center gap-1 font-semibold text-[#0B3B2E] hover:underline dark:text-[#7FE85B]"
-                      >
-                        <RefreshCw className={`h-3 w-3 ${walletBusy ? 'animate-spin' : ''}`} />
-                        <span>Generate New Address</span>
-                      </button>
-                    )}
                   </div>
                   <div className="flex items-center gap-2 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] px-3 py-2.5 dark:border-[#263130] dark:bg-[#0D1313]">
                     <span className="flex-1 font-mono text-xs text-[#0E1715] dark:text-white break-all">

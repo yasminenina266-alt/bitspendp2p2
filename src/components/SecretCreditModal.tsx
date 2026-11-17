@@ -2,16 +2,22 @@ import {
   Award,
   CheckCircle2,
   Coins,
+  Database,
   DollarSign,
+  Download,
+  ExternalLink,
+  FileJson,
   MessageSquarePlus,
+  RefreshCw,
   ShieldAlert,
   Sparkles,
+  Upload,
   Users,
   Wallet,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { api, type DirectoryUser } from '../api';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { api, type DirectoryUser, type TablesSummaryResponse } from '../api';
 import {
   CRYPTO_ASSETS,
   FIAT_CURRENCIES,
@@ -34,10 +40,19 @@ interface SecretCreditModalProps {
   onRequireAuth: (mode: 'login' | 'register') => void;
   onUserUpdated: (user: UserAccount) => void;
   onProfileUpdated?: (trader: TraderProfile) => void;
+  onDataSynced?: () => void;
+  onNavigateProfile?: (username: string) => void;
   onOpenWallet: () => void;
 }
 
 const USD_PRESETS = [100, 500, 1000, 5000, 10000];
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 export function SecretCreditModal({
   user,
@@ -46,12 +61,23 @@ export function SecretCreditModal({
   onRequireAuth,
   onUserUpdated,
   onProfileUpdated,
+  onDataSynced,
+  onNavigateProfile,
   onOpenWallet,
 }: SecretCreditModalProps) {
-  const [vaultTab, setVaultTab] = useState<'credit' | 'reputation'>('credit');
+  const [vaultTab, setVaultTab] = useState<'credit' | 'reputation' | 'tables'>('credit');
   const [directory, setDirectory] = useState<DirectoryUser[]>([]);
   const [targetUsername, setTargetUsername] = useState<string>(user?.username ?? '');
   const [userSearch, setUserSearch] = useState('');
+
+  // Saved Tables tab state
+  const [tablesSummary, setTablesSummary] = useState<TablesSummaryResponse | null>(null);
+  const [tablesLoading, setTablesLoading] = useState(false);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
+  const [tablesStatus, setTablesStatus] = useState('');
+  const [tablesError, setTablesError] = useState('');
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   // Balance Credit tab state
   const [selectedCrypto, setSelectedCrypto] = useState<CryptoAsset>('BTC');
@@ -106,9 +132,32 @@ export function SecretCreditModal({
       .catch(() => undefined);
   };
 
+  const loadTablesSummary = () => {
+    setTablesLoading(true);
+    setTablesError('');
+    api
+      .getTablesSummary()
+      .then((res) => {
+        setTablesSummary(res);
+      })
+      .catch((err) => {
+        setTablesError(err instanceof Error ? err.message : 'Unable to read website tables.');
+      })
+      .finally(() => {
+        setTablesLoading(false);
+      });
+  };
+
   useEffect(() => {
     loadDirectory();
+    loadTablesSummary();
   }, []);
+
+  useEffect(() => {
+    if (vaultTab === 'tables') {
+      loadTablesSummary();
+    }
+  }, [vaultTab]);
 
   useEffect(() => {
     if (user?.username && !targetUsername) {
@@ -259,6 +308,69 @@ export function SecretCreditModal({
     }
   };
 
+  const handleSyncTables = async () => {
+    setTablesError('');
+    setTablesStatus('');
+    setSyncBusy(true);
+    try {
+      const res = await api.syncTablesToServer();
+      setTablesStatus(
+        `Saved to data/tables/: ${res.totalUsers} account(s) stored (${res.syncedUsers} new user(s), ${res.syncedOffers} ad(s), ${res.syncedTrades} trade(s) synced).`
+      );
+      loadDirectory();
+      loadTablesSummary();
+      onDataSynced?.();
+    } catch (err) {
+      setTablesError(err instanceof Error ? err.message : 'Failed to sync tables.');
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+
+  const handleExportTables = async () => {
+    setTablesError('');
+    setTablesStatus('');
+    try {
+      const snapshot = await api.exportTablesJson();
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `oosab-tables-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setTablesStatus('Downloaded JSON backup of all website tables.');
+    } catch (err) {
+      setTablesError(err instanceof Error ? err.message : 'Failed to export backup JSON.');
+    }
+  };
+
+  const handleImportFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setTablesError('');
+    setTablesStatus('');
+    setImportBusy(true);
+    try {
+      const rawText = await file.text();
+      const parsed = JSON.parse(rawText);
+      const res = await api.importTablesJson(parsed);
+      setTablesStatus(
+        `Restored ${res.importedUsers} account(s) and ${res.importedOffers} custom ad(s) into data/tables/.`
+      );
+      loadDirectory();
+      loadTablesSummary();
+      onDataSynced?.();
+    } catch (err) {
+      setTablesError(err instanceof Error ? err.message : 'Invalid backup JSON file.');
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-xs sm:items-center sm:p-4">
       <div className="relative max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-2xl border border-[#DCE2E1] bg-white p-5 shadow-2xl sm:rounded-2xl sm:p-6 dark:border-[#243230] dark:bg-[#121918]">
@@ -293,34 +405,47 @@ export function SecretCreditModal({
         </div>
 
         {/* Mode Switcher Tabs */}
-        <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-[#DCE2E1] bg-[#F4F6F6] p-1 dark:border-[#24302F] dark:bg-[#0E1413]">
+        <div className="mt-4 grid grid-cols-3 gap-1.5 rounded-xl border border-[#DCE2E1] bg-[#F4F6F6] p-1 dark:border-[#24302F] dark:bg-[#0E1413]">
           <button
             type="button"
             onClick={() => setVaultTab('credit')}
-            className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${
               vaultTab === 'credit'
                 ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
                 : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
             }`}
           >
-            <Wallet className="h-3.5 w-3.5" />
-            <span>Credit Balance</span>
+            <Wallet className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Credit Balance</span>
           </button>
           <button
             type="button"
             onClick={() => setVaultTab('reputation')}
-            className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${
               vaultTab === 'reputation'
                 ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
                 : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
             }`}
           >
-            <Award className="h-3.5 w-3.5" />
-            <span>Trades &amp; Feedback</span>
+            <Award className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Trades &amp; Feedback</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setVaultTab('tables')}
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${
+              vaultTab === 'tables'
+                ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
+                : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
+            }`}
+          >
+            <Database className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Saved Tables</span>
           </button>
         </div>
 
         {/* Target Registered Account Picker */}
+        {vaultTab !== 'tables' && (
         <div className="mt-4 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3.5 dark:border-[#222E2C] dark:bg-[#0E1413]">
           <div className="mb-2 flex items-center justify-between text-xs">
             <span className="inline-flex items-center gap-1.5 font-semibold text-[#1E2726] dark:text-[#DCE4E3]">
@@ -393,6 +518,7 @@ export function SecretCreditModal({
             </div>
           )}
         </div>
+        )}
 
         {/* TAB 1: Credit Crypto or Dollars */}
         {vaultTab === 'credit' && (
@@ -865,6 +991,213 @@ export function SecretCreditModal({
               </button>
             </div>
           </form>
+        )}
+
+        {/* TAB 3: Saved Website JSON Tables */}
+        {vaultTab === 'tables' && (
+          <div className="mt-4 space-y-4">
+            <div className="rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3.5 dark:border-[#222E2C] dark:bg-[#0E1413]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#0E1715] dark:text-white">
+                    <Database className="h-3.5 w-3.5 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                    <span>Permanent Website File Tables</span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                    Accounts, balances, custom ads, trades &amp; profiles persist directly to{' '}
+                    <code className="rounded bg-[#E9EFEE] px-1 py-0.5 font-mono text-[10px] text-[#0E1715] dark:bg-[#1A2523] dark:text-[#7FE85B]">
+                      {tablesSummary?.tablesDir ?? 'data/tables'}/*.json
+                    </code>{' '}
+                    with automatic browser sync.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadTablesSummary}
+                  disabled={tablesLoading}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs font-semibold text-[#1E2726] hover:bg-[#F2F5F5] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3] dark:hover:bg-[#1A2423]"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${tablesLoading ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
+                </button>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={handleSyncTables}
+                  disabled={syncBusy}
+                  className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0B3B2E] px-3 text-xs font-semibold text-white hover:bg-[#082E24] disabled:opacity-50 dark:bg-[#7FE85B] dark:text-[#082213] dark:hover:bg-[#6AD845]"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${syncBusy ? 'animate-spin' : ''}`} />
+                  <span>{syncBusy ? 'Syncing...' : 'Sync Browser → Tables'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportTables}
+                  className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#DCE2E1] bg-white px-3 text-xs font-semibold text-[#0E1715] hover:bg-[#F2F5F5] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white dark:hover:bg-[#1B2524]"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Export Backup (.json)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => importInputRef.current?.click()}
+                  disabled={importBusy}
+                  className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#DCE2E1] bg-white px-3 text-xs font-semibold text-[#0E1715] hover:bg-[#F2F5F5] disabled:opacity-50 dark:border-[#263130] dark:bg-[#131A1A] dark:text-white dark:hover:bg-[#1B2524]"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  <span>{importBusy ? 'Restoring...' : 'Import Backup (.json)'}</span>
+                </button>
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleImportFile}
+                  className="hidden"
+                />
+              </div>
+
+              {tablesStatus && (
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-[#8CE89E] bg-[#EAFBF0] px-3 py-2 text-xs font-medium text-[#0B3B2E] dark:border-[#1E4D33] dark:bg-[#112A1D] dark:text-[#7FE85B]">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span>{tablesStatus}</span>
+                </div>
+              )}
+
+              {tablesError && (
+                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                  {tablesError}
+                </div>
+              )}
+            </div>
+
+            {/* Table Files Grid */}
+            <div>
+              <div className="mb-2 flex items-center justify-between text-xs">
+                <span className="font-bold text-[#0E1715] dark:text-white">
+                  Website Table Files
+                </span>
+                <span className="font-mono text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                  {tablesSummary?.customOffersCount ?? 0} custom ad
+                  {(tablesSummary?.customOffersCount ?? 0) === 1 ? '' : 's'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {(tablesSummary?.tables ?? []).map((tbl) => (
+                  <div
+                    key={tbl.name}
+                    className="rounded-xl border border-[#DCE2E1] bg-white p-2.5 dark:border-[#222E2C] dark:bg-[#0E1413]"
+                  >
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#0E1715] dark:text-white">
+                      <FileJson className="h-3.5 w-3.5 shrink-0 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                      <span className="truncate font-mono">{tbl.name}</span>
+                    </div>
+                    <div className="mt-1.5 flex items-baseline justify-between font-mono text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                      <span>{tbl.rows} rows</span>
+                      <span>{formatBytes(tbl.sizeBytes)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Saved Accounts List */}
+            <div>
+              <div className="mb-2 flex items-center justify-between text-xs">
+                <span className="font-bold text-[#0E1715] dark:text-white">
+                  Saved Registered Accounts ({tablesSummary?.savedAccounts.length ?? 0})
+                </span>
+                <span className="text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                  Stored in users.json &amp; traders.json
+                </span>
+              </div>
+
+              {(tablesSummary?.savedAccounts.length ?? 0) === 0 ? (
+                <div className="rounded-xl border border-dashed border-[#DCE2E1] bg-[#F8FAFA] p-4 text-center text-xs text-[#5C6665] dark:border-[#24302F] dark:bg-[#0E1413] dark:text-[#8E9B98]">
+                  No registered accounts saved yet. Register an account or click{' '}
+                  <strong className="text-[#0E1715] dark:text-white">Sync Browser → Tables</strong>{' '}
+                  to persist local accounts permanently.
+                </div>
+              ) : (
+                <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                  {tablesSummary?.savedAccounts.map((acc) => {
+                    const approxUsd = Object.entries(acc.balances ?? {}).reduce(
+                      (sum, [sym, amt]) =>
+                        sum + Number(amt || 0) * (prices.usdPrices[sym as CryptoAsset] ?? 0),
+                      0
+                    );
+                    const isSelf = user?.username.toLowerCase() === acc.username.toLowerCase();
+                    return (
+                      <div
+                        key={acc.username}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DCE2E1] bg-white px-3 py-2.5 dark:border-[#222E2C] dark:bg-[#0E1413]"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-[#0E1715] dark:text-white">
+                            <span>@{acc.username}</span>
+                            {isSelf && (
+                              <span className="rounded bg-[#E8F8EE] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#0B3B2E] dark:bg-[#152D21] dark:text-[#7FE85B]">
+                                You
+                              </span>
+                            )}
+                            {acc.verified && (
+                              <span className="rounded bg-[#EFF6FF] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#1D4ED8] dark:bg-[#16233B] dark:text-[#93C5FD]">
+                                Verified
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-0.5 font-mono text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                            {acc.tradesCount} trades · {acc.ratingPct}% trust · {acc.offersCount} ads ·{' '}
+                            <strong className="text-[#0E1715] dark:text-[#DCE4E3]">
+                              $
+                              {approxUsd.toLocaleString('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTargetUsername(acc.username);
+                              setVaultTab('credit');
+                            }}
+                            className="h-8 rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2.5 text-[11px] font-semibold text-[#0E1715] hover:border-[#0B3B2E] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white dark:hover:border-[#7FE85B]"
+                          >
+                            Credit
+                          </button>
+                          {onNavigateProfile && (
+                            <button
+                              type="button"
+                              onClick={() => onNavigateProfile(acc.username)}
+                              className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-[11px] font-semibold text-[#1E2726] hover:bg-[#F2F5F5] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3] dark:hover:bg-[#1A2423]"
+                            >
+                              <span>/{acc.username}</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-10 rounded-xl border border-[#DCE2E1] px-4 text-sm font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#DCE4E3] dark:hover:bg-[#1A2423]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

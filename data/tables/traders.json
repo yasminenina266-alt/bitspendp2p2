@@ -1,0 +1,4217 @@
+{
+  "Veyhtr239": {
+    "username": "Veyhtr239",
+    "joinedAt": "2022-04-18",
+    "tradesCount": 1114,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Arabic"
+    ],
+    "pgpFingerprint": "4F92 8A10 C71B 9E22 D03A  882F 19A4 55C1 7E0B 319D",
+    "bio": "Instant gift card & regional liquidity desk. Fast verification, zero ID checks, automated escrow release.",
+    "volumeTier": "50+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb1",
+        "author": "khalid_m",
+        "positive": true,
+        "comment": "Released BTC in under 3 minutes after code check.",
+        "asset": "BTC",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb2",
+        "author": "anon_842",
+        "positive": true,
+        "comment": "Smooth PSN card trade, zero hassle.",
+        "asset": "BTC",
+        "date": "5 days ago"
+      },
+      {
+        "id": "fb3",
+        "author": "bahrain_hodl",
+        "positive": true,
+        "comment": "Reliable regular desk for BHD trades.",
+        "asset": "XMR",
+        "date": "1 week ago"
+      }
+    ]
+  },
+  "HugoZhang": {
+    "username": "HugoZhang",
+    "joinedAt": "2021-09-03",
+    "tradesCount": 5510,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 3,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Indonesian",
+      "Mandarin"
+    ],
+    "pgpFingerprint": "9C31 E40B 112D 77A8 4B90  3E21 88C0 44F2 6A11 90E4",
+    "bio": "24/7 digital voucher and Southeast Asia OTC desk. Supporting BTC, XMR, and USDT with instant settlement.",
+    "volumeTier": "120+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb4",
+        "author": "jakarta_user",
+        "positive": true,
+        "comment": "Best IDR rates on OOSAB, instant release.",
+        "asset": "BTC",
+        "date": "1 day ago"
+      },
+      {
+        "id": "fb5",
+        "author": "cipher_id",
+        "positive": true,
+        "comment": "Bought XMR with Steam card smoothly.",
+        "asset": "XMR",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb6",
+        "author": "raya99",
+        "positive": true,
+        "comment": "5500+ trades for a reason. Top trader.",
+        "asset": "USDT",
+        "date": "6 days ago"
+      }
+    ]
+  },
+  "LynnShaw": {
+    "username": "LynnShaw",
+    "joinedAt": "2024-01-12",
+    "tradesCount": 92,
+    "ratingPct": 98,
+    "avgReleaseMinutes": 9,
+    "lastSeenMinutes": 0,
+    "verified": false,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "7A14 D920 55B3 21E9 8C44  0F12 6B7A 33D1 9E80 12C5",
+    "bio": "Direct bank transfer and Zelle peer-to-peer trader. No ID verification or selfie requests.",
+    "volumeTier": "5+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb7",
+        "author": "texas_btc",
+        "positive": true,
+        "comment": "Clean bank transfer at spot price, fast release.",
+        "asset": "BTC",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb8",
+        "author": "privacy_fan",
+        "positive": true,
+        "comment": "No KYC nonsense, honest rate.",
+        "asset": "XMR",
+        "date": "1 week ago"
+      }
+    ]
+  },
+  "MoneroVault": {
+    "username": "MoneroVault",
+    "joinedAt": "2020-11-22",
+    "tradesCount": 3284,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "German",
+      "French"
+    ],
+    "pgpFingerprint": "E812 9B44 33A1 77C0 5D19  2F88 4C10 99B2 1E77 6A03",
+    "bio": "Dedicated Monero (XMR) & Bitcoin liquidity provider. Privacy-first trading via SEPA, Wise, Cash by Mail, and Revolut.",
+    "volumeTier": "85+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb9",
+        "author": "swiss_anon",
+        "positive": true,
+        "comment": "My go-to XMR desk in Europe. Zero friction.",
+        "asset": "XMR",
+        "date": "6 hours ago"
+      },
+      {
+        "id": "fb10",
+        "author": "tor_nomad",
+        "positive": true,
+        "comment": "PGP verified, cash by mail arrived and XMR released immediately.",
+        "asset": "XMR",
+        "date": "4 days ago"
+      }
+    ]
+  },
+  "AlpinePrivacy": {
+    "username": "AlpinePrivacy",
+    "joinedAt": "2021-06-15",
+    "tradesCount": 1847,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 6,
+    "lastSeenMinutes": 4,
+    "verified": true,
+    "languages": [
+      "German",
+      "English",
+      "Italian"
+    ],
+    "pgpFingerprint": "3B77 10F2 8E49 6C11 A205  9D33 7F18 22E0 4B99 81A2",
+    "bio": "Swiss & EU P2P desk specializing in XMR, BTC, and LTC via SEPA Instant, Wise, and Cash in Person (Zurich/Basel).",
+    "volumeTier": "40+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb11",
+        "author": "elena_ch",
+        "positive": true,
+        "comment": "SEPA Instant confirmed in 10 seconds, XMR released.",
+        "asset": "XMR",
+        "date": "1 day ago"
+      },
+      {
+        "id": "fb12",
+        "author": "marcus_de",
+        "positive": true,
+        "comment": "Very professional, clear instructions.",
+        "asset": "BTC",
+        "date": "5 days ago"
+      }
+    ]
+  },
+  "ZeroTrace_OTC": {
+    "username": "ZeroTrace_OTC",
+    "joinedAt": "2022-08-30",
+    "tradesCount": 763,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Spanish"
+    ],
+    "pgpFingerprint": "1D44 8C90 22E7 5A13 9F60  7B28 3E11 6C49 0D82 55F1",
+    "bio": "High-privacy Cash by Mail & Cardless ATM desk. No ID, no bank statements, PGP encrypted shipping details.",
+    "volumeTier": "25+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb13",
+        "author": "ghost_node",
+        "positive": true,
+        "comment": "Cardless ATM code worked like magic for XMR.",
+        "asset": "XMR",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb14",
+        "author": "liberty_tx",
+        "positive": true,
+        "comment": "Cash by mail tracked and released same afternoon.",
+        "asset": "BTC",
+        "date": "1 week ago"
+      }
+    ]
+  },
+  "NordicSwap": {
+    "username": "NordicSwap",
+    "joinedAt": "2023-02-14",
+    "tradesCount": 1420,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 8,
+    "verified": true,
+    "languages": [
+      "English",
+      "Swedish",
+      "Norwegian"
+    ],
+    "pgpFingerprint": "6E29 4A11 90D3 8B55 1C72  3F04 7A88 12E6 9B30 44D8",
+    "bio": "Fast Revolut, Wise, and SEPA trades across EUR, GBP, and USD. Tight spreads on BTC, ETH, XMR, and USDT.",
+    "volumeTier": "35+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb15",
+        "author": "oslo_dev",
+        "positive": true,
+        "comment": "Tightest Revolut spread for ETH.",
+        "asset": "ETH",
+        "date": "12 hours ago"
+      },
+      {
+        "id": "fb16",
+        "author": "uk_stacker",
+        "positive": true,
+        "comment": "Faster Payments settled in 2 mins.",
+        "asset": "BTC",
+        "date": "3 days ago"
+      }
+    ]
+  },
+  "KryptoKat_XMR": {
+    "username": "KryptoKat_XMR",
+    "joinedAt": "2021-12-05",
+    "tradesCount": 2190,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Polish"
+    ],
+    "pgpFingerprint": "8F03 2B66 4D19 7E80 3A51  9C42 1E77 6B08 5D23 90A4",
+    "bio": "Monero maximalist & multi-asset trader. Buying and selling XMR, LTC, and BTC with Amazon/Apple cards and Wise.",
+    "volumeTier": "45+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb17",
+        "author": "monero_joe",
+        "positive": true,
+        "comment": "Always online and super helpful to first-time XMR buyers.",
+        "asset": "XMR",
+        "date": "9 hours ago"
+      },
+      {
+        "id": "fb18",
+        "author": "warsaw_p2p",
+        "positive": true,
+        "comment": "Fast Wise transfer, zero issues.",
+        "asset": "XMR",
+        "date": "4 days ago"
+      }
+    ]
+  },
+  "SatoshiExpress": {
+    "username": "SatoshiExpress",
+    "joinedAt": "2020-05-19",
+    "tradesCount": 4108,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 3,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Spanish"
+    ],
+    "pgpFingerprint": "5A88 3E12 7C40 9D16 2B77  4F91 0E63 8A25 1C90 67B3",
+    "bio": "US Zelle, Apple Pay, and Cash App desk. Instant automated release for verified repeat counterparties.",
+    "volumeTier": "95+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb19",
+        "author": "nyc_trader",
+        "positive": true,
+        "comment": "Zelle to BTC in under 4 minutes.",
+        "asset": "BTC",
+        "date": "1 day ago"
+      },
+      {
+        "id": "fb20",
+        "author": "miami_sol",
+        "positive": true,
+        "comment": "Great SOL rate with Apple Pay.",
+        "asset": "SOL",
+        "date": "2 days ago"
+      }
+    ]
+  },
+  "MapleLeafBTC": {
+    "username": "MapleLeafBTC",
+    "joinedAt": "2022-01-27",
+    "tradesCount": 985,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 6,
+    "lastSeenMinutes": 12,
+    "verified": true,
+    "languages": [
+      "English",
+      "French"
+    ],
+    "pgpFingerprint": "2C19 7B44 8E05 3D62 9A18  5F70 1B33 4E89 6C20 08D1",
+    "bio": "Canada Interac e-Transfer & Wise liquidity desk. Instant CAD settlements for BTC, XMR, and ETH.",
+    "volumeTier": "20+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb21",
+        "author": "toronto_anon",
+        "positive": true,
+        "comment": "Best Interac rate for Monero in Canada.",
+        "asset": "XMR",
+        "date": "2 days ago"
+      }
+    ]
+  },
+  "SingaporeFlow": {
+    "username": "SingaporeFlow",
+    "joinedAt": "2023-05-08",
+    "tradesCount": 640,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Mandarin",
+      "Malay"
+    ],
+    "pgpFingerprint": "9E41 5C28 0B73 6A19 4D82  7F30 2A95 8E11 3C64 19B7",
+    "bio": "APAC high-volume USDT, USDC, and BTC desk. Supporting SGD, AUD, and USD via Wise, Bank Transfer, and Alipay.",
+    "volumeTier": "30+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb22",
+        "author": "sg_whale",
+        "positive": true,
+        "comment": "Clean 5k USDT trade, zero delay.",
+        "asset": "USDT",
+        "date": "18 hours ago"
+      }
+    ]
+  },
+  "LondonBridgeOTC": {
+    "username": "LondonBridgeOTC",
+    "joinedAt": "2021-03-11",
+    "tradesCount": 2740,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 19,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "4D60 1A92 8C37 5E14 7B29  0F83 6D41 9A55 2E78 30C6",
+    "bio": "UK Faster Payments & Cash in Person (Central London). Low fees on GBP <-> BTC, ETH, XMR.",
+    "volumeTier": "65+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb23",
+        "author": "soho_dev",
+        "positive": true,
+        "comment": "FPS arrived and BTC released immediately.",
+        "asset": "BTC",
+        "date": "3 days ago"
+      }
+    ]
+  },
+  "DubaiCrescent": {
+    "username": "DubaiCrescent",
+    "joinedAt": "2022-10-02",
+    "tradesCount": 1305,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 8,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Arabic"
+    ],
+    "pgpFingerprint": "7B52 3E89 1C04 6D27 8A93  5F10 4E62 9B78 0C31 24A5",
+    "bio": "UAE & Gulf Region OTC desk. AED, BHD, and USD trades via Domestic Wire, Wise, and Cash in Person.",
+    "volumeTier": "55+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb24",
+        "author": "abudhabi_otc",
+        "positive": true,
+        "comment": "Seamless AED wire for USDT.",
+        "asset": "USDT",
+        "date": "2 days ago"
+      }
+    ]
+  },
+  "LatamPulse": {
+    "username": "LatamPulse",
+    "joinedAt": "2023-07-19",
+    "tradesCount": 512,
+    "ratingPct": 98,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 45,
+    "verified": false,
+    "languages": [
+      "Portuguese",
+      "Spanish",
+      "English"
+    ],
+    "pgpFingerprint": "0A33 6E71 9B28 4C50 1D84  2F97 5A16 8E39 7C02 64B8",
+    "bio": "PIX, SPEI, and USDT/BTC/LTC regional liquidity across Brazil & Mexico. Fast releases, no KYC.",
+    "volumeTier": "12+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb25",
+        "author": "sao_paulo_btc",
+        "positive": true,
+        "comment": "PIX confirmed instantly, LTC released.",
+        "asset": "LTC",
+        "date": "5 days ago"
+      }
+    ]
+  },
+  "cryptocoop": {
+    "username": "cryptocoop",
+    "joinedAt": "2021-08-14",
+    "tradesCount": 2640,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Spanish"
+    ],
+    "pgpFingerprint": "3D84 19C2 7A05 6E11 8B40  2F73 9C15 4A88 0E62 51D9",
+    "bio": "Community-driven P2P desk offering tight BTC, XMR, and USDT spreads via Wise, Revolut, and SEPA Instant. Always escrow-backed.",
+    "volumeTier": "60+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-cc-1",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Great rate and released BTC in under 3 minutes.",
+        "asset": "BTC",
+        "date": "1 day ago"
+      },
+      {
+        "id": "fb-cc-2",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Smooth Wise trade, polite and fast.",
+        "asset": "XMR",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-cc-3",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Zero friction, best peer desk on OOSAB.",
+        "asset": "USDT",
+        "date": "1 week ago"
+      }
+    ]
+  },
+  "poopdeck": {
+    "username": "poopdeck",
+    "joinedAt": "2022-03-21",
+    "tradesCount": 1980,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "German"
+    ],
+    "pgpFingerprint": "8A17 5C40 2E91 0F36 7D82  4B19 6E03 9A55 1C48 72E0",
+    "bio": "Independent zero-KYC liquidity provider for Monero, Bitcoin, and Litecoin. Fast release once payment clears.",
+    "volumeTier": "45+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-pd-1",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Super quick Revolut confirmation and XMR release.",
+        "asset": "XMR",
+        "date": "14 hours ago"
+      },
+      {
+        "id": "fb-pd-2",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Clean trade, zero extra questions.",
+        "asset": "BTC",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-pd-3",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Always reliable and fast escrow settlement.",
+        "asset": "LTC",
+        "date": "6 days ago"
+      }
+    ]
+  },
+  "Victor7777": {
+    "username": "Victor7777",
+    "joinedAt": "2020-02-14",
+    "tradesCount": 17897,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 6,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "French"
+    ],
+    "pgpFingerprint": "C410 8B22 7E91 5A03 6D18  2F74 9C05 3E12 8A60 11B4",
+    "bio": "High-volume P2P merchant specializing in Paysafecard, prepaid vouchers, and Interac CAD liquidity. Instant escrow release.",
+    "volumeTier": "250+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-vic-1",
+        "author": "mtl_stack",
+        "positive": true,
+        "comment": "17k+ trades says it all, BTC released in 4 mins.",
+        "asset": "BTC",
+        "date": "4 hours ago"
+      },
+      {
+        "id": "fb-vic-2",
+        "author": "nord_cad",
+        "positive": true,
+        "comment": "Paysafecard redeemed smoothly with zero hassle.",
+        "asset": "BTC",
+        "date": "2 days ago"
+      }
+    ]
+  },
+  "BitLords": {
+    "username": "BitLords",
+    "joinedAt": "2020-07-09",
+    "tradesCount": 9940,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Hindi"
+    ],
+    "pgpFingerprint": "7E29 4A01 8C53 1D90 6B44  3F18 2A75 9C06 5E12 88D3",
+    "bio": "Trusted high-volume OTC & Cash in Person desk across major cities. Zero-KYC USDT, BTC, and XMR liquidity.",
+    "volumeTier": "180+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-bl-1",
+        "author": "mumbai_otc",
+        "positive": true,
+        "comment": "Seamless USDT settlement, super professional.",
+        "asset": "USDT",
+        "date": "1 day ago"
+      },
+      {
+        "id": "fb-bl-2",
+        "author": "del_trader",
+        "positive": true,
+        "comment": "Reliable desk for large trades, fast release.",
+        "asset": "BTC",
+        "date": "4 days ago"
+      }
+    ]
+  },
+  "EnoughShoveler": {
+    "username": "EnoughShoveler",
+    "joinedAt": "2020-11-18",
+    "tradesCount": 6315,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Urdu"
+    ],
+    "pgpFingerprint": "2A61 9F04 3C82 7E15 4D90  8B13 5E27 1A49 6C38 0F72",
+    "bio": "Fast Release · Best Rates · Trusted P2P Seller. Multi-chain USDT (TRC-20 / ERC-20) and BTC liquidity 24/7.",
+    "volumeTier": "140+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-es-1",
+        "author": "lagos_fx",
+        "positive": true,
+        "comment": "Best NGN rate and released TRC20 USDT immediately.",
+        "asset": "USDT",
+        "date": "6 hours ago"
+      },
+      {
+        "id": "fb-es-2",
+        "author": "karachi_p2p",
+        "positive": true,
+        "comment": "Super quick response, zero friction.",
+        "asset": "USDT",
+        "date": "3 days ago"
+      }
+    ]
+  },
+  "Queen13598": {
+    "username": "Queen13598",
+    "joinedAt": "2021-04-02",
+    "tradesCount": 5405,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 8,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "9D14 6B80 2E37 5C91 1A48  7F02 3D65 8E19 4C20 77A1",
+    "bio": "24/7 Fast Deals · Secure Trade. Interac e-Transfer, Wise, and Virtual Visa settlement across CAD & USD.",
+    "volumeTier": "110+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-qn-1",
+        "author": "van_btc",
+        "positive": true,
+        "comment": "Fast Interac auto-deposit and instant USDT release.",
+        "asset": "USDT",
+        "date": "12 hours ago"
+      },
+      {
+        "id": "fb-qn-2",
+        "author": "calgary_xmr",
+        "positive": true,
+        "comment": "Always reliable, clear instructions.",
+        "asset": "BTC",
+        "date": "5 days ago"
+      }
+    ]
+  },
+  "jakemin": {
+    "username": "jakemin",
+    "joinedAt": "2021-06-21",
+    "tradesCount": 3574,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 6,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Hindi"
+    ],
+    "pgpFingerprint": "5C83 1E49 7A20 9B64 3F12  0D85 6E31 4A97 2C08 55E6",
+    "bio": "Fast Release · Best Rates · Trusted Seller. UPI, IMPS, and PayPal P2P settlements in minutes.",
+    "volumeTier": "80+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-jm-1",
+        "author": "blr_swap",
+        "positive": true,
+        "comment": "Instant UPI verification and USDT release.",
+        "asset": "USDT",
+        "date": "1 day ago"
+      }
+    ]
+  },
+  "kryptomaster": {
+    "username": "kryptomaster",
+    "joinedAt": "2020-09-12",
+    "tradesCount": 3360,
+    "ratingPct": 98,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "4B72 0D95 6E18 3A41 8C27  9F50 1E63 7B24 0A89 33C2",
+    "bio": "FAST AND RELIABLE. Long-time US P2P vendor accepting PayPal, Zelle, Apple Pay, and Cash App.",
+    "volumeTier": "75+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-km-1",
+        "author": "austin_hodl",
+        "positive": true,
+        "comment": "Smooth PayPal trade, released BTC right away.",
+        "asset": "BTC",
+        "date": "2 days ago"
+      }
+    ]
+  },
+  "RO_EXCHANGE": {
+    "username": "RO_EXCHANGE",
+    "joinedAt": "2021-01-25",
+    "tradesCount": 2601,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "Romanian",
+      "English"
+    ],
+    "pgpFingerprint": "6F19 3A84 0C52 7E91 2B68  4D03 8A75 1E29 9C40 61B8",
+    "bio": "European instant bank transfer desk (SEPA Instant, Revolut, RON). Fast verification and 100% escrow track record.",
+    "volumeTier": "65+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-ro-1",
+        "author": "bucharest_eth",
+        "positive": true,
+        "comment": "Instant SEPA settlement, ETH released in 3 mins.",
+        "asset": "ETH",
+        "date": "10 hours ago"
+      }
+    ]
+  },
+  "Threeking": {
+    "username": "Threeking",
+    "joinedAt": "2021-08-08",
+    "tradesCount": 2585,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Hindi"
+    ],
+    "pgpFingerprint": "8E40 2C17 9A63 5D08 1F94  7B32 0E56 4C81 3A29 90D5",
+    "bio": "Any cryptocurrency · Best P2P transactions 24/7. Fast UPI, Google Pay, and Virtual Visa settlement.",
+    "volumeTier": "60+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-tk-1",
+        "author": "pune_btc",
+        "positive": true,
+        "comment": "Top trader, zero delays on BTC.",
+        "asset": "BTC",
+        "date": "1 day ago"
+      }
+    ]
+  },
+  "XingQiu77": {
+    "username": "XingQiu77",
+    "joinedAt": "2022-01-19",
+    "tradesCount": 2045,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 6,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Mandarin"
+    ],
+    "pgpFingerprint": "3A58 7F12 9C40 6E83 2D05  1B79 4A62 8E31 0C94 72F8",
+    "bio": "Fast, secure, and trustworthy. Specializing in Apple Gift Cards, Steam Gift Cards, and AUD/USD P2P swaps.",
+    "volumeTier": "50+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-xq-1",
+        "author": "syd_stacker",
+        "positive": true,
+        "comment": "Apple card verified and BTC released fast.",
+        "asset": "BTC",
+        "date": "18 hours ago"
+      }
+    ]
+  },
+  "Qing66666": {
+    "username": "Qing66666",
+    "joinedAt": "2022-05-03",
+    "tradesCount": 1794,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Mandarin"
+    ],
+    "pgpFingerprint": "1F92 4E60 8A37 2C15 9D84  6B03 7E41 5A28 0C69 34E7",
+    "bio": "Honesty and Speed. Accepting Amazon, Apple, and Steam gift cards for LTC, BTC, and USDT.",
+    "volumeTier": "40+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-qg-1",
+        "author": "uk_gift",
+        "positive": true,
+        "comment": "Super fast gift card verification, highly recommend.",
+        "asset": "LTC",
+        "date": "2 days ago"
+      }
+    ]
+  },
+  "Chenyi519": {
+    "username": "Chenyi519",
+    "joinedAt": "2022-06-11",
+    "tradesCount": 1713,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 8,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Mandarin"
+    ],
+    "pgpFingerprint": "7C04 9B28 5E13 6A72 4F90  2D61 8C35 0E19 7A48 53B2",
+    "bio": "Fast and honest, 24/7 online. Australia PayID, gift cards, and multi-asset P2P liquidity.",
+    "volumeTier": "38+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-cy-1",
+        "author": "melb_btc",
+        "positive": true,
+        "comment": "Clean AUD trade, fast release.",
+        "asset": "BTC",
+        "date": "3 days ago"
+      }
+    ]
+  },
+  "Asfi6325": {
+    "username": "Asfi6325",
+    "joinedAt": "2022-09-17",
+    "tradesCount": 1593,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 9,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "0E71 5A39 2B84 6C10 8D52  9F27 3A64 1E08 4B93 65C1",
+    "bio": "Canadian Interac e-Transfer & Virtual Visa P2P desk. Fast release and clear terms.",
+    "volumeTier": "35+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-as-1",
+        "author": "ottawa_p2p",
+        "positive": true,
+        "comment": "Easy Interac e-Transfer, smooth trade.",
+        "asset": "BTC",
+        "date": "4 days ago"
+      }
+    ]
+  },
+  "trade_thunder": {
+    "username": "trade_thunder",
+    "joinedAt": "2022-03-29",
+    "tradesCount": 1584,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 6,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Urdu"
+    ],
+    "pgpFingerprint": "9A25 6D80 4E12 7C39 0B64  5F18 2A93 6E47 1C80 39D4",
+    "bio": "Bank Transfer, JazzCash, and EasyPaisa Fast Service 24/7 Available.",
+    "volumeTier": "32+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-tt-1",
+        "author": "lhr_usdt",
+        "positive": true,
+        "comment": "EasyPaisa confirmed in 2 mins, prompt release.",
+        "asset": "USDT",
+        "date": "1 day ago"
+      }
+    ]
+  },
+  "Zoeyy": {
+    "username": "Zoeyy",
+    "joinedAt": "2022-11-04",
+    "tradesCount": 1117,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "2D86 7C41 9E05 3A72 6F18  4B90 8E23 5C67 0A14 78D9",
+    "bio": "UK Faster Payments, Wise & Revolut instant GBP liquidity. Fast release and zero KYC friction.",
+    "volumeTier": "28+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-zy-1",
+        "author": "manchester_btc",
+        "positive": true,
+        "comment": "FPS settled instantly, very friendly trader.",
+        "asset": "USDT",
+        "date": "2 days ago"
+      }
+    ]
+  },
+  "TheRock": {
+    "username": "TheRock",
+    "joinedAt": "2023-01-15",
+    "tradesCount": 284,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 6,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "4E19 8A52 7B03 6C41 9D80  3F25 1E67 8A94 2C05 47B6",
+    "bio": "Fast trade / 24/7 active. Cash App, Zelle, and Virtual Debit Card P2P settlements.",
+    "volumeTier": "10+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-tr-1",
+        "author": "chicago_sol",
+        "positive": true,
+        "comment": "Cash App to USDT settled in 3 mins.",
+        "asset": "USDT",
+        "date": "3 days ago"
+      }
+    ]
+  },
+  "eliasse321": {
+    "username": "eliasse321",
+    "joinedAt": "2025--8--9",
+    "tradesCount": 2735,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 12,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "French"
+    ],
+    "pgpFingerprint": "FEC3 1119 7252 A000 071D B000 1F7C 1000 CE36 1600",
+    "bio": "Fast peer-to-peer XMR & BTC trades. Online daily, instant escrow release once payment clears.",
+    "volumeTier": "65+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-0-1",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-0-2",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "niko_val94": {
+    "username": "niko_val94",
+    "joinedAt": "2021-01--23",
+    "tradesCount": 1657,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 5,
+    "verified": true,
+    "languages": [
+      "English",
+      "German"
+    ],
+    "pgpFingerprint": "D365 EA43 0395 A000 89B9 C400 4D18 5800 923D 8400",
+    "bio": "SEPA Instant, Wise & Revolut trader. Straightforward terms, no paperwork.",
+    "volumeTier": "39+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-1-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-1-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "maren_k": {
+    "username": "maren_k",
+    "joinedAt": "2022--3--4",
+    "tradesCount": 1604,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 12,
+    "lastSeenMinutes": 9,
+    "verified": true,
+    "languages": [
+      "English",
+      "Norwegian"
+    ],
+    "pgpFingerprint": "F026 9DE6 2BBE E000 8AAC E000 8E71 F000 5681 2000",
+    "bio": "Nordic peer-to-peer desk. Smooth EUR and USD settlements for XMR, BTC, and ETH.",
+    "volumeTier": "38+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-2-1",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-2-2",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "tomasz404": {
+    "username": "tomasz404",
+    "joinedAt": "2021-02-05",
+    "tradesCount": 2755,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 2,
+    "lastSeenMinutes": 5,
+    "verified": true,
+    "languages": [
+      "Polish",
+      "English"
+    ],
+    "pgpFingerprint": "2BD9 544D ACA6 AE00 4239 F200 219F 6C00 180D 2940",
+    "bio": "Long-time Monero and Litecoin trader. Fast response, PGP available on request.",
+    "volumeTier": "66+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-3-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-3-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "kaito_jp7": {
+    "username": "kaito_jp7",
+    "joinedAt": "2021-11-06",
+    "tradesCount": 2587,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 8,
+    "lastSeenMinutes": 23,
+    "verified": true,
+    "languages": [
+      "Japanese",
+      "English"
+    ],
+    "pgpFingerprint": "6500 C0F5 DB5C 3600 F582 0400 68AE 8000 5A28 5400",
+    "bio": "APAC liquidity for BTC, ETH, and SOL. Domestic wire and Wise settled quickly.",
+    "volumeTier": "62+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-4-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-4-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "diego_mx21": {
+    "username": "diego_mx21",
+    "joinedAt": "2020-08-20",
+    "tradesCount": 966,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 3,
+    "lastSeenMinutes": 14,
+    "verified": true,
+    "languages": [
+      "Spanish",
+      "English"
+    ],
+    "pgpFingerprint": "5C68 97DC BC5B FC00 2F66 3000 6B1B B800 40CA D580",
+    "bio": "SPEI, Wise, and gift card swaps. Zero ID hassle, fast turnaround.",
+    "volumeTier": "23+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-5-1",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "ETH",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-5-2",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "SOL",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "samir_92": {
+    "username": "samir_92",
+    "joinedAt": "2023--7--7",
+    "tradesCount": 2763,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 11,
+    "lastSeenMinutes": 2,
+    "verified": true,
+    "languages": [
+      "English",
+      "Arabic"
+    ],
+    "pgpFingerprint": "B836 2423 5208 8800 B4CF 6C00 57CC 6800 C718 C300",
+    "bio": "Middle East & global P2P liquidity. Clean bank wires and digital vouchers.",
+    "volumeTier": "66+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-6-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-6-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "viktor912": {
+    "username": "viktor912",
+    "joinedAt": "2024-11-26",
+    "tradesCount": 2218,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 6,
+    "lastSeenMinutes": 23,
+    "verified": true,
+    "languages": [
+      "English",
+      "Czech"
+    ],
+    "pgpFingerprint": "104F 2AF2 4807 1380 32D5 EA80 F251 B780 195D 0860",
+    "bio": "SEPA Instant & Paysera EUR trades. Always funded in escrow before chat starts.",
+    "volumeTier": "53+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-7-1",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "5 days ago"
+      },
+      {
+        "id": "fb-c-7-2",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "claire_p2p": {
+    "username": "claire_p2p",
+    "joinedAt": "2020-00--5",
+    "tradesCount": 1452,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 12,
+    "lastSeenMinutes": 14,
+    "verified": true,
+    "languages": [
+      "French",
+      "English"
+    ],
+    "pgpFingerprint": "F559 1B5C 694E 6800 4576 5000 C4CC 1000 83A9 7A00",
+    "bio": "Buying and selling BTC/XMR via Revolut and Wise. Active European hours.",
+    "volumeTier": "35+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-8-1",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-8-2",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "yusuf_tr8": {
+    "username": "yusuf_tr8",
+    "joinedAt": "2020-03-12",
+    "tradesCount": 2802,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 14,
+    "verified": true,
+    "languages": [
+      "Turkish",
+      "English"
+    ],
+    "pgpFingerprint": "2C3A 15D2 5497 5800 85FD D900 54AF F000 8099 C780",
+    "bio": "Quick bank & USDT peer-to-peer settlement. Reliable counterparty.",
+    "volumeTier": "67+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-9-1",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-9-2",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "liam_tor": {
+    "username": "liam_tor",
+    "joinedAt": "2024-05-24",
+    "tradesCount": 2254,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 12,
+    "lastSeenMinutes": 23,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "0B8F 05E2 5738 E340 0A96 1000 5238 0300 B6D0 8A80",
+    "bio": "Canada Interac e-Transfer & cash-by-mail trader. Privacy-respecting, no memos.",
+    "volumeTier": "54+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-10-1",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "5 days ago"
+      },
+      {
+        "id": "fb-c-10-2",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "hana.sato": {
+    "username": "hana.sato",
+    "joinedAt": "2020-10-05",
+    "tradesCount": 1542,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 9,
+    "lastSeenMinutes": 14,
+    "verified": true,
+    "languages": [
+      "Japanese",
+      "English"
+    ],
+    "pgpFingerprint": "18CA 2A6E B377 5400 246E 8500 2D7E E000 0728 C440",
+    "bio": "Spot-synced BTC and ETH desk. Polite communication and prompt release.",
+    "volumeTier": "37+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-11-1",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-11-2",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "felix_zh": {
+    "username": "felix_zh",
+    "joinedAt": "2022--6--13",
+    "tradesCount": 440,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 12,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "German",
+      "English"
+    ],
+    "pgpFingerprint": "8B13 6D68 087C CC00 70D3 EC00 3A4D C000 D01F 8E00",
+    "bio": "Swiss CHF bank transfer and Zurich cash meetups. PGP signed terms.",
+    "volumeTier": "10+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-12-1",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-12-2",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "zoe_k22": {
+    "username": "zoe_k22",
+    "joinedAt": "2025-08-20",
+    "tradesCount": 1727,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "54A4 199B 3FDC F800 DCC5 3600 F847 7400 FEFD FC80",
+    "bio": "Zelle, Apple Pay & PayPal F&F trades. Fast release for repeat users.",
+    "volumeTier": "41+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-13-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-13-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "henrik_77": {
+    "username": "henrik_77",
+    "joinedAt": "2023--2--23",
+    "tradesCount": 99,
+    "ratingPct": 98,
+    "avgReleaseMinutes": 3,
+    "lastSeenMinutes": 2,
+    "verified": false,
+    "languages": [
+      "Swedish",
+      "English"
+    ],
+    "pgpFingerprint": "EB7F EC4D 94AD C800 549A 9800 B7A1 A800 152B 1200",
+    "bio": "Scandinavian EUR/USD trader. Tight spreads on XMR and BTC.",
+    "volumeTier": "2+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-14-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-14-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "anya_pl": {
+    "username": "anya_pl",
+    "joinedAt": "2023--8--8",
+    "tradesCount": 2811,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 12,
+    "lastSeenMinutes": 14,
+    "verified": true,
+    "languages": [
+      "Polish",
+      "English"
+    ],
+    "pgpFingerprint": "8296 199D A29D EC00 381A C800 EC56 D000 E415 D300",
+    "bio": "Revolut, SEPA & Amazon card trades. Quick verification.",
+    "volumeTier": "67+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-15-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "ETH",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-15-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "SOL",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "julien_r": {
+    "username": "julien_r",
+    "joinedAt": "2023--8--10",
+    "tradesCount": 267,
+    "ratingPct": 98,
+    "avgReleaseMinutes": 11,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "French",
+      "English"
+    ],
+    "pgpFingerprint": "C3B2 AEDD BAAC 5C00 4BE8 AC00 2417 E000 6E56 FA00",
+    "bio": "SEPA Instant & Wise EUR swaps. Zero KYC, direct settlement.",
+    "volumeTier": "6+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-16-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-16-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "theo_808": {
+    "username": "theo_808",
+    "joinedAt": "2024-01--8",
+    "tradesCount": 118,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 6,
+    "lastSeenMinutes": 5,
+    "verified": false,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "A3A6 31A6 D209 C800 06D0 1000 45C4 A800 028E 7F00",
+    "bio": "US cashless ATM & Zelle liquidity. Fast releases, no extra steps.",
+    "volumeTier": "3+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-17-1",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "5 days ago"
+      },
+      {
+        "id": "fb-c-17-2",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "noah_sg3": {
+    "username": "noah_sg3",
+    "joinedAt": "2023-05-26",
+    "tradesCount": 837,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 2,
+    "lastSeenMinutes": 2,
+    "verified": true,
+    "languages": [
+      "English",
+      "Mandarin"
+    ],
+    "pgpFingerprint": "5F38 2087 AC2F 4C00 8BAE A400 C259 8400 81F5 E600",
+    "bio": "Singapore FAST & Wise trader for USDT, USDC, and BTC.",
+    "volumeTier": "20+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-18-1",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-18-2",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "elena_ch": {
+    "username": "elena_ch",
+    "joinedAt": "2024-04-04",
+    "tradesCount": 154,
+    "ratingPct": 97,
+    "avgReleaseMinutes": 6,
+    "lastSeenMinutes": 5,
+    "verified": false,
+    "languages": [
+      "German",
+      "Italian",
+      "English"
+    ],
+    "pgpFingerprint": "37F8 91FC 1501 0C00 1610 B400 C2AC 1200 BD55 2180",
+    "bio": "Zurich/Lugano CHF & EUR peer-to-peer trader. Clean escrow execution.",
+    "volumeTier": "4+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-19-1",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "5 days ago"
+      },
+      {
+        "id": "fb-c-19-2",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "lucas_br9": {
+    "username": "lucas_br9",
+    "joinedAt": "2023--3--6",
+    "tradesCount": 1419,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 12,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "Portuguese",
+      "English"
+    ],
+    "pgpFingerprint": "8E36 08E7 5932 5800 ED31 6800 DB8B 2000 4663 AF00",
+    "bio": "PIX instant BRL settlements for BTC, LTC, and USDT.",
+    "volumeTier": "34+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-20-1",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-20-2",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "mina_kr": {
+    "username": "mina_kr",
+    "joinedAt": "2020-01--23",
+    "tradesCount": 420,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "Korean",
+      "English"
+    ],
+    "pgpFingerprint": "F4F3 A022 E66F C800 C2D0 4000 1088 4800 66E1 9C00",
+    "bio": "Cross-border USDT/USDC and SOL peer swaps. Fast replies.",
+    "volumeTier": "10+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-21-1",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-21-2",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "antoine55": {
+    "username": "antoine55",
+    "joinedAt": "2023-02-24",
+    "tradesCount": 1119,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 14,
+    "verified": true,
+    "languages": [
+      "French",
+      "English"
+    ],
+    "pgpFingerprint": "7F95 9BA9 AC52 8000 0C81 B400 63F4 F400 694F B700",
+    "bio": "Private P2P trader since 2021. SEPA Instant & Revolut.",
+    "volumeTier": "27+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-22-1",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-22-2",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "rafa_es": {
+    "username": "rafa_es",
+    "joinedAt": "2024--8--16",
+    "tradesCount": 1474,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 2,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "Spanish",
+      "English"
+    ],
+    "pgpFingerprint": "9598 57DE 548E B000 BDF0 0400 8561 D400 E578 EC00",
+    "bio": "SEPA Instant Spain/EU & Wise trades. Clear instructions.",
+    "volumeTier": "35+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-23-1",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "5 days ago"
+      },
+      {
+        "id": "fb-c-23-2",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "petra_at": {
+    "username": "petra_at",
+    "joinedAt": "2025--7--15",
+    "tradesCount": 1283,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "German",
+      "English"
+    ],
+    "pgpFingerprint": "E090 0C45 9238 1800 28FB 2800 3CA3 D000 21D9 9800",
+    "bio": "Vienna EUR bank wire and SEPA Instant desk. Monero friendly.",
+    "volumeTier": "31+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-24-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-24-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "ivan_bg4": {
+    "username": "ivan_bg4",
+    "joinedAt": "2025--6--19",
+    "tradesCount": 2237,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "Bulgarian",
+      "English"
+    ],
+    "pgpFingerprint": "A128 5A6B F6A0 1800 5853 7400 C878 4400 CF04 D300",
+    "bio": "SEPA, Paysera & Revolut trader for BTC, ETH, and XMR.",
+    "volumeTier": "53+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-25-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-25-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "kiran_in": {
+    "username": "kiran_in",
+    "joinedAt": "2020--3--6",
+    "tradesCount": 2868,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 3,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Hindi"
+    ],
+    "pgpFingerprint": "E263 B2C4 0689 4000 D552 C000 898A D000 FBB7 BE00",
+    "bio": "UPI & Wise P2P settlement. Instant confirmation and release.",
+    "volumeTier": "68+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-26-1",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-26-2",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "maya_nz": {
+    "username": "maya_nz",
+    "joinedAt": "2024--2--3",
+    "tradesCount": 2824,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 11,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "A381 F22E E432 3000 C0B9 E000 888D F800 DE43 B000",
+    "bio": "NZD & AUD bank transfers for Bitcoin and Monero.",
+    "volumeTier": "67+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-27-1",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "5 days ago"
+      },
+      {
+        "id": "fb-c-27-2",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "daiki_tk": {
+    "username": "daiki_tk",
+    "joinedAt": "2023--1--7",
+    "tradesCount": 2703,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 14,
+    "verified": true,
+    "languages": [
+      "Japanese",
+      "English"
+    ],
+    "pgpFingerprint": "ED31 7673 CCE4 4000 C405 CC00 A541 6000 900C 5000",
+    "bio": "Tokyo desk handling JPY bank wires and cross-crypto swaps.",
+    "volumeTier": "64+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-28-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-28-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "jonas_dk": {
+    "username": "jonas_dk",
+    "joinedAt": "2024--8--17",
+    "tradesCount": 2134,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 9,
+    "lastSeenMinutes": 5,
+    "verified": true,
+    "languages": [
+      "Danish",
+      "English"
+    ],
+    "pgpFingerprint": "C417 D738 A63D 4400 9F4F 3C00 02E6 5800 A550 EB00",
+    "bio": "Copenhagen SEPA & Revolut trader. Fast release on ETH & BTC.",
+    "volumeTier": "51+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-29-1",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "5 days ago"
+      },
+      {
+        "id": "fb-c-29-2",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "stella_gr": {
+    "username": "stella_gr",
+    "joinedAt": "2022--6--2",
+    "tradesCount": 1934,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 2,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "Greek",
+      "English"
+    ],
+    "pgpFingerprint": "F569 6888 E581 9000 DD52 E800 DDBA 5800 19EF 0800",
+    "bio": "SEPA Instant & Revolut EUR peer trades. No ID checks.",
+    "volumeTier": "46+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-30-1",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-30-2",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "max_bxl": {
+    "username": "max_bxl",
+    "joinedAt": "2022--8--10",
+    "tradesCount": 860,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "French",
+      "Dutch",
+      "English"
+    ],
+    "pgpFingerprint": "A1CF 2A9C 3AE4 3000 D81F E800 35CB 3000 EE56 0700",
+    "bio": "Brussels SEPA & Wise desk for XMR, BTC, and LTC.",
+    "volumeTier": "20+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-31-1",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-31-2",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "tariq_ae": {
+    "username": "tariq_ae",
+    "joinedAt": "2025--10--12",
+    "tradesCount": 41,
+    "ratingPct": 98,
+    "avgReleaseMinutes": 11,
+    "lastSeenMinutes": 38,
+    "verified": false,
+    "languages": [
+      "Arabic",
+      "English"
+    ],
+    "pgpFingerprint": "C509 9FED 6A29 9800 1F39 5800 4AC8 3000 8DD6 EC00",
+    "bio": "AED domestic wire & Dubai cash desk. High liquidity.",
+    "volumeTier": "2+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-32-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "ETH",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-32-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "SOL",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "fiona_ie": {
+    "username": "fiona_ie",
+    "joinedAt": "2023--7-00",
+    "tradesCount": 2679,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 2,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "8B14 53A3 569A E000 2612 8000 A206 B800 497D FC00",
+    "bio": "Dublin SEPA Instant & Revolut trader. Reliable and responsive.",
+    "volumeTier": "64+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-33-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-33-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "bruno_pt": {
+    "username": "bruno_pt",
+    "joinedAt": "2022-06-19",
+    "tradesCount": 2960,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 2,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "Portuguese",
+      "English"
+    ],
+    "pgpFingerprint": "1468 712C F228 0B80 A53D 5380 E266 DF80 0B80 2B20",
+    "bio": "Lisbon EUR SEPA & Wise liquidity for BTC and Monero.",
+    "volumeTier": "70+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-34-1",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-34-2",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "nadia_ma": {
+    "username": "nadia_ma",
+    "joinedAt": "2025--7--19",
+    "tradesCount": 1505,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 9,
+    "lastSeenMinutes": 9,
+    "verified": true,
+    "languages": [
+      "Arabic",
+      "French",
+      "English"
+    ],
+    "pgpFingerprint": "FB51 7C05 0208 2000 9053 9800 4A2F F000 67F2 5C00",
+    "bio": "Global Wise & Paysera peer-to-peer trader.",
+    "volumeTier": "36+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-35-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-35-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "owen_uk6": {
+    "username": "owen_uk6",
+    "joinedAt": "2025-09-10",
+    "tradesCount": 653,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 8,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "6706 0CC1 F2AD 0A00 A40B 3800 C94E 3800 6EA5 8200",
+    "bio": "UK Faster Payments (FPS) specialist. Settled in minutes.",
+    "volumeTier": "16+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-36-1",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-36-2",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "leila_tn": {
+    "username": "leila_tn",
+    "joinedAt": "2021-08-12",
+    "tradesCount": 2173,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 23,
+    "verified": true,
+    "languages": [
+      "French",
+      "Arabic",
+      "English"
+    ],
+    "pgpFingerprint": "51BA 09FD BBB4 7C00 659B 4600 9808 5800 98D7 1480",
+    "bio": "Gift card & EUR wallet swaps. Instant verification.",
+    "volumeTier": "52+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-37-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-37-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "remy_fr": {
+    "username": "remy_fr",
+    "joinedAt": "2021--2--4",
+    "tradesCount": 769,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 23,
+    "verified": true,
+    "languages": [
+      "French",
+      "English"
+    ],
+    "pgpFingerprint": "A93D EBEB 01CF 3000 2FA9 1800 8980 F000 158B 0900",
+    "bio": "Lyon EUR SEPA Instant & Cash by Mail for XMR/BTC.",
+    "volumeTier": "18+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-38-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-38-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "kuba_waw": {
+    "username": "kuba_waw",
+    "joinedAt": "2024-00--3",
+    "tradesCount": 2812,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 8,
+    "lastSeenMinutes": 23,
+    "verified": true,
+    "languages": [
+      "Polish",
+      "English"
+    ],
+    "pgpFingerprint": "83B6 965A 37A4 8000 1320 E800 3B47 0000 0312 3900",
+    "bio": "Warsaw P2P desk. Revolut, Wise, and gift cards.",
+    "volumeTier": "67+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-39-1",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "5 days ago"
+      },
+      {
+        "id": "fb-c-39-2",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "enzo_it3": {
+    "username": "enzo_it3",
+    "joinedAt": "2022-08-15",
+    "tradesCount": 2204,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 3,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "Italian",
+      "English"
+    ],
+    "pgpFingerprint": "42F0 2318 22C6 9C00 4859 4000 C1C2 AC00 722D 7980",
+    "bio": "Milan SEPA Instant & Revolut trader. Fast escrow turnaround.",
+    "volumeTier": "52+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-40-1",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-40-2",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "tessa_nl": {
+    "username": "tessa_nl",
+    "joinedAt": "2024--5--10",
+    "tradesCount": 2836,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 5,
+    "verified": true,
+    "languages": [
+      "Dutch",
+      "English"
+    ],
+    "pgpFingerprint": "A6F7 FAD6 9EFD 9400 B9A4 7400 EA60 3800 9E01 7F00",
+    "bio": "Amsterdam SEPA & Wise EUR trader. Clean zero-KYC process.",
+    "volumeTier": "68+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-41-1",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "ETH",
+        "date": "5 days ago"
+      },
+      {
+        "id": "fb-c-41-2",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "SOL",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "ali_bh7": {
+    "username": "ali_bh7",
+    "joinedAt": "2025--9--5",
+    "tradesCount": 95,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 11,
+    "lastSeenMinutes": 38,
+    "verified": false,
+    "languages": [
+      "Arabic",
+      "English"
+    ],
+    "pgpFingerprint": "B619 8F33 3A50 1C00 C3B0 D000 FAE1 C800 4061 1B00",
+    "bio": "Bahrain BHD gift cards & Gulf bank transfers.",
+    "volumeTier": "2+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-42-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-42-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "kevin_ca4": {
+    "username": "kevin_ca4",
+    "joinedAt": "2025-06-25",
+    "tradesCount": 107,
+    "ratingPct": 98,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 0,
+    "verified": false,
+    "languages": [
+      "English",
+      "French"
+    ],
+    "pgpFingerprint": "5197 1069 24C2 FA00 BD8E 7A00 1928 4800 3CC0 6680",
+    "bio": "Canadian Interac e-Transfer & Wise trader. Auto-deposit active.",
+    "volumeTier": "3+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-43-1",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-43-2",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "paula_co": {
+    "username": "paula_co",
+    "joinedAt": "2021-11-19",
+    "tradesCount": 1255,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 12,
+    "lastSeenMinutes": 23,
+    "verified": true,
+    "languages": [
+      "Spanish",
+      "English"
+    ],
+    "pgpFingerprint": "3919 7575 F541 8200 3CEA EB00 3E40 8200 F262 F780",
+    "bio": "Wise USD & global stablecoin P2P liquidity.",
+    "volumeTier": "30+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-44-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-44-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "hugo_se2": {
+    "username": "hugo_se2",
+    "joinedAt": "2025--5--12",
+    "tradesCount": 1445,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 10,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "Swedish",
+      "English"
+    ],
+    "pgpFingerprint": "805B 97F1 6CEB F800 9FB2 CC00 1EAB 0400 2FDF 2000",
+    "bio": "Stockholm P2P trader. Revolut, SEPA & XMR swaps.",
+    "volumeTier": "34+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-45-1",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-45-2",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "mikael90": {
+    "username": "mikael90",
+    "joinedAt": "2025-05-27",
+    "tradesCount": 1823,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 2,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "Finnish",
+      "English"
+    ],
+    "pgpFingerprint": "10CE EB43 51A8 5480 DB53 3A00 FFCB 9900 106F B240",
+    "bio": "SEPA Instant & Paysera EUR desk. Active daily.",
+    "volumeTier": "43+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-46-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-46-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "yara_lb": {
+    "username": "yara_lb",
+    "joinedAt": "2021--4--24",
+    "tradesCount": 1957,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 9,
+    "lastSeenMinutes": 23,
+    "verified": true,
+    "languages": [
+      "Arabic",
+      "English"
+    ],
+    "pgpFingerprint": "965E 2FD9 B15B A800 E0BC 7800 8FD8 E400 BFEA FC00",
+    "bio": "USD Wise & digital gift card trades. Fast releases.",
+    "volumeTier": "47+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-47-1",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-47-2",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "oscar_pe": {
+    "username": "oscar_pe",
+    "joinedAt": "2025-12-07",
+    "tradesCount": 3119,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 3,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "Spanish",
+      "English"
+    ],
+    "pgpFingerprint": "4175 4D1F 6736 FA00 E2D6 5000 70EC 7200 4900 9D80",
+    "bio": "LATAM & USD bank transfer peer trader.",
+    "volumeTier": "74+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-48-1",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-48-2",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "emil_fi": {
+    "username": "emil_fi",
+    "joinedAt": "2022--6--20",
+    "tradesCount": 1040,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 6,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "Finnish",
+      "Swedish",
+      "English"
+    ],
+    "pgpFingerprint": "872A F5AE EF35 1C00 A78D 8000 1734 D000 3681 D500",
+    "bio": "Helsinki Monero & Bitcoin P2P trader. Zero hassle.",
+    "volumeTier": "25+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-49-1",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-49-2",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "sara_hk": {
+    "username": "sara_hk",
+    "joinedAt": "2020--6--16",
+    "tradesCount": 1950,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 10,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English",
+      "Cantonese"
+    ],
+    "pgpFingerprint": "C075 01EC 7082 E000 298C 1C00 9147 E000 49AE FE00",
+    "bio": "HKD/USD Wise & cross-chain USDT/USDC liquidity.",
+    "volumeTier": "46+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-50-1",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-50-2",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "dante_ar": {
+    "username": "dante_ar",
+    "joinedAt": "2021-01-11",
+    "tradesCount": 1591,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 8,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "Spanish",
+      "English"
+    ],
+    "pgpFingerprint": "2A38 BB07 8220 9F00 B65F 7600 F781 5200 C6E5 C340",
+    "bio": "Stablecoin & BTC peer-to-peer trader. Fast chat.",
+    "volumeTier": "38+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-51-1",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "ETH",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-51-2",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "SOL",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "oliver_au": {
+    "username": "oliver_au",
+    "joinedAt": "2023--8--15",
+    "tradesCount": 2025,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 6,
+    "lastSeenMinutes": 2,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "D699 187D 2548 0000 FA3C 0400 F209 C800 421A 3E00",
+    "bio": "Australian PayID & Osko instant transfers for BTC, XMR, USDC.",
+    "volumeTier": "48+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-52-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-52-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "noor_kw": {
+    "username": "noor_kw",
+    "joinedAt": "2024-02-02",
+    "tradesCount": 3106,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 5,
+    "verified": true,
+    "languages": [
+      "Arabic",
+      "English"
+    ],
+    "pgpFingerprint": "2DE9 54AA 23DD E400 7E52 7F00 3A58 B800 A156 9940",
+    "bio": "Gulf region gift cards & USD wire peer trader.",
+    "volumeTier": "74+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-53-1",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "ETH",
+        "date": "5 days ago"
+      },
+      {
+        "id": "fb-c-53-2",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "SOL",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "simon_be": {
+    "username": "simon_be",
+    "joinedAt": "2023-10-15",
+    "tradesCount": 2829,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 3,
+    "lastSeenMinutes": 14,
+    "verified": true,
+    "languages": [
+      "Dutch",
+      "French",
+      "English"
+    ],
+    "pgpFingerprint": "1C2F 0F4B 4DE1 0600 3CCA 4A00 2BC1 9F00 76C9 A7C0",
+    "bio": "Antwerp SEPA Instant & Wise desk. Tight spreads.",
+    "volumeTier": "67+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-54-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-54-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "jade_tw": {
+    "username": "jade_tw",
+    "joinedAt": "2021--7-01",
+    "tradesCount": 1219,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 11,
+    "lastSeenMinutes": 23,
+    "verified": true,
+    "languages": [
+      "Mandarin",
+      "English"
+    ],
+    "pgpFingerprint": "C6BE 3801 F834 3000 6887 D400 5816 0800 A229 3300",
+    "bio": "APAC USDT, ETH, and SOL peer-to-peer desk.",
+    "volumeTier": "29+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-55-1",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-55-2",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "alexis_ch": {
+    "username": "alexis_ch",
+    "joinedAt": "2025--4--19",
+    "tradesCount": 1985,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 9,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "French",
+      "German",
+      "English"
+    ],
+    "pgpFingerprint": "F60C C85D 9B85 8000 B469 8800 1BE4 F800 004A 2800",
+    "bio": "Geneva CHF & EUR transfers. PGP verified.",
+    "volumeTier": "47+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-56-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-56-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "rohan_sg": {
+    "username": "rohan_sg",
+    "joinedAt": "2020-01-23",
+    "tradesCount": 192,
+    "ratingPct": 97,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 14,
+    "verified": false,
+    "languages": [
+      "English",
+      "Hindi"
+    ],
+    "pgpFingerprint": "5016 E160 DBF8 3400 0B98 8400 1762 F400 F896 8080",
+    "bio": "Singapore Wise & PayNow trades. Fast and consistent.",
+    "volumeTier": "5+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-57-1",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-57-2",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "ines_es4": {
+    "username": "ines_es4",
+    "joinedAt": "2023--8--12",
+    "tradesCount": 81,
+    "ratingPct": 98,
+    "avgReleaseMinutes": 10,
+    "lastSeenMinutes": 2,
+    "verified": false,
+    "languages": [
+      "Spanish",
+      "English"
+    ],
+    "pgpFingerprint": "CC07 C3DD 376C E000 9507 6C00 8EA3 E000 743C D500",
+    "bio": "Madrid Revolut & SEPA Instant peer trader.",
+    "volumeTier": "2+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-58-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "ETH",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-58-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "SOL",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "benji_us": {
+    "username": "benji_us",
+    "joinedAt": "2020--10--10",
+    "tradesCount": 1044,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 2,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "DB0A 7EC8 1526 3000 6382 C000 0ABC 2800 4EEE DE00",
+    "bio": "Zelle, Apple Pay & Cash by Mail. Fast US settlements.",
+    "volumeTier": "25+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-59-1",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-59-2",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "milo_420": {
+    "username": "milo_420",
+    "joinedAt": "2023-05-23",
+    "tradesCount": 3111,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "073B 5367 8791 5940 3EF0 0AE0 1770 E180 8BBF DCF0",
+    "bio": "Privacy-first XMR & LTC swaps. Tor friendly, PGP active.",
+    "volumeTier": "74+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-60-1",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "ETH",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-60-2",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "SOL",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "katja_si": {
+    "username": "katja_si",
+    "joinedAt": "2025-09-16",
+    "tradesCount": 377,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 12,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "Slovenian",
+      "English"
+    ],
+    "pgpFingerprint": "3AC9 A5C7 6487 AE00 0138 1600 2317 C200 7FFF 1C80",
+    "bio": "EU SEPA Instant & Paysera trades for BTC and XMR.",
+    "volumeTier": "9+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-61-1",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-61-2",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "farid_my": {
+    "username": "farid_my",
+    "joinedAt": "2020-07-14",
+    "tradesCount": 90,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 2,
+    "verified": false,
+    "languages": [
+      "Malay",
+      "English"
+    ],
+    "pgpFingerprint": "085F 9CB6 FA47 5FC0 BF2B 7480 DDD8 0B40 CF20 D770",
+    "bio": "MYR/SGD/USD Wise & Steam gift card trader.",
+    "volumeTier": "2+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-62-1",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-62-2",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "iris_ro": {
+    "username": "iris_ro",
+    "joinedAt": "2020-02-06",
+    "tradesCount": 354,
+    "ratingPct": 97,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 14,
+    "verified": true,
+    "languages": [
+      "Romanian",
+      "English"
+    ],
+    "pgpFingerprint": "253F B48C 0F76 0100 0D97 6500 CE3D 2D00 295E A9C0",
+    "bio": "SEPA Instant & Revolut EUR desk. Quick releases.",
+    "volumeTier": "8+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-63-1",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-63-2",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "gideon_za": {
+    "username": "gideon_za",
+    "joinedAt": "2025-09-08",
+    "tradesCount": 2111,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "6D34 CF81 AA4E 7000 EFB3 3E00 F451 2000 0501 8400",
+    "bio": "Global Wise, PayPal & BTC/LTC peer trader.",
+    "volumeTier": "50+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-64-1",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "ETH",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-64-2",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "SOL",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "chloe_qc": {
+    "username": "chloe_qc",
+    "joinedAt": "2021-12-10",
+    "tradesCount": 2239,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 10,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "French",
+      "English"
+    ],
+    "pgpFingerprint": "5671 889B 715D B600 B1D9 CE00 35AC E800 D49A 5D80",
+    "bio": "Montreal Interac e-Transfer for Monero & Bitcoin.",
+    "volumeTier": "53+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-65-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-65-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "karim_eg": {
+    "username": "karim_eg",
+    "joinedAt": "2024--5--18",
+    "tradesCount": 1960,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 10,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "Arabic",
+      "English"
+    ],
+    "pgpFingerprint": "C38C 1CD0 FE2E 3C00 F7CD 8400 7C98 4000 116C 3A00",
+    "bio": "Wise & digital voucher peer-to-peer trades.",
+    "volumeTier": "47+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-66-1",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "5 days ago"
+      },
+      {
+        "id": "fb-c-66-2",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "valeria_uy": {
+    "username": "valeria_uy",
+    "joinedAt": "2020-10-18",
+    "tradesCount": 1236,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 14,
+    "verified": true,
+    "languages": [
+      "Spanish",
+      "English"
+    ],
+    "pgpFingerprint": "5E16 ECC8 32BC 3E00 1715 E000 3376 5C00 DF31 1080",
+    "bio": "USD Wise & Revolut cross-border trades.",
+    "volumeTier": "29+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-67-1",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "ETH",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-67-2",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "SOL",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "seb_219": {
+    "username": "seb_219",
+    "joinedAt": "2022--1--14",
+    "tradesCount": 1490,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "English",
+      "German"
+    ],
+    "pgpFingerprint": "8ECE FAB2 49D7 7800 4F6C FC00 E97A B800 F189 6D00",
+    "bio": "Fast crypto-to-crypto & SEPA escrow swaps.",
+    "volumeTier": "35+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-68-1",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-68-2",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "tobi_ng": {
+    "username": "tobi_ng",
+    "joinedAt": "2021-01-03",
+    "tradesCount": 1465,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 11,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "3447 AD41 5D69 8200 ABB1 D300 E608 7600 C607 7A00",
+    "bio": "NGN bank transfer & USD gift card P2P desk.",
+    "volumeTier": "35+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-69-1",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-69-2",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "amira_qa": {
+    "username": "amira_qa",
+    "joinedAt": "2020-07-09",
+    "tradesCount": 270,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 2,
+    "lastSeenMinutes": 2,
+    "verified": true,
+    "languages": [
+      "Arabic",
+      "English"
+    ],
+    "pgpFingerprint": "5D42 2C76 231E 8400 AF29 C600 8908 CC00 A9AE 7B80",
+    "bio": "Gulf domestic wire & Wise USDT liquidity.",
+    "volumeTier": "6+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-70-1",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-70-2",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "nico_de9": {
+    "username": "nico_de9",
+    "joinedAt": "2025-06-13",
+    "tradesCount": 449,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "German",
+      "English"
+    ],
+    "pgpFingerprint": "4747 544F DE23 A200 DA33 8600 F43A C800 6AE8 FF80",
+    "bio": "Berlin SEPA Instant & Cash by Mail for XMR.",
+    "volumeTier": "11+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-71-1",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-71-2",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "ash_991": {
+    "username": "ash_991",
+    "joinedAt": "2025--1--17",
+    "tradesCount": 587,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 9,
+    "lastSeenMinutes": 9,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "D821 E915 8020 1800 18F4 EC00 871A D000 0794 1200",
+    "bio": "Amazon, Apple & Steam gift card trader. Quick verification.",
+    "volumeTier": "14+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-72-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-72-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "freja_no": {
+    "username": "freja_no",
+    "joinedAt": "2025-09-03",
+    "tradesCount": 29,
+    "ratingPct": 98,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 9,
+    "verified": false,
+    "languages": [
+      "Norwegian",
+      "English"
+    ],
+    "pgpFingerprint": "7A19 D901 E0A7 8400 E029 AA00 4E59 6400 00C6 C200",
+    "bio": "Oslo Revolut & Wise peer-to-peer desk.",
+    "volumeTier": "2+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-73-1",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-73-2",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "lorenzo_m": {
+    "username": "lorenzo_m",
+    "joinedAt": "2022-08-17",
+    "tradesCount": 2912,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 9,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "Italian",
+      "English"
+    ],
+    "pgpFingerprint": "7385 727E 4F73 B800 8F09 A400 5239 EC00 B7F1 AF00",
+    "bio": "Rome SEPA Instant & EUR/BTC swaps.",
+    "volumeTier": "69+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-74-1",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-74-2",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "khalid_973": {
+    "username": "khalid_973",
+    "joinedAt": "2022--9--22",
+    "tradesCount": 758,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 9,
+    "verified": true,
+    "languages": [
+      "Arabic",
+      "English"
+    ],
+    "pgpFingerprint": "EE85 34B0 D1D0 A000 C90E 5C00 61ED 3000 8392 3C00",
+    "bio": "Bahrain & UAE PSN/Steam cards and wire trades.",
+    "volumeTier": "18+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-75-1",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-75-2",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "artur_lv": {
+    "username": "artur_lv",
+    "joinedAt": "2020-10-14",
+    "tradesCount": 1350,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 12,
+    "lastSeenMinutes": 2,
+    "verified": true,
+    "languages": [
+      "Latvian",
+      "English"
+    ],
+    "pgpFingerprint": "7643 76A8 D5D2 7400 6934 B800 D989 7800 7F6F 0100",
+    "bio": "Baltic SEPA Instant & Paysera EUR liquidity.",
+    "volumeTier": "32+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-76-1",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-76-2",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "veronika_cz": {
+    "username": "veronika_cz",
+    "joinedAt": "2022--1--4",
+    "tradesCount": 68,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 8,
+    "lastSeenMinutes": 38,
+    "verified": false,
+    "languages": [
+      "Czech",
+      "English"
+    ],
+    "pgpFingerprint": "D4EE 01B2 F09A 5000 D05F 3C00 93A1 6000 18A8 B600",
+    "bio": "Prague Revolut & SEPA peer trader. Fast escrow.",
+    "volumeTier": "2+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-77-1",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-77-2",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "matej_sk": {
+    "username": "matej_sk",
+    "joinedAt": "2021-10-16",
+    "tradesCount": 235,
+    "ratingPct": 98,
+    "avgReleaseMinutes": 7,
+    "lastSeenMinutes": 5,
+    "verified": false,
+    "languages": [
+      "Slovak",
+      "English"
+    ],
+    "pgpFingerprint": "655F FBA9 D49E E000 AD54 5600 726D D400 DF97 5700",
+    "bio": "EU SEPA & LTC/XMR peer swaps. Zero KYC.",
+    "volumeTier": "6+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-78-1",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-78-2",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "bastian_9": {
+    "username": "bastian_9",
+    "joinedAt": "2025-12-25",
+    "tradesCount": 1487,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 2,
+    "lastSeenMinutes": 9,
+    "verified": true,
+    "languages": [
+      "German",
+      "English"
+    ],
+    "pgpFingerprint": "6640 4639 57E0 7E00 529C 9E00 12AD 7800 9C77 3780",
+    "bio": "Munich SEPA Instant & Revolut BTC desk.",
+    "volumeTier": "35+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-79-1",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-79-2",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "sam_nyc24": {
+    "username": "sam_nyc24",
+    "joinedAt": "2025--9--17",
+    "tradesCount": 1073,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 2,
+    "lastSeenMinutes": 9,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "F16E FD73 D13D 9800 3625 9000 57AC 9000 9E45 1A00",
+    "bio": "Zelle, Apple Pay & Cardless ATM US trades.",
+    "volumeTier": "26+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-80-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-80-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "celine_lu": {
+    "username": "celine_lu",
+    "joinedAt": "2021-06-18",
+    "tradesCount": 2713,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 10,
+    "lastSeenMinutes": 23,
+    "verified": true,
+    "languages": [
+      "French",
+      "German",
+      "English"
+    ],
+    "pgpFingerprint": "681F 36EB 9507 0C00 8890 F600 4C29 D000 0CC0 CE00",
+    "bio": "Luxembourg SEPA Instant & Wise high-limit desk.",
+    "volumeTier": "65+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-81-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-81-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "andre_ao": {
+    "username": "andre_ao",
+    "joinedAt": "2024-06-20",
+    "tradesCount": 250,
+    "ratingPct": 97,
+    "avgReleaseMinutes": 2,
+    "lastSeenMinutes": 0,
+    "verified": false,
+    "languages": [
+      "Portuguese",
+      "English"
+    ],
+    "pgpFingerprint": "220B 09E8 1228 8100 28EA AB00 50AD 0C00 EE3E C980",
+    "bio": "Global Wise & USDT peer settlements.",
+    "volumeTier": "6+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-82-1",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "5 days ago"
+      },
+      {
+        "id": "fb-c-82-2",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "hassan_om": {
+    "username": "hassan_om",
+    "joinedAt": "2022-02-08",
+    "tradesCount": 1640,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 11,
+    "lastSeenMinutes": 9,
+    "verified": true,
+    "languages": [
+      "Arabic",
+      "English"
+    ],
+    "pgpFingerprint": "5663 95E8 318D 4E00 E08B BE00 50EE 6800 C304 7D80",
+    "bio": "Gulf wire & digital voucher peer desk.",
+    "volumeTier": "39+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-83-1",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-83-2",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "darius_lt": {
+    "username": "darius_lt",
+    "joinedAt": "2022-08-12",
+    "tradesCount": 914,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 10,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "Lithuanian",
+      "English"
+    ],
+    "pgpFingerprint": "0ABB 77B8 4FBB BE40 6783 D680 A7FA 9700 3BB0 E2C0",
+    "bio": "Paysera & Revolut EUR instant trades.",
+    "volumeTier": "22+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-84-1",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-84-2",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "kael_0x": {
+    "username": "kael_0x",
+    "joinedAt": "2025-04-22",
+    "tradesCount": 3095,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 10,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "58F8 74BD AD91 0C00 C21A 6600 77F6 4800 E04A ED80",
+    "bio": "ETH, SOL, and XMR peer-to-peer atomic & escrow swaps.",
+    "volumeTier": "74+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-85-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-85-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "soren_xmr": {
+    "username": "soren_xmr",
+    "joinedAt": "2020-00--11",
+    "tradesCount": 3138,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 6,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "Danish",
+      "English"
+    ],
+    "pgpFingerprint": "B3DE 727C A18D C400 A691 1000 A009 9000 EB9E D900",
+    "bio": "Dedicated Monero privacy desk. PGP & Tor ready.",
+    "volumeTier": "75+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-86-1",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "1 days ago"
+      },
+      {
+        "id": "fb-c-86-2",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "nina_bkk": {
+    "username": "nina_bkk",
+    "joinedAt": "2022-02-18",
+    "tradesCount": 770,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 8,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "Thai",
+      "English"
+    ],
+    "pgpFingerprint": "1AF9 26EE AACC 6900 8502 E480 3350 0B00 2992 9FC0",
+    "bio": "Bangkok Wise & USDT/BTC peer liquidity.",
+    "volumeTier": "18+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-87-1",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-87-2",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "arjun_09": {
+    "username": "arjun_09",
+    "joinedAt": "2023-02-10",
+    "tradesCount": 237,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 5,
+    "lastSeenMinutes": 14,
+    "verified": false,
+    "languages": [
+      "English",
+      "Hindi"
+    ],
+    "pgpFingerprint": "3CB0 BCEF 98D8 9800 45A1 6900 12B5 7600 40CE 1500",
+    "bio": "UPI & Wise peer-to-peer BTC/ETH desk.",
+    "volumeTier": "6+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-88-1",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-88-2",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "marco_r8": {
+    "username": "marco_r8",
+    "joinedAt": "2022-03-02",
+    "tradesCount": 1724,
+    "ratingPct": 99,
+    "avgReleaseMinutes": 3,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "Spanish",
+      "Italian",
+      "English"
+    ],
+    "pgpFingerprint": "12AD 8CF4 D209 C880 C7E1 0D80 52D0 6E00 A450 DCC0",
+    "bio": "SEPA Instant & Revolut EUR liquidity.",
+    "volumeTier": "41+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-89-1",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "3 days ago"
+      },
+      {
+        "id": "fb-c-89-2",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "ayla_303": {
+    "username": "ayla_303",
+    "joinedAt": "2023-02-27",
+    "tradesCount": 1677,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 3,
+    "lastSeenMinutes": 14,
+    "verified": true,
+    "languages": [
+      "English",
+      "Turkish"
+    ],
+    "pgpFingerprint": "314E DB2F 7637 C200 C3BF F900 5D72 2C00 1C9A 62C0",
+    "bio": "Fast Revolut, Wise & Steam card trades.",
+    "volumeTier": "40+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-90-1",
+        "author": "cairo_btc",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-90-2",
+        "author": "nord_p2p",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "1 weeks ago"
+      }
+    ]
+  },
+  "dani_k": {
+    "username": "dani_k",
+    "joinedAt": "2021-08-19",
+    "tradesCount": 2917,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 8,
+    "lastSeenMinutes": 5,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "1DA6 1D1D 2AD7 D600 A5CF 6A80 3088 A600 753C F740",
+    "bio": "Zelle, PayPal F&F & LTC quick swaps.",
+    "volumeTier": "69+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-91-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Honest pricing and quick response in chat.",
+        "asset": "USDT",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-91-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "USDC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "roman_71": {
+    "username": "roman_71",
+    "joinedAt": "2021-01--14",
+    "tradesCount": 1009,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 12,
+    "lastSeenMinutes": 5,
+    "verified": true,
+    "languages": [
+      "Czech",
+      "German",
+      "English"
+    ],
+    "pgpFingerprint": "FEA7 EE83 89FC D000 E384 4000 EF36 E000 6243 0C00",
+    "bio": "Central EU SEPA & cash-by-mail XMR desk.",
+    "volumeTier": "24+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-92-1",
+        "author": "sara_v",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "2 days ago"
+      },
+      {
+        "id": "fb-c-92-2",
+        "author": "jules_19",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "2 weeks ago"
+      }
+    ]
+  },
+  "talia_v": {
+    "username": "talia_v",
+    "joinedAt": "2025-04-04",
+    "tradesCount": 2723,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 12,
+    "lastSeenMinutes": 38,
+    "verified": true,
+    "languages": [
+      "English",
+      "Spanish"
+    ],
+    "pgpFingerprint": "77D6 A7BD 004D 5000 40A2 1A00 4F92 7000 BFE7 4B00",
+    "bio": "Wise & Apple Pay trader. Clean terms.",
+    "volumeTier": "65+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-93-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Clean transaction from start to finish.",
+        "asset": "LTC",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-93-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Smooth zero-KYC trade, would deal again.",
+        "asset": "XMR",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "cyrus_01": {
+    "username": "cyrus_01",
+    "joinedAt": "2025-09-15",
+    "tradesCount": 389,
+    "ratingPct": 98,
+    "avgReleaseMinutes": 3,
+    "lastSeenMinutes": 9,
+    "verified": true,
+    "languages": [
+      "English"
+    ],
+    "pgpFingerprint": "3683 5901 8319 0200 3434 2900 E87C E400 70A5 4200",
+    "bio": "Cash by Mail & XMR/BTC multi-asset swapper.",
+    "volumeTier": "9+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-94-1",
+        "author": "anon_314",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "6 days ago"
+      },
+      {
+        "id": "fb-c-94-2",
+        "author": "tomas_k",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "3 weeks ago"
+      }
+    ]
+  },
+  "keiko_os": {
+    "username": "keiko_os",
+    "joinedAt": "2023--5--2",
+    "tradesCount": 519,
+    "ratingPct": 100,
+    "avgReleaseMinutes": 4,
+    "lastSeenMinutes": 0,
+    "verified": true,
+    "languages": [
+      "Japanese",
+      "English"
+    ],
+    "pgpFingerprint": "939B 2C95 F05F 4000 6416 4C00 8DE0 E400 29CD F600",
+    "bio": "Osaka JPY wire & USDT/BTC P2P trader.",
+    "volumeTier": "12+ BTC",
+    "recentFeedback": [
+      {
+        "id": "fb-c-95-1",
+        "author": "xmr_owl",
+        "positive": true,
+        "comment": "Fast release and clear instructions.",
+        "asset": "BTC",
+        "date": "4 days ago"
+      },
+      {
+        "id": "fb-c-95-2",
+        "author": "milo_88",
+        "positive": true,
+        "comment": "Escrow settled in a few minutes without issues.",
+        "asset": "BTC",
+        "date": "1 weeks ago"
+      }
+    ]
+  }
+}

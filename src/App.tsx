@@ -1,4 +1,4 @@
-import { ArrowUpDown, ChevronDown, Lock, RefreshCw, Search } from 'lucide-react';
+import { ArrowUpDown, ChevronDown, Lock, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, getToken, setToken } from './api';
 import { AccountView } from './components/AccountView';
@@ -7,6 +7,7 @@ import { CoinIcon } from './components/CoinIcon';
 import { CreateOfferModal } from './components/CreateOfferModal';
 import { Header, type AppTab } from './components/Header';
 import { MessagesModal, getTradeUnreadCount } from './components/MessagesModal';
+import { OfferDetailView } from './components/OfferDetailView';
 import { OfferFilterBar, type OfferFilters } from './components/OfferFilterBar';
 import { OfferRow, getOfferUnitPrice } from './components/OfferRow';
 import { ProfileView } from './components/ProfileView';
@@ -106,9 +107,10 @@ function parseRoutePath(pathname: string): RouteMatch {
 function matchesSearchQuery(offer: P2POffer, rawQuery: string): boolean {
   const q = rawQuery.trim().toLowerCase();
   if (!q) return true;
-  const qClean = q.startsWith('@') ? q.slice(1) : q;
+  const qClean = q.replace(/^@+/, '');
   return (
     offer.id.toLowerCase().includes(q) ||
+    offer.id.toLowerCase().includes(qClean) ||
     offer.traderUsername.toLowerCase().includes(qClean) ||
     offer.paymentMethod.toLowerCase().includes(q) ||
     offer.crypto.toLowerCase().includes(q) ||
@@ -161,11 +163,18 @@ export default function App() {
     }
   });
 
-  const [activeTab, setActiveTab] = useState<'offers' | 'account' | 'profile'>(() =>
-    initialRoute.kind === 'profile' ? 'profile' : 'offers'
+  const [activeTab, setActiveTab] = useState<'offers' | 'account' | 'profile' | 'offer'>(() =>
+    initialRoute.kind === 'profile'
+      ? 'profile'
+      : initialRoute.kind === 'offer'
+        ? 'offer'
+        : 'offers'
   );
   const [profileUsername, setProfileUsername] = useState<string | null>(() =>
     initialRoute.kind === 'profile' ? initialRoute.username : null
+  );
+  const [activeOfferId, setActiveOfferId] = useState<string | null>(() =>
+    initialRoute.kind === 'offer' ? initialRoute.offerId : null
   );
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
 
@@ -241,17 +250,19 @@ export default function App() {
 
   useEffect(() => {
     const viewTitle =
-      activeTab === 'profile' && profileUsername
-        ? `OOSAB | ${profileUsername} Profile`
-        : activeTab === 'account'
-          ? 'OOSAB | Wallet & Escrow Trades'
-          : filters.intent === 'swap'
-            ? 'OOSAB | P2P Crypto Swap Offers'
-            : filters.intent === 'sell'
-              ? 'OOSAB | Sell Crypto P2P Marketplace'
-              : 'OOSAB | No-KYC P2P Crypto Marketplace';
+      activeTab === 'offer' && activeOfferId
+        ? `OOSAB | P2P Offer ${activeOfferId}`
+        : activeTab === 'profile' && profileUsername
+          ? `OOSAB | ${profileUsername} Profile`
+          : activeTab === 'account'
+            ? 'OOSAB | Wallet & Escrow Trades'
+            : filters.intent === 'swap'
+              ? 'OOSAB | P2P Crypto Swap Offers'
+              : filters.intent === 'sell'
+                ? 'OOSAB | Sell Crypto P2P Marketplace'
+                : 'OOSAB | No-KYC P2P Crypto Marketplace';
     document.title = viewTitle;
-  }, [activeTab, profileUsername, filters.intent]);
+  }, [activeTab, activeOfferId, profileUsername, filters.intent]);
 
   const loadPrices = useCallback(async (force = false) => {
     setRefreshingPrices(true);
@@ -300,57 +311,60 @@ export default function App() {
   }, []);
 
   const openOfferById = useCallback(
-    async (offerId: string, pushUrl = false) => {
-      try {
-        const res = await api.getOfferById(offerId);
-        if (res?.offer) {
-          const loadedTrader = res.trader;
-          if (loadedTrader) {
-            setTraders((prev) => ({ ...prev, [loadedTrader.username]: loadedTrader }));
-          }
-          if (pushUrl) {
-            navigateToPath(`/offer/${encodeURIComponent(res.offer.id)}`);
-          }
-          setTradeModalState({ offer: res.offer });
-        }
-      } catch {
-        // offer not found or deleted
+    (offerId: string, pushUrl = true) => {
+      setTradeModalState(null);
+      setProfileUsername(null);
+      setActiveOfferId(offerId);
+      setActiveTab('offer');
+      if (pushUrl) {
+        navigateToPath(`/offer/${encodeURIComponent(offerId)}`);
       }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     },
     [navigateToPath]
   );
 
   useEffect(() => {
+    let cancelled = false;
     loadPrices(false);
-    loadMarketplace();
-    loadUserWorkspace();
-    if (initialRoute.kind === 'offer') {
-      void openOfferById(initialRoute.offerId, false);
-    }
+    api
+      .syncTablesToServer()
+      .catch(() => undefined)
+      .finally(() => {
+        if (cancelled) return;
+        loadMarketplace();
+        loadUserWorkspace();
+      });
     const timer = setInterval(() => loadPrices(false), 60_000);
-    return () => clearInterval(timer);
-  }, [loadPrices, loadMarketplace, loadUserWorkspace, initialRoute, openOfferById]);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [loadPrices, loadMarketplace, loadUserWorkspace]);
 
   useEffect(() => {
     const onPopState = () => {
       const route = parseRoutePath(window.location.pathname);
       if (route.kind === 'profile') {
         setTradeModalState(null);
+        setActiveOfferId(null);
         setProfileUsername(route.username);
         setActiveTab('profile');
       } else if (route.kind === 'offer') {
-        setActiveTab('offers');
+        setTradeModalState(null);
         setProfileUsername(null);
-        void openOfferById(route.offerId, false);
+        setActiveOfferId(route.offerId);
+        setActiveTab('offer');
       } else {
         setTradeModalState(null);
         setProfileUsername(null);
+        setActiveOfferId(null);
         setActiveTab('offers');
       }
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [openOfferById]);
+  }, []);
 
   const upsertTrade = useCallback((incoming: TradeOrder) => {
     setTrades((prev) => {
@@ -459,11 +473,12 @@ export default function App() {
         return;
       }
       if (notif.offerId) {
-        void openOfferById(notif.offerId, true);
+        openOfferById(notif.offerId, true);
         return;
       }
       if (notif.type === 'feedback_received' && user) {
         setTradeModalState(null);
+        setActiveOfferId(null);
         setProfileUsername(user.username);
         setActiveTab('profile');
         navigateToPath(`/${encodeURIComponent(user.username)}`);
@@ -471,6 +486,7 @@ export default function App() {
       }
       if (notif.type === 'wallet_credit') {
         navigateToPath('/');
+        setActiveOfferId(null);
         setProfileUsername(null);
         setActiveTab('account');
       }
@@ -495,6 +511,7 @@ export default function App() {
   const handleHeaderTabSelect = (tab: AppTab) => {
     navigateToPath('/');
     setProfileUsername(null);
+    setActiveOfferId(null);
     if (tab === 'swap') {
       setActiveTab('offers');
       setFilters((f) => ({ ...f, intent: 'swap' }));
@@ -514,6 +531,7 @@ export default function App() {
   const handleSelectTrader = useCallback(
     (username: string) => {
       setTradeModalState(null);
+      setActiveOfferId(null);
       setProfileUsername(username);
       setActiveTab('profile');
       navigateToPath(`/${encodeURIComponent(username)}`);
@@ -549,6 +567,8 @@ export default function App() {
     return Number.isFinite(n) && n > 0 ? n : null;
   }, [filters.amount]);
 
+  const hasSearchQuery = filters.searchQuery.trim().length > 0;
+
   const filteredOffers = useMemo(() => {
     const targetSide =
       filters.intent === 'buy'
@@ -557,12 +577,15 @@ export default function App() {
           ? 'buy_crypto'
           : 'swap_crypto';
     const pmQuery = filters.paymentMethod.trim().toLowerCase();
+    const qClean = filters.searchQuery.trim().toLowerCase().replace(/^@+/, '');
 
     const list = offers.filter((offer) => {
-      if (offer.side !== targetSide) return false;
+      // When actively searching by @username, ad ID, or keyword, search across ALL Buy/Sell/Swap sides
+      // so user-posted ads always show up regardless of which tab is selected.
+      if (!hasSearchQuery && offer.side !== targetSide) return false;
       if (filters.hideInactive && !offer.active) return false;
       if (filters.crypto !== 'ALL') {
-        if (targetSide === 'swap_crypto') {
+        if (offer.side === 'swap_crypto') {
           if (offer.crypto !== filters.crypto && offer.swapToCrypto !== filters.crypto) {
             return false;
           }
@@ -570,7 +593,7 @@ export default function App() {
           return false;
         }
       }
-      if (targetSide !== 'swap_crypto') {
+      if (offer.side !== 'swap_crypto') {
         if (filters.fiat !== 'ALL' && offer.fiat !== filters.fiat) return false;
         if (filters.country !== 'ALL' && offer.country !== filters.country) return false;
       }
@@ -606,6 +629,11 @@ export default function App() {
     });
 
     return [...list].sort((a, b) => {
+      if (qClean) {
+        const aExact = a.traderUsername.toLowerCase() === qClean || a.id.toLowerCase() === qClean;
+        const bExact = b.traderUsername.toLowerCase() === qClean || b.id.toLowerCase() === qClean;
+        if (aExact !== bExact) return aExact ? -1 : 1;
+      }
       const traderA = traders[a.traderUsername];
       const traderB = traders[b.traderUsername];
       if (sortBy === 'trades') {
@@ -634,28 +662,7 @@ export default function App() {
       };
       return score(b, traderB) - score(a, traderA);
     });
-  }, [offers, traders, filters, parsedAmount, sortBy, prices]);
-
-  // When searchQuery is active, detect matches across the other intent tabs too
-  const crossIntentMatches = useMemo(() => {
-    const q = filters.searchQuery.trim();
-    if (!q) return [];
-    const tabs: { intent: 'buy' | 'sell' | 'swap'; side: P2POffer['side']; label: string }[] = [
-      { intent: 'buy', side: 'sell_crypto', label: 'Buy Crypto' },
-      { intent: 'sell', side: 'buy_crypto', label: 'Sell Crypto' },
-      { intent: 'swap', side: 'swap_crypto', label: 'Swap' },
-    ];
-    return tabs
-      .filter((t) => t.intent !== filters.intent)
-      .map((t) => ({
-        intent: t.intent,
-        label: t.label,
-        count: offers.filter(
-          (o) => o.side === t.side && (!filters.hideInactive || o.active) && matchesSearchQuery(o, q)
-        ).length,
-      }))
-      .filter((m) => m.count > 0);
-  }, [offers, filters.searchQuery, filters.intent, filters.hideInactive]);
+  }, [offers, traders, filters, hasSearchQuery, parsedAmount, sortBy, prices]);
 
   const activeTradesCount = trades.filter(
     (t) => t.status === 'escrow_funded' || t.status === 'payment_sent' || t.status === 'disputed'
@@ -712,36 +719,6 @@ export default function App() {
               }}
               prices={prices}
             />
-
-            {/* Cross-tab search helper when user searches an ad ID, @username, or payment across tabs */}
-            {filters.searchQuery.trim() && crossIntentMatches.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#C6E8CF] bg-[#F2FAF4] px-4 py-2.5 text-xs text-[#1E3B2B] dark:border-[#1E3B2B] dark:bg-[#112219] dark:text-[#D1DCDA]">
-                <div className="flex items-center gap-2">
-                  <Search className="h-3.5 w-3.5 shrink-0 text-[#0D6832] dark:text-[#7FE85B]" />
-                  <span>
-                    Search &ldquo;<strong>{filters.searchQuery.trim()}</strong>&rdquo; also matches ads in other tabs:
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {crossIntentMatches.map((m) => (
-                    <button
-                      key={m.intent}
-                      type="button"
-                      onClick={() =>
-                        setFilters((prev) => ({
-                          ...INITIAL_FILTERS,
-                          intent: m.intent,
-                          searchQuery: prev.searchQuery,
-                        }))
-                      }
-                      className="rounded-lg bg-white px-2.5 py-1 font-semibold text-[#0B3B2E] border border-[#CBE0D3] hover:bg-[#E7F4EC] dark:bg-[#183124] dark:text-[#7FE85B] dark:border-[#254A36]"
-                    >
-                      {m.label} ({m.count})
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Live Spot Rates Strip */}
             <div className="rounded-xl border border-[#E3E7E7] bg-white p-3 text-xs sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-4 sm:py-2.5 dark:border-[#1E2726] dark:bg-[#131A1A]">
@@ -823,11 +800,13 @@ export default function App() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center justify-between gap-3 sm:justify-start">
                 <h1 className="font-display text-xl font-bold tracking-tight text-[#0E1715] sm:text-2xl dark:text-white">
-                  {filters.intent === 'buy'
-                    ? 'Buying offers'
-                    : filters.intent === 'sell'
-                      ? 'Selling offers'
-                      : 'Crypto swap offers'}
+                  {hasSearchQuery
+                    ? `Search results for "${filters.searchQuery.trim()}"`
+                    : filters.intent === 'buy'
+                      ? 'Buying offers'
+                      : filters.intent === 'sell'
+                        ? 'Selling offers'
+                        : 'Crypto swap offers'}
                 </h1>
                 <span className="rounded-lg border border-[#DCE2E1] bg-white px-2.5 py-1 font-mono text-xs font-medium tabular-nums text-[#4B5554] dark:border-[#232E2D] dark:bg-[#131A1A] dark:text-[#98A4A2]">
                   {filteredOffers.length} Results
@@ -1004,6 +983,7 @@ export default function App() {
             onOpenAccountSettings={() => {
               navigateToPath('/');
               setProfileUsername(null);
+              setActiveOfferId(null);
               setActiveTab('account');
             }}
             onOpenCreateOffer={() => handleOpenCreateOffer('Profile Page')}
@@ -1011,6 +991,34 @@ export default function App() {
               setTraders((prev) => ({ ...prev, [loaded.username]: loaded }))
             }
             onUserUpdated={setUser}
+          />
+        )}
+
+        {activeTab === 'offer' && activeOfferId && (
+          <OfferDetailView
+            offerId={activeOfferId}
+            initialOffer={offers.find((o) => o.id.toLowerCase() === activeOfferId.toLowerCase())}
+            initialTrader={(() => {
+              const found = offers.find((o) => o.id.toLowerCase() === activeOfferId.toLowerCase());
+              return found ? traders[found.traderUsername] : undefined;
+            })()}
+            prices={prices}
+            user={user}
+            onlineUsers={onlineUsers}
+            onBackToMarketplace={() => handleHeaderTabSelect('offers')}
+            onSelectTrader={handleSelectTrader}
+            onRequireAuth={(mode) => setAuthModal(mode)}
+            onTradeOpened={(trade, updatedUser) => {
+              upsertTrade(trade);
+              if (updatedUser) setUser(updatedUser);
+              setTradeModalState({ existingTrade: trade });
+            }}
+            onOfferUpdated={(updated) =>
+              setOffers((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
+            }
+            onOfferDeleted={(deletedId) =>
+              setOffers((prev) => prev.filter((o) => o.id !== deletedId))
+            }
           />
         )}
       </main>
@@ -1093,9 +1101,6 @@ export default function App() {
           onClose={() => setCreateOfferOpen(false)}
           onCreated={(offer) => {
             setOffers((prev) => [offer, ...prev]);
-            navigateToPath('/');
-            setProfileUsername(null);
-            setActiveTab('offers');
             setFilters({
               ...INITIAL_FILTERS,
               intent:
@@ -1109,8 +1114,7 @@ export default function App() {
           }}
           onOpenOffer={(offer) => {
             setCreateOfferOpen(false);
-            navigateToPath(`/offer/${encodeURIComponent(offer.id)}`);
-            setTradeModalState({ offer });
+            openOfferById(offer.id, true);
           }}
         />
       )}
@@ -1143,9 +1147,6 @@ export default function App() {
           onRequireAuth={() => setAuthModal('register')}
           onClose={() => {
             setTradeModalState(null);
-            if (typeof window !== 'undefined' && window.location.pathname.startsWith('/offer/')) {
-              navigateToPath(profileUsername ? `/${encodeURIComponent(profileUsername)}` : '/');
-            }
           }}
           onTradeUpdated={(updatedTrade, updatedUser) => {
             upsertTrade(updatedTrade);
@@ -1188,6 +1189,15 @@ export default function App() {
             setTraders((prev) => ({ ...prev, [updatedTrader.username]: updatedTrader }));
             setProfileRefreshKey((k) => k + 1);
             loadMarketplace();
+          }}
+          onDataSynced={() => {
+            loadMarketplace();
+            loadUserWorkspace();
+            setProfileRefreshKey((k) => k + 1);
+          }}
+          onNavigateProfile={(uname) => {
+            setSecretMenuOpen(false);
+            handleSelectTrader(uname);
           }}
           onOpenWallet={() => {
             navigateToPath('/');
