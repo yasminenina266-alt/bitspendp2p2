@@ -1,7 +1,7 @@
-import { localEngine } from './localEngine';
 import type {
   AppNotification,
   CryptoAsset,
+  DirectChat,
   FiatCurrency,
   MarketPrices,
   P2POffer,
@@ -62,6 +62,7 @@ export interface TablesExportPayload {
   traders?: Record<string, TraderProfile>;
   offers?: P2POffer[];
   tradeRooms?: Record<string, TradeOrder>;
+  chats?: Record<string, DirectChat>;
   notifications?: Record<string, AppNotification[]>;
   swaps?: Record<string, SwapOrder[]>;
   cards?: Record<string, VirtualCard[]>;
@@ -86,11 +87,18 @@ export function setToken(token: string | null) {
   }
 }
 
-async function apiFetch<T>(
-  url: string,
-  options: RequestInit = {},
-  fallback?: () => Promise<T>
-): Promise<T> {
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -100,116 +108,97 @@ async function apiFetch<T>(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  let res: Response;
-  try {
-    res = await fetch(url, { ...options, headers });
-  } catch {
-    if (fallback) return await fallback();
-    throw new Error('Network error communicating with server');
-  }
+  const method = (options.method ?? 'GET').toUpperCase();
+  const maxAttempts = method === 'GET' ? 2 : 1;
+  let lastError: Error | null = null;
 
-  const text = await res.text();
-  let data: unknown = null;
-  if (text) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let res: Response;
     try {
-      data = JSON.parse(text);
+      res = await fetch(url, { ...options, headers });
     } catch {
-      data = null;
+      lastError = new ApiError('Unable to reach OOSAB server. Please try again.', 0, 'NETWORK_ERROR');
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 300));
+        continue;
+      }
+      throw lastError;
     }
+
+    const text = await res.text();
+    let data: unknown = null;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = null;
+      }
+    }
+
+    if (data === null || typeof data !== 'object') {
+      const err = new ApiError(
+        res.status >= 500
+          ? 'Server temporarily unavailable. Please retry in a moment.'
+          : `Unexpected server response (${res.status}).`,
+        res.status,
+        'INVALID_RESPONSE'
+      );
+      if (attempt < maxAttempts && (res.status === 502 || res.status === 503 || res.status === 504)) {
+        lastError = err;
+        await new Promise((r) => setTimeout(r, 300));
+        continue;
+      }
+      throw err;
+    }
+
+    if (!res.ok) {
+      const errObj = data as { error?: string; code?: string };
+      throw new ApiError(
+        errObj.error || `Request failed (${res.status})`,
+        res.status,
+        errObj.code
+      );
+    }
+
+    return data as T;
   }
 
-  // If the host returned non-JSON (e.g., static HTML SPA fallback or 404/405/502 gateway),
-  // seamlessly fall back to the local browser engine.
-  if (
-    data === null ||
-    typeof data !== 'object' ||
-    (!res.ok && !('error' in (data as Record<string, unknown>)))
-  ) {
-    if (fallback) return await fallback();
-    throw new Error(`Invalid response from server (${res.status})`);
-  }
-
-  if (!res.ok) {
-    const errObj = data as { error?: string };
-    throw new Error(errObj.error || `Request failed (${res.status})`);
-  }
-
-  return data as T;
+  throw lastError ?? new ApiError('Request failed', 0);
 }
 
 export const api = {
   getPrices: (refresh = false) =>
-    apiFetch<MarketPrices>(
-      `/api/prices${refresh ? '?refresh=1' : ''}`,
-      {},
-      () => localEngine.getPrices(refresh)
+    apiFetch<MarketPrices>(`/api/prices${refresh ? '?refresh=1' : ''}`),
+
+  getOffers: () =>
+    apiFetch<{ offers: P2POffer[]; traders: Record<string, TraderProfile> }>('/api/offers'),
+
+  getOfferById: (id: string) =>
+    apiFetch<{ offer: P2POffer; trader?: TraderProfile }>(
+      `/api/offers/${encodeURIComponent(id)}`
     ),
 
-  getOffers: async () => {
-    const res = await apiFetch<{ offers: P2POffer[]; traders: Record<string, TraderProfile> }>(
-      '/api/offers',
-      {},
-      () => localEngine.getOffers()
-    );
-    if (Array.isArray(res?.offers)) localEngine.mirrorOffers(res.offers);
-    return res;
-  },
+  getUserDirectory: () => apiFetch<{ users: DirectoryUser[] }>('/api/users/directory'),
 
-  getOfferById: async (id: string) => {
-    try {
-      return await apiFetch<{ offer: P2POffer; trader?: TraderProfile }>(
-        `/api/offers/${encodeURIComponent(id)}`,
-        {},
-        () => localEngine.getOfferById(id)
-      );
-    } catch (err) {
-      try {
-        return await localEngine.getOfferById(id);
-      } catch {
-        throw err;
-      }
-    }
-  },
-
-  getUserDirectory: () =>
-    apiFetch<{ users: DirectoryUser[] }>(
-      '/api/users/directory',
-      {},
-      () => localEngine.getUserDirectory()
-    ),
-
-  getTrader: async (username: string) => {
-    try {
-      return await apiFetch<{
-        trader: TraderProfile;
-        offers: P2POffer[];
-        isOnline?: boolean;
-        isRegisteredUser?: boolean;
-      }>(`/api/traders/${encodeURIComponent(username)}`, {}, () => localEngine.getTrader(username));
-    } catch (err) {
-      try {
-        return await localEngine.getTrader(username);
-      } catch {
-        throw err;
-      }
-    }
-  },
+  getTrader: (username: string) =>
+    apiFetch<{
+      trader: TraderProfile;
+      offers: P2POffer[];
+      isOnline?: boolean;
+      isRegisteredUser?: boolean;
+    }>(`/api/traders/${encodeURIComponent(username)}`),
 
   getTraderTrades: (username: string, offset = 0, limit = 20) =>
     apiFetch<{ items: TraderTradeRecord[]; total: number; hasMore: boolean }>(
-      `/api/traders/${encodeURIComponent(username)}/trades?offset=${offset}&limit=${limit}`,
-      {},
-      () => localEngine.getTraderTrades(username, offset, limit)
+      `/api/traders/${encodeURIComponent(username)}/trades?offset=${offset}&limit=${limit}`
     ),
 
   getTraderFeedback: (username: string, offset = 0, limit = 20) =>
     apiFetch<{ items: TraderFeedback[]; total: number; hasMore: boolean }>(
-      `/api/traders/${encodeURIComponent(username)}/feedback?offset=${offset}&limit=${limit}`,
-      {},
-      () => localEngine.getTraderFeedback(username, offset, limit)
+      `/api/traders/${encodeURIComponent(username)}/feedback?offset=${offset}&limit=${limit}`
     ),
 
-  register: async (payload: {
+  register: (payload: {
     username: string;
     password: string;
     confirmPassword: string;
@@ -217,135 +206,69 @@ export const api = {
     bio?: string;
     avatarUrl?: string;
     tagline?: string;
-  }) => {
-    const res = await apiFetch<{ token: string; user: UserAccount }>(
-      '/api/auth/register',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
-      () => localEngine.register(payload)
-    );
-    localEngine.mirrorAuth(res.user, res.token, payload.password);
-    return res;
-  },
+  }) =>
+    apiFetch<{ token: string; user: UserAccount }>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
-  login: async (payload: { username: string; password: string }) => {
-    const res = await apiFetch<{ token: string; user: UserAccount }>(
-      '/api/auth/login',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
-      () => localEngine.login(payload)
-    );
-    localEngine.mirrorAuth(res.user, res.token, payload.password);
-    return res;
-  },
+  login: (payload: { username: string; password: string }) =>
+    apiFetch<{ token: string; user: UserAccount }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
-  getMe: async () => {
-    const res = await apiFetch<{ user: UserAccount }>('/api/auth/me', {}, () => localEngine.getMe());
-    if (res?.user) {
-      localEngine.mirrorAuth(res.user, getToken() ?? '');
-    }
-    return res;
-  },
+  getMe: () => apiFetch<{ user: UserAccount }>('/api/auth/me'),
 
-  updateProfile: async (payload: ProfileUpdatePayload) => {
-    const res = await apiFetch<{ user: UserAccount; trader: TraderProfile }>(
-      '/api/auth/profile',
-      {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      },
-      () => localEngine.updateProfile(payload)
-    );
-    if (res?.user) localEngine.mirrorUser(res.user, res.trader);
-    return res;
-  },
+  updateProfile: (payload: ProfileUpdatePayload) =>
+    apiFetch<{ user: UserAccount; trader: TraderProfile }>('/api/auth/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
 
-  updateSettings: async (payload: Record<string, unknown>) => {
-    const res = await apiFetch<{ user: UserAccount }>(
-      '/api/auth/settings',
-      {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      },
-      () => localEngine.updateSettings(payload)
-    );
-    if (res?.user) localEngine.mirrorUser(res.user);
-    return res;
-  },
+  updateSettings: (payload: Record<string, unknown>) =>
+    apiFetch<{ user: UserAccount }>('/api/auth/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
 
-  logout: () =>
-    apiFetch<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }, () => localEngine.logout()),
+  logout: () => apiFetch<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
 
-  createOffer: async (payload: Partial<P2POffer>) => {
-    const res = await apiFetch<{ offer: P2POffer }>(
-      '/api/offers',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
-      () => localEngine.createOffer(payload)
-    );
-    if (res?.offer) localEngine.mirrorOffer(res.offer);
-    return res;
-  },
+  createOffer: (payload: Partial<P2POffer>) =>
+    apiFetch<{ offer: P2POffer }>('/api/offers', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
-  updateOffer: async (id: string, payload: { active?: boolean; marginPct?: number }) => {
-    const res = await apiFetch<{ offer: P2POffer }>(
-      `/api/offers/${encodeURIComponent(id)}`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      },
-      () => localEngine.updateOffer(id, payload)
-    );
-    if (res?.offer) localEngine.mirrorOffer(res.offer);
-    return res;
-  },
+  updateOffer: (id: string, payload: { active?: boolean; marginPct?: number }) =>
+    apiFetch<{ offer: P2POffer }>(`/api/offers/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
 
-  deleteOffer: async (id: string) => {
-    const res = await apiFetch<{ ok: boolean }>(
-      `/api/offers/${encodeURIComponent(id)}`,
-      {
-        method: 'DELETE',
-      },
-      () => localEngine.deleteOffer(id)
-    );
-    localEngine.removeOffer(id);
-    return res;
-  },
+  deleteOffer: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/offers/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
 
-  getTrades: () => apiFetch<{ trades: TradeOrder[] }>('/api/trades', {}, () => localEngine.getTrades()),
+  getTrades: () => apiFetch<{ trades: TradeOrder[] }>('/api/trades'),
 
   openTrade: (offerId: string, fiatAmount: number, swapAmount?: number) =>
-    apiFetch<{ trade: TradeOrder; user: UserAccount }>(
-      '/api/trades',
-      {
-        method: 'POST',
-        body: JSON.stringify({ offerId, fiatAmount, swapAmount }),
-      },
-      () => localEngine.openTrade(offerId, fiatAmount, swapAmount)
-    ),
+    apiFetch<{ trade: TradeOrder; user: UserAccount }>('/api/trades', {
+      method: 'POST',
+      body: JSON.stringify({ offerId, fiatAmount, swapAmount }),
+    }),
 
   markTradeRead: (tradeId: string) =>
-    apiFetch<{ trade: TradeOrder }>(
-      `/api/trades/${encodeURIComponent(tradeId)}/read`,
-      { method: 'POST' },
-      () => localEngine.markTradeRead(tradeId)
-    ),
+    apiFetch<{ trade: TradeOrder }>(`/api/trades/${encodeURIComponent(tradeId)}/read`, {
+      method: 'POST',
+    }),
 
   sendTradeMessage: (tradeId: string, text: string) =>
-    apiFetch<{ trade: TradeOrder }>(
-      `/api/trades/${encodeURIComponent(tradeId)}/messages`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ text }),
-      },
-      () => localEngine.sendTradeMessage(tradeId, text)
-    ),
+    apiFetch<{ trade: TradeOrder }>(`/api/trades/${encodeURIComponent(tradeId)}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
 
   tradeAction: (
     tradeId: string,
@@ -360,28 +283,37 @@ export const api = {
       {
         method: 'POST',
         body: JSON.stringify(payload),
-      },
-      () => localEngine.tradeAction(tradeId, payload)
+      }
     ),
 
-  getNotifications: () =>
-    apiFetch<{ notifications: AppNotification[] }>(
-      '/api/notifications',
-      {},
-      () => localEngine.getNotifications()
-    ),
+  getDirectChats: () => apiFetch<{ chats: DirectChat[] }>('/api/chats'),
+
+  openDirectChat: (targetUsername: string, offerId?: string) =>
+    apiFetch<{ chat: DirectChat }>('/api/chats', {
+      method: 'POST',
+      body: JSON.stringify({ targetUsername, offerId }),
+    }),
+
+  sendDirectMessage: (chatId: string, text: string, offerId?: string) =>
+    apiFetch<{ chat: DirectChat }>(`/api/chats/${encodeURIComponent(chatId)}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ text, offerId }),
+    }),
+
+  markDirectChatRead: (chatId: string) =>
+    apiFetch<{ chat: DirectChat }>(`/api/chats/${encodeURIComponent(chatId)}/read`, {
+      method: 'POST',
+    }),
+
+  getNotifications: () => apiFetch<{ notifications: AppNotification[] }>('/api/notifications'),
 
   markNotificationsRead: (id?: string) =>
-    apiFetch<{ notifications: AppNotification[] }>(
-      '/api/notifications/read',
-      {
-        method: 'POST',
-        body: JSON.stringify({ id }),
-      },
-      () => localEngine.markNotificationsRead(id)
-    ),
+    apiFetch<{ notifications: AppNotification[] }>('/api/notifications/read', {
+      method: 'POST',
+      body: JSON.stringify({ id }),
+    }),
 
-  getSwaps: () => apiFetch<{ swaps: SwapOrder[] }>('/api/swaps', {}, () => localEngine.getSwaps()),
+  getSwaps: () => apiFetch<{ swaps: SwapOrder[] }>('/api/swaps'),
 
   createSwap: (payload: {
     fromCrypto: CryptoAsset;
@@ -390,16 +322,12 @@ export const api = {
     mode: 'floating' | 'fixed';
     destinationAddress?: string;
   }) =>
-    apiFetch<{ swap: SwapOrder; user: UserAccount }>(
-      '/api/swaps',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
-      () => localEngine.createSwap(payload)
-    ),
+    apiFetch<{ swap: SwapOrder; user: UserAccount }>('/api/swaps', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
-  getCards: () => apiFetch<{ cards: VirtualCard[] }>('/api/cards', {}, () => localEngine.getCards()),
+  getCards: () => apiFetch<{ cards: VirtualCard[] }>('/api/cards'),
 
   createCard: (payload: {
     label: string;
@@ -407,14 +335,10 @@ export const api = {
     fundingCrypto: CryptoAsset;
     amountUsd: number;
   }) =>
-    apiFetch<{ card: VirtualCard; user: UserAccount }>(
-      '/api/cards',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
-      () => localEngine.createCard(payload)
-    ),
+    apiFetch<{ card: VirtualCard; user: UserAccount }>('/api/cards', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   cardAction: (
     cardId: string,
@@ -425,61 +349,39 @@ export const api = {
       {
         method: 'POST',
         body: JSON.stringify(payload),
-      },
-      () => localEngine.cardAction(cardId, payload)
+      }
     ),
 
-  newDepositAddress: async (crypto: CryptoAsset, chain?: string) => {
-    const res = await apiFetch<{ user: UserAccount; address: string }>(
-      '/api/wallet/deposit-address',
-      {
-        method: 'POST',
-        body: JSON.stringify({ crypto, chain }),
-      },
-      () => localEngine.newDepositAddress(crypto, chain)
-    );
-    if (res?.user) localEngine.mirrorUser(res.user);
-    return res;
-  },
+  newDepositAddress: (crypto: CryptoAsset, chain?: string) =>
+    apiFetch<{ user: UserAccount; address: string }>('/api/wallet/deposit-address', {
+      method: 'POST',
+      body: JSON.stringify({ crypto, chain }),
+    }),
 
-  withdrawCrypto: async (crypto: CryptoAsset, amount: number, address: string, network?: string) => {
-    const res = await apiFetch<{ user: UserAccount }>(
-      '/api/wallet/withdraw',
-      {
-        method: 'POST',
-        body: JSON.stringify({ crypto, amount, address, network }),
-      },
-      () => localEngine.withdrawCrypto(crypto, amount, address, network)
-    );
-    if (res?.user) localEngine.mirrorUser(res.user);
-    return res;
-  },
+  withdrawCrypto: (crypto: CryptoAsset, amount: number, address: string, network?: string) =>
+    apiFetch<{ user: UserAccount }>('/api/wallet/withdraw', {
+      method: 'POST',
+      body: JSON.stringify({ crypto, amount, address, network }),
+    }),
 
-  creditWallet: async (payload: {
+  creditWallet: (payload: {
     crypto: CryptoAsset;
     mode: 'crypto' | 'usd';
     amount: number;
     targetUsername?: string;
-  }) => {
-    const res = await apiFetch<{
+  }) =>
+    apiFetch<{
       user: UserAccount;
       targetUsername?: string;
       isSelf?: boolean;
       creditedCrypto: number;
       usdValue: number;
-    }>(
-      '/api/wallet/credit',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
-      () => localEngine.creditWallet(payload)
-    );
-    if (res?.user) localEngine.mirrorUser(res.user);
-    return res;
-  },
+    }>('/api/wallet/credit', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
-  addSecretProfileStats: async (payload: {
+  addSecretProfileStats: (payload: {
     targetUsername?: string;
     addTradesCount?: number;
     tradeRecord?: {
@@ -503,78 +405,19 @@ export const api = {
       asset?: CryptoAsset;
       date?: string;
     };
-  }) => {
-    const res = await apiFetch<{ trader: TraderProfile }>(
-      '/api/secret/profile-stats',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
-      () => localEngine.addSecretProfileStats(payload)
-    );
-    if (res?.trader) localEngine.mirrorTrader(res.trader);
-    return res;
-  },
+  }) =>
+    apiFetch<{ trader: TraderProfile }>('/api/secret/profile-stats', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
-  syncTablesToServer: async () => {
-    const payload = localEngine.getSyncPayload();
-    const hasCustomData =
-      Object.keys(payload.users).length > 0 ||
-      payload.offers.length > 0 ||
-      Object.keys(payload.tradeRooms).length > 0 ||
-      Object.keys(payload.sessions).length > 0 ||
-      Object.keys(payload.notifications).length > 0;
-    if (!hasCustomData) {
-      return { ok: true, syncedUsers: 0, syncedOffers: 0, syncedTrades: 0, totalUsers: 0 };
-    }
-    return apiFetch<{
-      ok: boolean;
-      syncedUsers: number;
-      syncedOffers: number;
-      syncedTrades: number;
-      totalUsers: number;
-    }>(
-      '/api/tables/sync',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
-      async () => ({
-        ok: true,
-        syncedUsers: 0,
-        syncedOffers: 0,
-        syncedTrades: 0,
-        totalUsers: Object.keys(payload.users).length,
-      })
-    );
-  },
+  getTablesSummary: () => apiFetch<TablesSummaryResponse>('/api/tables/summary'),
 
-  getTablesSummary: () =>
-    apiFetch<TablesSummaryResponse>(
-      '/api/tables/summary',
-      {},
-      () => localEngine.getTablesSummary()
-    ),
+  exportTablesJson: () => apiFetch<TablesExportPayload>('/api/tables/export'),
 
-  exportTablesJson: () =>
-    apiFetch<TablesExportPayload>(
-      '/api/tables/export',
-      {},
-      () => localEngine.exportTablesSnapshot()
-    ),
-
-  importTablesJson: async (payload: TablesExportPayload) => {
-    const res = await apiFetch<{ ok: boolean; importedUsers: number; importedOffers: number }>(
-      '/api/tables/import',
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      },
-      () => localEngine.importTablesSnapshot(payload as Parameters<typeof localEngine.importTablesSnapshot>[0])
-    );
-    await localEngine
-      .importTablesSnapshot(payload as Parameters<typeof localEngine.importTablesSnapshot>[0])
-      .catch(() => undefined);
-    return res;
-  },
+  importTablesJson: (payload: TablesExportPayload) =>
+    apiFetch<{ ok: boolean; importedUsers: number; importedOffers: number }>('/api/tables/import', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 };

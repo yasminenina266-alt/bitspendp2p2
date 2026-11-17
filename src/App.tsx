@@ -1,12 +1,17 @@
 import { ArrowUpDown, ChevronDown, Lock, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, getToken, setToken } from './api';
+import { ApiError, api, getToken, setToken } from './api';
 import { AccountView } from './components/AccountView';
 import { AuthModal } from './components/AuthModal';
 import { CoinIcon } from './components/CoinIcon';
 import { CreateOfferModal } from './components/CreateOfferModal';
+import { DirectChatModal } from './components/DirectChatModal';
 import { Header, type AppTab } from './components/Header';
-import { MessagesModal, getTradeUnreadCount } from './components/MessagesModal';
+import {
+  MessagesModal,
+  getDirectChatUnreadCount,
+  getTradeUnreadCount,
+} from './components/MessagesModal';
 import { OfferDetailView } from './components/OfferDetailView';
 import { OfferFilterBar, type OfferFilters } from './components/OfferFilterBar';
 import { OfferRow, getOfferUnitPrice } from './components/OfferRow';
@@ -18,6 +23,7 @@ import { useRealtime } from './hooks/useRealtime';
 import type {
   AppNotification,
   CryptoAsset,
+  DirectChat,
   MarketPrices,
   P2POffer,
   TradeOrder,
@@ -192,9 +198,13 @@ export default function App() {
   // Auth, User, Notifications & Chat State
   const [user, setUser] = useState<UserAccount | null>(null);
   const [trades, setTrades] = useState<TradeOrder[]>([]);
+  const [directChats, setDirectChats] = useState<DirectChat[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [typingByTrade, setTypingByTrade] = useState<Record<string, string | null>>({});
+  const [dmTypingByChat, setDmTypingByChat] = useState<Record<string, string | null>>({});
   const typingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const dmTypingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingDirectChatRef = useRef<{ targetUsername: string; offer?: P2POffer } | null>(null);
 
   // Modals
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
@@ -208,6 +218,9 @@ export default function App() {
   const [tradeModalState, setTradeModalState] = useState<{
     offer?: P2POffer;
     existingTrade?: TradeOrder;
+  } | null>(null);
+  const [directChatModalState, setDirectChatModalState] = useState<{
+    chat: DirectChat;
   } | null>(null);
 
   const navigateToPath = useCallback((path: string, replace = false) => {
@@ -293,26 +306,33 @@ export default function App() {
   const loadUserWorkspace = useCallback(async () => {
     if (!getToken()) return;
     try {
-      const [meRes, tradesRes, notifRes] = await Promise.all([
+      const [meRes, tradesRes, chatsRes, notifRes] = await Promise.all([
         api.getMe(),
         api.getTrades(),
-        api.getNotifications().catch(() => ({ notifications: [], unreadCount: 0 })),
+        api.getDirectChats().catch(() => ({ chats: [] })),
+        api.getNotifications().catch(() => ({ notifications: [] })),
       ]);
       if (meRes?.user) {
         setUser(meRes.user);
         setTrades(Array.isArray(tradesRes?.trades) ? tradesRes.trades : []);
+        setDirectChats(Array.isArray(chatsRes?.chats) ? chatsRes.chats : []);
         setNotifications(Array.isArray(notifRes?.notifications) ? notifRes.notifications : []);
       }
-    } catch {
-      setToken(null);
-      setUser(null);
-      setNotifications([]);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setToken(null);
+        setUser(null);
+        setTrades([]);
+        setDirectChats([]);
+        setNotifications([]);
+      }
     }
   }, []);
 
   const openOfferById = useCallback(
     (offerId: string, pushUrl = true) => {
       setTradeModalState(null);
+      setDirectChatModalState(null);
       setProfileUsername(null);
       setActiveOfferId(offerId);
       setActiveTab('offer');
@@ -325,38 +345,78 @@ export default function App() {
   );
 
   useEffect(() => {
-    let cancelled = false;
     loadPrices(false);
-    api
-      .syncTablesToServer()
-      .catch(() => undefined)
-      .finally(() => {
-        if (cancelled) return;
-        loadMarketplace();
-        loadUserWorkspace();
-      });
-    const timer = setInterval(() => loadPrices(false), 60_000);
+    loadMarketplace();
+    loadUserWorkspace();
+    const priceTimer = setInterval(() => loadPrices(false), 60_000);
     return () => {
-      cancelled = true;
-      clearInterval(timer);
+      clearInterval(priceTimer);
     };
   }, [loadPrices, loadMarketplace, loadUserWorkspace]);
+
+  // Background polling so multiple accounts stay in sync even if WS reconnects
+  useEffect(() => {
+    const refreshLive = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      void loadMarketplace();
+      if (getToken()) {
+        void Promise.all([
+          api.getTrades().catch(() => null),
+          api.getDirectChats().catch(() => null),
+          api.getNotifications().catch(() => null),
+        ]).then(([tRes, cRes, nRes]) => {
+          if (tRes && Array.isArray(tRes.trades)) {
+            setTrades(tRes.trades);
+            setTradeModalState((prev) => {
+              if (!prev?.existingTrade) return prev;
+              const refreshed = tRes.trades.find((t) => t.id === prev.existingTrade!.id);
+              return refreshed ? { ...prev, existingTrade: refreshed } : prev;
+            });
+          }
+          if (cRes && Array.isArray(cRes.chats)) {
+            setDirectChats(cRes.chats);
+            setDirectChatModalState((prev) => {
+              if (!prev?.chat) return prev;
+              const refreshed = cRes.chats.find((c) => c.id === prev.chat.id);
+              return refreshed ? { chat: refreshed } : prev;
+            });
+          }
+          if (nRes && Array.isArray(nRes.notifications)) {
+            setNotifications(nRes.notifications);
+          }
+        });
+      }
+    };
+
+    const intervalId = setInterval(refreshLive, 5000);
+    const onFocus = () => refreshLive();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [loadMarketplace]);
 
   useEffect(() => {
     const onPopState = () => {
       const route = parseRoutePath(window.location.pathname);
       if (route.kind === 'profile') {
         setTradeModalState(null);
+        setDirectChatModalState(null);
         setActiveOfferId(null);
         setProfileUsername(route.username);
         setActiveTab('profile');
       } else if (route.kind === 'offer') {
         setTradeModalState(null);
+        setDirectChatModalState(null);
         setProfileUsername(null);
         setActiveOfferId(route.offerId);
         setActiveTab('offer');
       } else {
         setTradeModalState(null);
+        setDirectChatModalState(null);
         setProfileUsername(null);
         setActiveOfferId(null);
         setActiveTab('offers');
@@ -378,39 +438,93 @@ export default function App() {
     );
   }, []);
 
-  const { onlineUsers, sendTyping, sendTradeRead } = useRealtime(Boolean(user), {
-    onTradeCreated: (trade) => {
-      upsertTrade(trade);
-    },
-    onTradeMessage: ({ trade }) => {
-      upsertTrade(trade);
-    },
-    onTradeUpdated: (trade) => {
-      upsertTrade(trade);
-      loadMarketplace();
-    },
-    onTradeTyping: ({ tradeId, username, isTyping }) => {
-      if (typingTimeoutsRef.current[tradeId]) {
-        clearTimeout(typingTimeoutsRef.current[tradeId]);
-        delete typingTimeoutsRef.current[tradeId];
-      }
-      setTypingByTrade((prev) => ({ ...prev, [tradeId]: isTyping ? username : null }));
-      if (isTyping) {
-        typingTimeoutsRef.current[tradeId] = setTimeout(() => {
-          setTypingByTrade((prev) => ({ ...prev, [tradeId]: null }));
-        }, 3500);
-      }
-    },
-    onUserUpdated: (updatedUser) => {
-      setUser(updatedUser);
-    },
-    onNotificationNew: ({ notification }) => {
-      setNotifications((prev) => {
-        if (prev.some((n) => n.id === notification.id)) return prev;
-        return [notification, ...prev].slice(0, 60);
-      });
-    },
-  });
+  const upsertDirectChat = useCallback((incoming: DirectChat) => {
+    setDirectChats((prev) => {
+      const exists = prev.some((c) => c.id === incoming.id);
+      const next = exists
+        ? prev.map((c) => (c.id === incoming.id ? incoming : c))
+        : [incoming, ...prev];
+      return [...next].sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+    });
+    setDirectChatModalState((prev) =>
+      prev?.chat.id === incoming.id ? { chat: incoming } : prev
+    );
+  }, []);
+
+  const { onlineUsers, sendTyping, sendTradeRead, sendDmTyping, sendDmRead } = useRealtime(
+    Boolean(user),
+    {
+      onTradeCreated: (trade) => {
+        upsertTrade(trade);
+      },
+      onTradeMessage: ({ trade }) => {
+        upsertTrade(trade);
+      },
+      onTradeUpdated: (trade) => {
+        upsertTrade(trade);
+        loadMarketplace();
+      },
+      onTradeTyping: ({ tradeId, username, isTyping }) => {
+        if (typingTimeoutsRef.current[tradeId]) {
+          clearTimeout(typingTimeoutsRef.current[tradeId]);
+          delete typingTimeoutsRef.current[tradeId];
+        }
+        setTypingByTrade((prev) => ({ ...prev, [tradeId]: isTyping ? username : null }));
+        if (isTyping) {
+          typingTimeoutsRef.current[tradeId] = setTimeout(() => {
+            setTypingByTrade((prev) => ({ ...prev, [tradeId]: null }));
+          }, 3500);
+        }
+      },
+      onDmMessage: ({ chat }) => {
+        upsertDirectChat(chat);
+      },
+      onDmUpdated: (chat) => {
+        upsertDirectChat(chat);
+      },
+      onDmTyping: ({ chatId, username, isTyping }) => {
+        if (dmTypingTimeoutsRef.current[chatId]) {
+          clearTimeout(dmTypingTimeoutsRef.current[chatId]);
+          delete dmTypingTimeoutsRef.current[chatId];
+        }
+        setDmTypingByChat((prev) => ({ ...prev, [chatId]: isTyping ? username : null }));
+        if (isTyping) {
+          dmTypingTimeoutsRef.current[chatId] = setTimeout(() => {
+            setDmTypingByChat((prev) => ({ ...prev, [chatId]: null }));
+          }, 3500);
+        }
+      },
+      onOfferCreated: (offer) => {
+        setOffers((prev) => {
+          if (prev.some((o) => o.id === offer.id)) return prev;
+          return [offer, ...prev];
+        });
+      },
+      onOfferUpdated: (offer) => {
+        setOffers((prev) => prev.map((o) => (o.id === offer.id ? offer : o)));
+        setTradeModalState((prev) =>
+          prev?.offer?.id === offer.id ? { ...prev, offer } : prev
+        );
+      },
+      onOfferDeleted: (offerId) => {
+        setOffers((prev) => prev.filter((o) => o.id !== offerId));
+      },
+      onTraderUpdated: (trader) => {
+        setTraders((prev) => ({ ...prev, [trader.username]: trader }));
+      },
+      onUserUpdated: (updatedUser) => {
+        setUser(updatedUser);
+      },
+      onNotificationNew: ({ notification }) => {
+        setNotifications((prev) => {
+          if (prev.some((n) => n.id === notification.id)) return prev;
+          return [notification, ...prev].slice(0, 60);
+        });
+      },
+    }
+  );
 
   const handleMarkTradeRead = useCallback(
     async (tradeId: string) => {
@@ -436,6 +550,54 @@ export default function App() {
     [user, sendTradeRead, upsertTrade]
   );
 
+  const handleMarkDirectChatRead = useCallback(
+    async (chatId: string) => {
+      if (!user) return;
+      sendDmRead(chatId);
+      const nowIso = new Date().toISOString();
+      setDirectChats((prev) =>
+        prev.map((c) =>
+          c.id === chatId
+            ? { ...c, lastReadAtBy: { ...(c.lastReadAtBy ?? {}), [user.username]: nowIso } }
+            : c
+        )
+      );
+      try {
+        const res = await api.markDirectChatRead(chatId);
+        if (res?.chat) {
+          upsertDirectChat(res.chat);
+        }
+      } catch {
+        // ignore transient error
+      }
+    },
+    [user, sendDmRead, upsertDirectChat]
+  );
+
+  const handleOpenDirectChat = useCallback(
+    async (targetUsername: string, offer?: P2POffer) => {
+      if (!getToken() || !user) {
+        pendingDirectChatRef.current = { targetUsername, offer };
+        setTradeModalState(null);
+        setAuthModal('register');
+        return;
+      }
+      if (targetUsername.toLowerCase() === user.username.toLowerCase()) return;
+      try {
+        const res = await api.openDirectChat(targetUsername, offer?.id);
+        if (res?.chat) {
+          upsertDirectChat(res.chat);
+          setTradeModalState(null);
+          setDirectChatModalState({ chat: res.chat });
+        }
+      } catch {
+        // Fallback: open messages modal if chat creation failed transiently
+        setMessagesOpen(true);
+      }
+    },
+    [user, upsertDirectChat]
+  );
+
   const handleMarkNotificationsRead = useCallback(async (id?: string) => {
     setNotifications((prev) =>
       prev.map((n) => (!id || n.id === id ? { ...n, read: true } : n))
@@ -447,6 +609,28 @@ export default function App() {
     async (notif: AppNotification) => {
       if (!notif.read) {
         void handleMarkNotificationsRead(notif.id);
+      }
+      if (notif.chatId) {
+        const existingChat = directChats.find((c) => c.id === notif.chatId);
+        if (existingChat) {
+          setDirectChatModalState({ chat: existingChat });
+          return;
+        }
+        try {
+          const res = await api.getDirectChats();
+          if (Array.isArray(res?.chats)) {
+            setDirectChats(res.chats);
+            const found = res.chats.find((c) => c.id === notif.chatId);
+            if (found) {
+              setDirectChatModalState({ chat: found });
+              return;
+            }
+          }
+        } catch {
+          // fallback below
+        }
+        setMessagesOpen(true);
+        return;
       }
       if (notif.tradeId) {
         const existing = trades.find((t) => t.id === notif.tradeId);
@@ -478,6 +662,7 @@ export default function App() {
       }
       if (notif.type === 'feedback_received' && user) {
         setTradeModalState(null);
+        setDirectChatModalState(null);
         setActiveOfferId(null);
         setProfileUsername(user.username);
         setActiveTab('profile');
@@ -491,20 +676,38 @@ export default function App() {
         setActiveTab('account');
       }
     },
-    [handleMarkNotificationsRead, trades, navigateToPath, openOfferById, user]
+    [handleMarkNotificationsRead, directChats, trades, navigateToPath, openOfferById, user]
   );
 
   const handleAuthSuccess = (authedUser: UserAccount) => {
     setUser(authedUser);
     loadMarketplace();
     loadUserWorkspace();
+    const pending = pendingDirectChatRef.current;
+    if (pending) {
+      pendingDirectChatRef.current = null;
+      if (pending.targetUsername.toLowerCase() !== authedUser.username.toLowerCase()) {
+        api
+          .openDirectChat(pending.targetUsername, pending.offer?.id)
+          .then((res) => {
+            if (res?.chat) {
+              upsertDirectChat(res.chat);
+              setDirectChatModalState({ chat: res.chat });
+            }
+          })
+          .catch(() => undefined);
+      }
+    }
   };
 
   const handleLogout = async () => {
     await api.logout().catch(() => undefined);
+    pendingDirectChatRef.current = null;
     setToken(null);
     setUser(null);
     setTrades([]);
+    setDirectChats([]);
+    setDirectChatModalState(null);
     setNotifications([]);
   };
 
@@ -669,8 +872,10 @@ export default function App() {
   ).length;
 
   const unreadMessagesCount = useMemo(
-    () => trades.reduce((sum, t) => sum + getTradeUnreadCount(t, user?.username), 0),
-    [trades, user?.username]
+    () =>
+      trades.reduce((sum, t) => sum + getTradeUnreadCount(t, user?.username), 0) +
+      directChats.reduce((sum, c) => sum + getDirectChatUnreadCount(c, user?.username), 0),
+    [trades, directChats, user?.username]
   );
 
   const unreadNotificationsCount = useMemo(
@@ -971,7 +1176,12 @@ export default function App() {
         {activeTab === 'profile' && profileUsername && (
           <ProfileView
             username={profileUsername}
-            initialTrader={traders[profileUsername]}
+            initialTrader={
+              traders[profileUsername] ??
+              Object.values(traders).find(
+                (t) => t.username.toLowerCase() === profileUsername.toLowerCase()
+              )
+            }
             offers={offers}
             prices={prices}
             currentUsername={user?.username}
@@ -980,6 +1190,7 @@ export default function App() {
             refreshKey={profileRefreshKey}
             onBackToMarketplace={() => handleHeaderTabSelect('offers')}
             onSelectOffer={(offer) => setTradeModalState({ offer })}
+            onMessageTrader={(uname) => void handleOpenDirectChat(uname)}
             onOpenAccountSettings={() => {
               navigateToPath('/');
               setProfileUsername(null);
@@ -1007,6 +1218,7 @@ export default function App() {
             onlineUsers={onlineUsers}
             onBackToMarketplace={() => handleHeaderTabSelect('offers')}
             onSelectTrader={handleSelectTrader}
+            onMessageTrader={(uname, offer) => void handleOpenDirectChat(uname, offer)}
             onRequireAuth={(mode) => setAuthModal(mode)}
             onTradeOpened={(trade, updatedUser) => {
               upsertTrade(trade);
@@ -1127,9 +1339,13 @@ export default function App() {
               ? traders[tradeModalState.offer.traderUsername]
               : tradeModalState.existingTrade
                 ? traders[
-                    user && tradeModalState.existingTrade.buyerUsername === user.username
+                    user &&
+                    tradeModalState.existingTrade.buyerUsername.toLowerCase() ===
+                      user.username.toLowerCase()
                       ? tradeModalState.existingTrade.sellerUsername
-                      : user && tradeModalState.existingTrade.sellerUsername === user.username
+                      : user &&
+                          tradeModalState.existingTrade.sellerUsername.toLowerCase() ===
+                            user.username.toLowerCase()
                         ? tradeModalState.existingTrade.buyerUsername
                         : tradeModalState.existingTrade.traderUsername
                   ]
@@ -1144,6 +1360,7 @@ export default function App() {
           onTyping={sendTyping}
           onMarkRead={handleMarkTradeRead}
           onSelectTrader={handleSelectTrader}
+          onMessageTrader={(uname, offer) => void handleOpenDirectChat(uname, offer)}
           onRequireAuth={() => setAuthModal('register')}
           onClose={() => {
             setTradeModalState(null);
@@ -1156,9 +1373,35 @@ export default function App() {
         />
       )}
 
+      {directChatModalState && user && (
+        <DirectChatModal
+          chat={directChatModalState.chat}
+          trader={(() => {
+            const other =
+              directChatModalState.chat.participants.find(
+                (p) => p.toLowerCase() !== user.username.toLowerCase()
+              ) ?? directChatModalState.chat.participants[0];
+            return (
+              traders[other] ??
+              Object.values(traders).find((t) => t.username.toLowerCase() === other.toLowerCase())
+            );
+          })()}
+          user={user}
+          onlineUsers={onlineUsers}
+          typingUsername={dmTypingByChat[directChatModalState.chat.id] ?? null}
+          onTyping={sendDmTyping}
+          onMarkRead={handleMarkDirectChatRead}
+          onChatUpdated={upsertDirectChat}
+          onSelectTrader={handleSelectTrader}
+          onOpenOffer={(id) => openOfferById(id, true)}
+          onClose={() => setDirectChatModalState(null)}
+        />
+      )}
+
       {messagesOpen && user && (
         <MessagesModal
           trades={trades}
+          directChats={directChats}
           traders={traders}
           currentUsername={user.username}
           onlineUsers={onlineUsers}
@@ -1166,6 +1409,10 @@ export default function App() {
           onSelectTrade={(trade) => {
             setMessagesOpen(false);
             setTradeModalState({ existingTrade: trade });
+          }}
+          onSelectDirectChat={(chat) => {
+            setMessagesOpen(false);
+            setDirectChatModalState({ chat });
           }}
         />
       )}

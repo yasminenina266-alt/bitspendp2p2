@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getToken } from '../api';
-import type { AppNotification, TradeMessage, TradeOrder, UserAccount } from '../types';
+import type {
+  AppNotification,
+  DirectChat,
+  DirectMessage,
+  P2POffer,
+  TradeMessage,
+  TradeOrder,
+  TraderProfile,
+  UserAccount,
+} from '../types';
 
 export interface RealtimeHandlers {
   onConnected?: (onlineUsers: string[]) => void;
@@ -9,6 +18,13 @@ export interface RealtimeHandlers {
   onTradeMessage?: (payload: { tradeId: string; message: TradeMessage; trade: TradeOrder }) => void;
   onTradeUpdated?: (trade: TradeOrder) => void;
   onTradeTyping?: (payload: { tradeId: string; username: string; isTyping: boolean }) => void;
+  onDmMessage?: (payload: { chatId: string; message: DirectMessage; chat: DirectChat }) => void;
+  onDmUpdated?: (chat: DirectChat) => void;
+  onDmTyping?: (payload: { chatId: string; username: string; isTyping: boolean }) => void;
+  onOfferCreated?: (offer: P2POffer) => void;
+  onOfferUpdated?: (offer: P2POffer) => void;
+  onOfferDeleted?: (offerId: string) => void;
+  onTraderUpdated?: (trader: TraderProfile) => void;
   onUserUpdated?: (user: UserAccount) => void;
   onNotificationNew?: (payload: { notification: AppNotification; unreadCount: number }) => void;
 }
@@ -61,7 +77,12 @@ export function useRealtime(enabled: boolean, handlers: RealtimeHandlers) {
             onlineUsers?: string[];
             trade?: TradeOrder;
             tradeId?: string;
-            message?: TradeMessage;
+            chat?: DirectChat;
+            chatId?: string;
+            offer?: P2POffer;
+            offerId?: string;
+            trader?: TraderProfile;
+            message?: TradeMessage | DirectMessage;
             username?: string;
             isTyping?: boolean;
             user?: UserAccount;
@@ -79,7 +100,7 @@ export function useRealtime(enabled: boolean, handlers: RealtimeHandlers) {
           } else if (data.type === 'trade:message' && data.trade && data.message && data.tradeId) {
             handlersRef.current.onTradeMessage?.({
               tradeId: data.tradeId,
-              message: data.message,
+              message: data.message as TradeMessage,
               trade: data.trade,
             });
           } else if (data.type === 'trade:updated' && data.trade) {
@@ -90,6 +111,28 @@ export function useRealtime(enabled: boolean, handlers: RealtimeHandlers) {
               username: data.username,
               isTyping: Boolean(data.isTyping),
             });
+          } else if (data.type === 'dm:message' && data.chat && data.message && data.chatId) {
+            handlersRef.current.onDmMessage?.({
+              chatId: data.chatId,
+              message: data.message as DirectMessage,
+              chat: data.chat,
+            });
+          } else if (data.type === 'dm:updated' && data.chat) {
+            handlersRef.current.onDmUpdated?.(data.chat);
+          } else if (data.type === 'dm:typing' && data.chatId && data.username) {
+            handlersRef.current.onDmTyping?.({
+              chatId: data.chatId,
+              username: data.username,
+              isTyping: Boolean(data.isTyping),
+            });
+          } else if (data.type === 'offer:created' && data.offer) {
+            handlersRef.current.onOfferCreated?.(data.offer);
+          } else if (data.type === 'offer:updated' && data.offer) {
+            handlersRef.current.onOfferUpdated?.(data.offer);
+          } else if (data.type === 'offer:deleted' && data.offerId) {
+            handlersRef.current.onOfferDeleted?.(data.offerId);
+          } else if (data.type === 'trader:updated' && data.trader) {
+            handlersRef.current.onTraderUpdated?.(data.trader);
           } else if (data.type === 'user:updated' && data.user) {
             handlersRef.current.onUserUpdated?.(data.user);
           } else if (data.type === 'notification:new' && data.notification) {
@@ -143,10 +186,26 @@ export function useRealtime(enabled: boolean, handlers: RealtimeHandlers) {
     }
   }, []);
 
+  const sendDmTyping = useCallback((chatId: string, isTyping: boolean) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'dm:typing', chatId, isTyping }));
+    }
+  }, []);
+
+  const sendDmRead = useCallback((chatId: string) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'dm:read', chatId }));
+    }
+  }, []);
+
   return {
     onlineUsers,
     wsConnected,
     sendTyping,
     sendTradeRead,
+    sendDmTyping,
+    sendDmRead,
   };
 }

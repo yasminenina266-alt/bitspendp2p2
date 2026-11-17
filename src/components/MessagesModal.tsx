@@ -1,46 +1,72 @@
-import { MessageSquare, Search, X } from 'lucide-react';
+import { MessageSquare, Search, ShieldCheck, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { formatCrypto, formatFiat } from '../constants/market';
-import type { TradeOrder, TraderProfile } from '../types';
+import type { DirectChat, TradeOrder, TraderProfile } from '../types';
 import { CoinIcon } from './CoinIcon';
 import { TraderAvatar } from './TraderAvatar';
 
 interface MessagesModalProps {
   trades: TradeOrder[];
+  directChats?: DirectChat[];
   traders?: Record<string, TraderProfile>;
   currentUsername: string;
   onlineUsers: string[];
   onClose: () => void;
   onSelectTrade: (trade: TradeOrder) => void;
+  onSelectDirectChat?: (chat: DirectChat) => void;
+}
+
+function getLastReadMs(map: Record<string, string> | undefined, currentUsername?: string): number {
+  if (!map || !currentUsername) return 0;
+  if (map[currentUsername]) return new Date(map[currentUsername]).getTime();
+  const key = Object.keys(map).find((k) => k.toLowerCase() === currentUsername.toLowerCase());
+  return key ? new Date(map[key]).getTime() : 0;
 }
 
 export function getTradeUnreadCount(trade: TradeOrder, currentUsername?: string): number {
   if (!currentUsername) return 0;
-  const lastRead = trade.lastReadAtBy?.[currentUsername];
-  const lastReadMs = lastRead ? new Date(lastRead).getTime() : 0;
+  const lastReadMs = getLastReadMs(trade.lastReadAtBy, currentUsername);
   return trade.messages.filter((m) => {
-    if (m.sender === currentUsername) return false;
+    if (m.sender.toLowerCase() === currentUsername.toLowerCase()) return false;
     return new Date(m.timestamp).getTime() > lastReadMs;
   }).length;
 }
 
+export function getDirectChatUnreadCount(chat: DirectChat, currentUsername?: string): number {
+  if (!currentUsername) return 0;
+  const lastReadMs = getLastReadMs(chat.lastReadAtBy, currentUsername);
+  return chat.messages.filter((m) => {
+    if (m.sender.toLowerCase() === currentUsername.toLowerCase()) return false;
+    return new Date(m.timestamp).getTime() > lastReadMs;
+  }).length;
+}
+
+type FilterMode = 'all' | 'trades' | 'direct';
+
 export function MessagesModal({
   trades,
+  directChats = [],
   traders = {},
   currentUsername,
   onlineUsers,
   onClose,
   onSelectTrade,
+  onSelectDirectChat,
 }: MessagesModalProps) {
   const [search, setSearch] = useState('');
+  const [filterMode, setFilterMode] = useState<FilterMode>('all');
 
-  const sortedTrades = useMemo(() => {
+  const combinedItems = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return [...trades]
+
+    const tradeItems = trades
       .filter((t) => {
+        if (filterMode === 'direct') return false;
         if (!q) return true;
         const other =
-          t.buyerUsername === currentUsername ? t.sellerUsername : t.buyerUsername;
+          t.buyerUsername.toLowerCase() === currentUsername.toLowerCase()
+            ? t.sellerUsername
+            : t.buyerUsername;
         return (
           t.id.toLowerCase().includes(q) ||
           other.toLowerCase().includes(q) ||
@@ -49,12 +75,34 @@ export function MessagesModal({
           t.messages.some((m) => m.text.toLowerCase().includes(q))
         );
       })
-      .sort((a, b) => {
-        const aLast = a.messages[a.messages.length - 1]?.timestamp ?? a.createdAt;
-        const bLast = b.messages[b.messages.length - 1]?.timestamp ?? b.createdAt;
-        return new Date(bLast).getTime() - new Date(aLast).getTime();
+      .map((trade) => {
+        const lastMsg = trade.messages[trade.messages.length - 1];
+        const sortMs = new Date(lastMsg?.timestamp ?? trade.createdAt).getTime();
+        return { kind: 'trade' as const, trade, sortMs };
       });
-  }, [trades, search, currentUsername]);
+
+    const chatItems = directChats
+      .filter((c) => {
+        if (filterMode === 'trades') return false;
+        if (!q) return true;
+        const other =
+          c.participants.find((p) => p.toLowerCase() !== currentUsername.toLowerCase()) ?? '';
+        return (
+          c.id.toLowerCase().includes(q) ||
+          other.toLowerCase().includes(q) ||
+          (c.offerId ?? '').toLowerCase().includes(q) ||
+          (c.offerSummary ?? '').toLowerCase().includes(q) ||
+          c.messages.some((m) => m.text.toLowerCase().includes(q))
+        );
+      })
+      .map((chat) => {
+        const lastMsg = chat.messages[chat.messages.length - 1];
+        const sortMs = new Date(lastMsg?.timestamp ?? chat.updatedAt ?? chat.createdAt).getTime();
+        return { kind: 'direct' as const, chat, sortMs };
+      });
+
+    return [...tradeItems, ...chatItems].sort((a, b) => b.sortMs - a.sortMs);
+  }, [trades, directChats, search, currentUsername, filterMode]);
 
   const formatMsgTime = (iso: string) => {
     try {
@@ -79,10 +127,10 @@ export function MessagesModal({
             </div>
             <div>
               <h2 className="font-display text-lg font-bold text-[#0E1715] dark:text-white">
-                Trade Messages
+                Messages &amp; Escrow Chats
               </h2>
               <p className="text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                Jump in and out of any active or completed escrow chat
+                Direct trader messages and active or completed escrow chats
               </p>
             </div>
           </div>
@@ -96,15 +144,38 @@ export function MessagesModal({
           </button>
         </div>
 
-        {/* Search */}
-        <div className="border-b border-[#ECEFEF] px-5 py-3 dark:border-[#202B2A]">
+        {/* Filter Tabs + Search */}
+        <div className="space-y-2.5 border-b border-[#ECEFEF] px-5 py-3 dark:border-[#202B2A]">
+          <div className="grid grid-cols-3 gap-1 rounded-xl border border-[#E3E7E7] bg-[#F5F7F7] p-1 dark:border-[#24302E] dark:bg-[#0E1414]">
+            {(
+              [
+                { id: 'all', label: `All (${trades.length + directChats.length})` },
+                { id: 'trades', label: `Escrow Trades (${trades.length})` },
+                { id: 'direct', label: `Direct (${directChats.length})` },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setFilterMode(tab.id)}
+                className={`rounded-lg py-1.5 text-xs font-semibold transition-colors ${
+                  filterMode === tab.id
+                    ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1C2625] dark:text-white'
+                    : 'text-[#5C6665] hover:text-[#111917] dark:text-[#98A4A2]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           <div className="flex h-10 items-center gap-2 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] px-3 focus-within:border-[#0B3B2E] dark:border-[#263130] dark:bg-[#0D1313] dark:focus-within:border-[#7FE85B]">
             <Search className="h-4 w-4 text-[#64706E]" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by username, trade ID, coin, or message..."
+              placeholder="Search by username, offer/trade ID, coin, or message..."
               className="w-full bg-transparent text-xs text-[#0E1715] placeholder-[#7B8684] focus:outline-none dark:text-white"
             />
           </div>
@@ -112,22 +183,118 @@ export function MessagesModal({
 
         {/* Thread List */}
         <div className="flex-1 divide-y divide-[#ECEFEF] overflow-y-auto dark:divide-[#202B2A]">
-          {sortedTrades.length === 0 ? (
+          {combinedItems.length === 0 ? (
             <div className="p-10 text-center">
               <p className="text-sm font-semibold text-[#0E1715] dark:text-white">
-                No trade conversations yet
+                No conversations yet
               </p>
               <p className="mt-1 text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                Open a trade on any P2P offer to start a live encrypted escrow chat.
+                Open an escrow trade or click Message on any trader profile or shared offer link to start chatting.
               </p>
             </div>
           ) : (
-            sortedTrades.map((trade) => {
+            combinedItems.map((item) => {
+              if (item.kind === 'direct') {
+                const { chat } = item;
+                const counterparty =
+                  chat.participants.find(
+                    (p) => p.toLowerCase() !== currentUsername.toLowerCase()
+                  ) ?? chat.participants[0];
+                const traderKey = Object.keys(traders).find(
+                  (k) => k.toLowerCase() === counterparty.toLowerCase()
+                );
+                const counterpartyTrader = traderKey ? traders[traderKey] : undefined;
+                const unread = getDirectChatUnreadCount(chat, currentUsername);
+                const lastMsg = chat.messages[chat.messages.length - 1];
+                const isOnline = onlineUsers.some(
+                  (u) => u.toLowerCase() === counterparty.toLowerCase()
+                );
+
+                return (
+                  <button
+                    key={chat.id}
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onSelectDirectChat?.(chat);
+                    }}
+                    className={`flex w-full items-start justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-[#F8FAFA] dark:hover:bg-[#17201F] ${
+                      unread > 0 ? 'bg-[#F4FBF6] dark:bg-[#112119]' : ''
+                    }`}
+                  >
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <div className="mt-0.5 shrink-0">
+                        <TraderAvatar
+                          username={counterparty}
+                          avatarUrl={counterpartyTrader?.avatarUrl}
+                          accentTheme={counterpartyTrader?.accentTheme}
+                          size={34}
+                          rounded="xl"
+                          online={isOnline}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-bold text-[#0E1715] dark:text-white">
+                            @{counterparty}
+                          </span>
+                          <span className="rounded bg-[#EEF6F2] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#0B3B2E] dark:bg-[#152B20] dark:text-[#7FE85B]">
+                            Direct Message
+                          </span>
+                          {chat.offerId && (
+                            <span className="font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
+                              {chat.offerId}
+                            </span>
+                          )}
+                        </div>
+                        {chat.offerSummary && (
+                          <div className="mt-0.5 font-mono text-[11px] text-[#5C6665] dark:text-[#98A4A2]">
+                            {chat.offerSummary}
+                          </div>
+                        )}
+                        {lastMsg ? (
+                          <p className="mt-1 truncate text-xs text-[#394241] dark:text-[#C5D1CF]">
+                            <span className="font-semibold">
+                              {lastMsg.sender.toLowerCase() === currentUsername.toLowerCase()
+                                ? 'You'
+                                : lastMsg.sender}
+                              :
+                            </span>{' '}
+                            {lastMsg.text}
+                          </p>
+                        ) : (
+                          <p className="mt-1 truncate text-xs italic text-[#64706E] dark:text-[#8E9B98]">
+                            No messages yet
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      {lastMsg && (
+                        <span className="font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
+                          {formatMsgTime(lastMsg.timestamp)}
+                        </span>
+                      )}
+                      {unread > 0 && (
+                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0B3B2E] px-1.5 font-mono text-[11px] font-bold text-white dark:bg-[#7FE85B] dark:text-[#082213]">
+                          {unread}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              }
+
+              const { trade } = item;
               const counterparty =
-                trade.buyerUsername === currentUsername
+                trade.buyerUsername.toLowerCase() === currentUsername.toLowerCase()
                   ? trade.sellerUsername
                   : trade.buyerUsername;
-              const counterpartyTrader = traders[counterparty];
+              const traderKey = Object.keys(traders).find(
+                (k) => k.toLowerCase() === counterparty.toLowerCase()
+              );
+              const counterpartyTrader = traderKey ? traders[traderKey] : undefined;
               const unread = getTradeUnreadCount(trade, currentUsername);
               const lastMsg = trade.messages[trade.messages.length - 1];
               const isOnline =
@@ -174,8 +341,9 @@ export function MessagesModal({
                         <span className="text-sm font-bold text-[#0E1715] dark:text-white">
                           @{counterparty}
                         </span>
-                        <span className="font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
-                          {trade.id}
+                        <span className="inline-flex items-center gap-1 font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
+                          <ShieldCheck className="h-3 w-3 text-[#0D6832] dark:text-[#7FE85B]" />
+                          <span>{trade.id}</span>
                         </span>
                         <span
                           className={`font-mono text-[11px] font-semibold ${
@@ -200,7 +368,7 @@ export function MessagesModal({
                           <span className="font-semibold">
                             {lastMsg.isSystem
                               ? 'Escrow'
-                              : lastMsg.sender === currentUsername
+                              : lastMsg.sender.toLowerCase() === currentUsername.toLowerCase()
                                 ? 'You'
                                 : lastMsg.sender}
                             :

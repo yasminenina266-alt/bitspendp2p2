@@ -7,6 +7,7 @@ import {
   FileText,
   Link2,
   Lock,
+  MessageSquare,
   Minimize2,
   Paperclip,
   Send,
@@ -41,6 +42,7 @@ interface TradeModalProps {
   onTyping?: (tradeId: string, isTyping: boolean) => void;
   onMarkRead?: (tradeId: string) => void;
   onSelectTrader?: (username: string) => void;
+  onMessageTrader?: (username: string, offer: P2POffer) => void;
   onRequireAuth: () => void;
   onClose: () => void;
   onTradeUpdated: (trade: TradeOrder, updatedUser?: UserAccount) => void;
@@ -58,6 +60,7 @@ export function TradeModal({
   onTyping,
   onMarkRead,
   onSelectTrader,
+  onMessageTrader,
   onRequireAuth,
   onClose,
   onTradeUpdated,
@@ -157,7 +160,9 @@ export function TradeModal({
 
   // Phase 1: Offer Review, Terms & Amount Entry
   if (!trade && offer) {
-    const isOwnOffer = Boolean(user && offer.traderUsername === user.username);
+    const isOwnOffer = Boolean(
+      user && offer.traderUsername.toLowerCase() === user.username.toLowerCase()
+    );
     const isSwap = offer.side === 'swap_crypto' && !!offer.swapToCrypto;
     const swapTargetAsset = offer.swapToCrypto ?? 'BTC';
     const unitPrice = getOfferUnitPrice(offer, prices);
@@ -504,18 +509,30 @@ export function TradeModal({
                 Your Own Ad · Self-Trade Disabled
               </button>
             ) : (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={handleOpenTrade}
-                className="min-h-[44px] w-full rounded-xl bg-[#7FE85B] px-6 py-2.5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] disabled:opacity-60 sm:w-auto transition-colors"
-              >
-                {busy
-                  ? 'Opening Escrow...'
-                  : user
-                    ? 'Confirm & Open Trade'
-                    : 'Register / Sign in to Confirm'}
-              </button>
+              <>
+                {onMessageTrader && (
+                  <button
+                    type="button"
+                    onClick={() => onMessageTrader(offer.traderUsername, offer)}
+                    className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-[#DCE2E1] bg-white px-4 py-2.5 text-sm font-semibold text-[#0E1715] hover:bg-[#F5F7F7] sm:w-auto dark:border-[#263130] dark:bg-[#0F1515] dark:text-white dark:hover:bg-[#1A2423]"
+                  >
+                    <MessageSquare className="h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                    <span>Message @{offer.traderUsername}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={handleOpenTrade}
+                  className="min-h-[44px] w-full rounded-xl bg-[#7FE85B] px-6 py-2.5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845] disabled:opacity-60 sm:w-auto transition-colors"
+                >
+                  {busy
+                    ? 'Opening Escrow...'
+                    : user
+                      ? 'Confirm & Open Trade'
+                      : 'Register / Sign in to Confirm'}
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -527,10 +544,14 @@ export function TradeModal({
   if (!trade) return null;
 
   const isSwap = trade.side === 'swap_crypto' && !!trade.swapToCrypto;
-  const isBuyer = Boolean(user && trade.buyerUsername === user.username);
-  const isSeller = Boolean(user && trade.sellerUsername === user.username);
+  const isBuyer = Boolean(
+    user && trade.buyerUsername.toLowerCase() === user.username.toLowerCase()
+  );
+  const isSeller = Boolean(
+    user && trade.sellerUsername.toLowerCase() === user.username.toLowerCase()
+  );
   const counterparty = user
-    ? trade.buyerUsername === user.username
+    ? trade.buyerUsername.toLowerCase() === user.username.toLowerCase()
       ? trade.sellerUsername
       : trade.buyerUsername
     : trade.traderUsername;
@@ -538,7 +559,8 @@ export function TradeModal({
   const counterpartyOnline = trade.counterpartyIsReal
     ? onlineUsers.some((u) => u.toLowerCase() === counterparty.toLowerCase())
     : true;
-  const counterpartyTyping = typingByTrade[trade.id] === counterparty;
+  const counterpartyTyping =
+    (typingByTrade[trade.id] ?? '').toLowerCase() === counterparty.toLowerCase();
 
   const emitTypingChange = (nextVal: string) => {
     setMessageText(nextVal);
@@ -972,7 +994,9 @@ export function TradeModal({
           <div className="flex h-[380px] flex-col sm:h-[440px] md:col-span-7 md:h-[520px]">
             <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
               {trade.messages.map((m) => {
-                const isMe = m.sender === user?.username;
+                const isMe = Boolean(
+                  user && m.sender.toLowerCase() === user.username.toLowerCase()
+                );
                 if (m.isSystem) {
                   return (
                     <div

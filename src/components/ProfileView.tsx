@@ -9,16 +9,18 @@ import {
   KeyRound,
   Link2,
   MapPin,
+  MessageSquare,
   Pencil,
   Plus,
+  RefreshCw,
   Settings,
   Star,
   ThumbsDown,
   ThumbsUp,
   X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { api } from '../api';
+import { useCallback, useEffect, useState } from 'react';
+import { ApiError, api } from '../api';
 import { CHAIN_OPTIONS, formatCrypto, formatFiat } from '../constants/market';
 import type { MarketPrices, P2POffer, TraderProfile, UserAccount } from '../types';
 import { PROFILE_THEMES, isSafeImageUrl } from '../utils/profileMedia';
@@ -38,6 +40,7 @@ interface ProfileViewProps {
   refreshKey?: number;
   onBackToMarketplace: () => void;
   onSelectOffer: (offer: P2POffer) => void;
+  onMessageTrader?: (username: string) => void;
   onOpenAccountSettings: () => void;
   onOpenCreateOffer: () => void;
   onTraderLoaded?: (trader: TraderProfile) => void;
@@ -55,6 +58,7 @@ export function ProfileView({
   refreshKey = 0,
   onBackToMarketplace,
   onSelectOffer,
+  onMessageTrader,
   onOpenAccountSettings,
   onOpenCreateOffer,
   onTraderLoaded,
@@ -66,6 +70,7 @@ export function ProfileView({
   const [isRegisteredUser, setIsRegisteredUser] = useState<boolean>(false);
   const [loading, setLoading] = useState(!initialTrader);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const [activeTab, setActiveTab] = useState<'offers' | 'history' | 'feedback'>('offers');
   const [loadingMoreTrades, setLoadingMoreTrades] = useState(false);
@@ -79,32 +84,40 @@ export function ProfileView({
     setBannerError(false);
   }, [trader?.bannerUrl]);
 
-  useEffect(() => {
-    let mounted = true;
-    setNotFound(false);
-    if (!initialTrader || initialTrader.username.toLowerCase() !== username.toLowerCase()) {
-      setLoading(true);
-    }
-    api
-      .getTrader(username)
-      .then((res) => {
-        if (!mounted) return;
+  const fetchTraderProfile = useCallback(
+    async (showLoader: boolean) => {
+      setNotFound(false);
+      setLoadError('');
+      if (showLoader) setLoading(true);
+      try {
+        const res = await api.getTrader(username);
         setTrader(res.trader);
         setTraderOffers(res.offers ?? []);
         setIsOnlineServer(Boolean(res.isOnline));
         setIsRegisteredUser(Boolean(res.isRegisteredUser));
-        setLoading(false);
         onTraderLoaded?.(res.trader);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setNotFound(true);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          setTrader(null);
+          setNotFound(true);
+        } else {
+          setLoadError(
+            err instanceof Error ? err.message : 'Unable to load trader profile from server.'
+          );
+        }
+      } finally {
         setLoading(false);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [username, refreshKey]);
+      }
+    },
+    [username]
+  );
+
+  useEffect(() => {
+    const hasInitial = Boolean(
+      initialTrader && initialTrader.username.toLowerCase() === username.toLowerCase()
+    );
+    void fetchTraderProfile(!hasInitial);
+  }, [username, refreshKey, fetchTraderProfile]);
 
   const isOwnProfile = Boolean(
     currentUsername && trader && currentUsername.toLowerCase() === trader.username.toLowerCase()
@@ -161,7 +174,36 @@ export function ProfileView({
     );
   }
 
-  if (notFound || !trader) {
+  if (!trader) {
+    if (loadError && !notFound) {
+      return (
+        <div className="mx-auto max-w-xl rounded-2xl border border-[#E3E7E7] bg-white p-8 text-center dark:border-[#202B2A] dark:bg-[#131A1A]">
+          <h1 className="font-display text-xl font-bold text-[#0E1715] dark:text-white">
+            Unable to Load /{username}
+          </h1>
+          <p className="mt-2 text-sm text-[#5C6665] dark:text-[#98A4A2]">{loadError}</p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => void fetchTraderProfile(true)}
+              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-[#7FE85B] px-5 py-2.5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845]"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>Retry</span>
+            </button>
+            <button
+              type="button"
+              onClick={onBackToMarketplace}
+              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[#DCE2E1] px-5 py-2.5 text-sm font-semibold text-[#0E1715] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Return to P2P Offers</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="mx-auto max-w-xl rounded-2xl border border-[#E3E7E7] bg-white p-8 text-center dark:border-[#202B2A] dark:bg-[#131A1A]">
         <h1 className="font-display text-xl font-bold text-[#0E1715] dark:text-white">
@@ -260,6 +302,17 @@ export function ProfileView({
               </>
             )}
           </button>
+
+          {!isOwnProfile && onMessageTrader && (
+            <button
+              type="button"
+              onClick={() => onMessageTrader(trader.username)}
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-[#7FE85B] px-4 py-2 text-xs font-semibold text-[#082213] hover:bg-[#6AD845]"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span>Message @{trader.username}</span>
+            </button>
+          )}
 
           {isOwnProfile && (
             <>

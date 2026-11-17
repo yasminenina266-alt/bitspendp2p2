@@ -73,7 +73,6 @@ export function SecretCreditModal({
   // Saved Tables tab state
   const [tablesSummary, setTablesSummary] = useState<TablesSummaryResponse | null>(null);
   const [tablesLoading, setTablesLoading] = useState(false);
-  const [syncBusy, setSyncBusy] = useState(false);
   const [importBusy, setImportBusy] = useState(false);
   const [tablesStatus, setTablesStatus] = useState('');
   const [tablesError, setTablesError] = useState('');
@@ -132,13 +131,18 @@ export function SecretCreditModal({
       .catch(() => undefined);
   };
 
-  const loadTablesSummary = () => {
+  const loadTablesSummary = (showSuccess = false) => {
     setTablesLoading(true);
     setTablesError('');
     api
       .getTablesSummary()
       .then((res) => {
         setTablesSummary(res);
+        if (showSuccess) {
+          setTablesStatus(
+            `Refreshed live server tables: ${res.savedAccounts.length} registered account(s), ${res.customOffersCount} custom ad(s).`
+          );
+        }
       })
       .catch((err) => {
         setTablesError(err instanceof Error ? err.message : 'Unable to read website tables.');
@@ -308,23 +312,12 @@ export function SecretCreditModal({
     }
   };
 
-  const handleSyncTables = async () => {
+  const handleRefreshLiveTables = () => {
     setTablesError('');
     setTablesStatus('');
-    setSyncBusy(true);
-    try {
-      const res = await api.syncTablesToServer();
-      setTablesStatus(
-        `Saved to data/tables/: ${res.totalUsers} account(s) stored (${res.syncedUsers} new user(s), ${res.syncedOffers} ad(s), ${res.syncedTrades} trade(s) synced).`
-      );
-      loadDirectory();
-      loadTablesSummary();
-      onDataSynced?.();
-    } catch (err) {
-      setTablesError(err instanceof Error ? err.message : 'Failed to sync tables.');
-    } finally {
-      setSyncBusy(false);
-    }
+    loadDirectory();
+    loadTablesSummary(true);
+    onDataSynced?.();
   };
 
   const handleExportTables = async () => {
@@ -1004,16 +997,16 @@ export function SecretCreditModal({
                     <span>Permanent Website File Tables</span>
                   </div>
                   <p className="mt-0.5 text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
-                    Accounts, balances, custom ads, trades &amp; profiles persist directly to{' '}
+                    Accounts, balances, custom ads, trades, direct chats &amp; profiles save directly to{' '}
                     <code className="rounded bg-[#E9EFEE] px-1 py-0.5 font-mono text-[10px] text-[#0E1715] dark:bg-[#1A2523] dark:text-[#7FE85B]">
                       {tablesSummary?.tablesDir ?? 'data/tables'}/*.json
                     </code>{' '}
-                    with automatic browser sync.
+                    on the server.
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={loadTablesSummary}
+                  onClick={() => loadTablesSummary(true)}
                   disabled={tablesLoading}
                   className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs font-semibold text-[#1E2726] hover:bg-[#F2F5F5] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3] dark:hover:bg-[#1A2423]"
                 >
@@ -1025,12 +1018,12 @@ export function SecretCreditModal({
               <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <button
                   type="button"
-                  onClick={handleSyncTables}
-                  disabled={syncBusy}
+                  onClick={handleRefreshLiveTables}
+                  disabled={tablesLoading}
                   className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0B3B2E] px-3 text-xs font-semibold text-white hover:bg-[#082E24] disabled:opacity-50 dark:bg-[#7FE85B] dark:text-[#082213] dark:hover:bg-[#6AD845]"
                 >
-                  <RefreshCw className={`h-3.5 w-3.5 ${syncBusy ? 'animate-spin' : ''}`} />
-                  <span>{syncBusy ? 'Syncing...' : 'Sync Browser → Tables'}</span>
+                  <RefreshCw className={`h-3.5 w-3.5 ${tablesLoading ? 'animate-spin' : ''}`} />
+                  <span>{tablesLoading ? 'Refreshing...' : 'Refresh Live Tables'}</span>
                 </button>
                 <button
                   type="button"
@@ -1115,9 +1108,9 @@ export function SecretCreditModal({
 
               {(tablesSummary?.savedAccounts.length ?? 0) === 0 ? (
                 <div className="rounded-xl border border-dashed border-[#DCE2E1] bg-[#F8FAFA] p-4 text-center text-xs text-[#5C6665] dark:border-[#24302F] dark:bg-[#0E1413] dark:text-[#8E9B98]">
-                  No registered accounts saved yet. Register an account or click{' '}
-                  <strong className="text-[#0E1715] dark:text-white">Sync Browser → Tables</strong>{' '}
-                  to persist local accounts permanently.
+                  No registered accounts saved yet. Register an account from the header to persist new users to{' '}
+                  <span className="font-mono text-[#0E1715] dark:text-white">users.json</span> &amp;{' '}
+                  <span className="font-mono text-[#0E1715] dark:text-white">traders.json</span>.
                 </div>
               ) : (
                 <div className="max-h-56 space-y-2 overflow-y-auto pr-1">

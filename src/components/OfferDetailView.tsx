@@ -6,15 +6,17 @@ import {
   Copy,
   Link2,
   Lock,
+  MessageSquare,
   Pause,
   Play,
+  RefreshCw,
   ShieldCheck,
   Star,
   Trash2,
   UserCheck,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { api } from '../api';
+import { useCallback, useEffect, useState } from 'react';
+import { ApiError, api } from '../api';
 import { CHAIN_OPTIONS, formatCrypto, formatFiat } from '../constants/market';
 import type {
   MarketPrices,
@@ -36,6 +38,7 @@ interface OfferDetailViewProps {
   onlineUsers?: string[];
   onBackToMarketplace: () => void;
   onSelectTrader: (username: string) => void;
+  onMessageTrader?: (username: string, offer: P2POffer) => void;
   onRequireAuth: (mode: 'login' | 'register') => void;
   onTradeOpened: (trade: TradeOrder, updatedUser?: UserAccount) => void;
   onOfferUpdated: (offer: P2POffer) => void;
@@ -51,6 +54,7 @@ export function OfferDetailView({
   onlineUsers = [],
   onBackToMarketplace,
   onSelectTrader,
+  onMessageTrader,
   onRequireAuth,
   onTradeOpened,
   onOfferUpdated,
@@ -62,6 +66,7 @@ export function OfferDetailView({
   const [trader, setTrader] = useState<TraderProfile | null>(initialTrader ?? null);
   const [loading, setLoading] = useState(!offer);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const [amountInput, setAmountInput] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -70,31 +75,48 @@ export function OfferDetailView({
   const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
-    setNotFound(false);
-    setError('');
-    if (!initialOffer || initialOffer.id.toLowerCase() !== offerId.toLowerCase()) {
-      setLoading(true);
+    if (initialOffer && initialOffer.id.toLowerCase() === offerId.toLowerCase()) {
+      setOffer(initialOffer);
     }
+  }, [initialOffer, offerId]);
 
-    api
-      .getOfferById(offerId)
-      .then((res) => {
-        if (!mounted) return;
+  useEffect(() => {
+    if (initialTrader && (!trader || trader.username.toLowerCase() === initialTrader.username.toLowerCase())) {
+      setTrader(initialTrader);
+    }
+  }, [initialTrader]);
+
+  const fetchOfferDetail = useCallback(
+    async (showLoader: boolean) => {
+      setNotFound(false);
+      setLoadError('');
+      if (showLoader) setLoading(true);
+      try {
+        const res = await api.getOfferById(offerId);
         setOffer(res.offer);
         if (res.trader) setTrader(res.trader);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          setOffer(null);
+          setNotFound(true);
+        } else {
+          setLoadError(
+            err instanceof Error ? err.message : 'Unable to load offer details from server.'
+          );
+        }
+      } finally {
         setLoading(false);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setNotFound(true);
-        setLoading(false);
-      });
+      }
+    },
+    [offerId]
+  );
 
-    return () => {
-      mounted = false;
-    };
-  }, [offerId]);
+  useEffect(() => {
+    const hasInitialMatch = Boolean(
+      initialOffer && initialOffer.id.toLowerCase() === offerId.toLowerCase()
+    );
+    void fetchOfferDetail(!hasInitialMatch);
+  }, [offerId, fetchOfferDetail]);
 
   useEffect(() => {
     if (!offer) return;
@@ -133,7 +155,39 @@ export function OfferDetailView({
     );
   }
 
-  if (notFound || !offer) {
+  if (!offer) {
+    if (loadError && !notFound) {
+      return (
+        <div className="mx-auto max-w-xl rounded-2xl border border-[#E3E7E7] bg-white p-8 text-center dark:border-[#202B2A] dark:bg-[#131A1A]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+            <AlertTriangle className="h-6 w-6" />
+          </div>
+          <h1 className="mt-4 font-display text-xl font-bold text-[#0E1715] dark:text-white">
+            Unable to Load Offer Ad
+          </h1>
+          <p className="mt-2 text-sm text-[#5C6665] dark:text-[#98A4A2]">{loadError}</p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => void fetchOfferDetail(true)}
+              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-[#7FE85B] px-5 py-2.5 text-sm font-semibold text-[#082213] hover:bg-[#6AD845]"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>Retry</span>
+            </button>
+            <button
+              type="button"
+              onClick={onBackToMarketplace}
+              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[#DCE2E1] px-5 py-2.5 text-sm font-semibold text-[#0E1715] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Marketplace</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="mx-auto max-w-xl rounded-2xl border border-[#E3E7E7] bg-white p-8 text-center dark:border-[#202B2A] dark:bg-[#131A1A]">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
@@ -143,7 +197,7 @@ export function OfferDetailView({
           Offer Ad Not Found
         </h1>
         <p className="mt-2 text-sm text-[#5C6665] dark:text-[#98A4A2]">
-          No active P2P listing exists at <span className="font-mono">/offer/{offerId}</span>. It may have been paused or removed by the maker.
+          No active P2P listing exists at <span className="font-mono">/offer/{offerId}</span>. It may have been removed by the maker.
         </p>
         <button
           type="button"
@@ -435,13 +489,25 @@ export function OfferDetailView({
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => onSelectTrader(offer.traderUsername)}
-                className="min-h-[38px] rounded-xl border border-[#DCE2E1] bg-white px-4 py-2 text-xs font-semibold text-[#0E1715] hover:bg-[#F5F7F7] dark:border-[#263130] dark:bg-[#0F1515] dark:text-white dark:hover:bg-[#1A2423]"
-              >
-                View Trader Profile
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {!isOwnOffer && onMessageTrader && (
+                  <button
+                    type="button"
+                    onClick={() => onMessageTrader(offer.traderUsername, offer)}
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-[#0B3B2E] bg-[#EEF6F2] px-3.5 py-2 text-xs font-semibold text-[#0B3B2E] hover:bg-[#DFF0E6] dark:border-[#7FE85B]/50 dark:bg-[#152B20] dark:text-[#7FE85B] dark:hover:bg-[#1B3729]"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    <span>Message @{offer.traderUsername}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onSelectTrader(offer.traderUsername)}
+                  className="min-h-[38px] rounded-xl border border-[#DCE2E1] bg-white px-4 py-2 text-xs font-semibold text-[#0E1715] hover:bg-[#F5F7F7] dark:border-[#263130] dark:bg-[#0F1515] dark:text-white dark:hover:bg-[#1A2423]"
+                >
+                  View Trader Profile
+                </button>
+              </div>
             </div>
           </div>
 
@@ -676,24 +742,36 @@ export function OfferDetailView({
                     </button>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={handleStartTrade}
-                    className={`min-h-[46px] w-full rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-60 ${
-                      isBuyingCrypto || isSwap
-                        ? 'bg-[#7FE85B] text-[#082213] hover:bg-[#6AD845]'
-                        : 'bg-[#0B3B2E] text-white hover:bg-[#082B21] dark:bg-[#7FE85B] dark:text-[#082213] dark:hover:bg-[#6AD845]'
-                    }`}
-                  >
-                    {busy
-                      ? 'Opening Escrow Room...'
-                      : isSwap
-                        ? `Open Escrow Swap (${cryptoAmt.toFixed(5)} ${offer.crypto})`
-                        : isBuyingCrypto
-                          ? `Buy ${offer.crypto} Now (${cryptoAmt.toFixed(5)} ${offer.crypto})`
-                          : `Sell ${offer.crypto} Now (${cryptoAmt.toFixed(5)} ${offer.crypto})`}
-                  </button>
+                  <div className="space-y-2.5">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={handleStartTrade}
+                      className={`min-h-[46px] w-full rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-60 ${
+                        isBuyingCrypto || isSwap
+                          ? 'bg-[#7FE85B] text-[#082213] hover:bg-[#6AD845]'
+                          : 'bg-[#0B3B2E] text-white hover:bg-[#082B21] dark:bg-[#7FE85B] dark:text-[#082213] dark:hover:bg-[#6AD845]'
+                      }`}
+                    >
+                      {busy
+                        ? 'Opening Escrow Room...'
+                        : isSwap
+                          ? `Open Escrow Swap (${cryptoAmt.toFixed(5)} ${offer.crypto})`
+                          : isBuyingCrypto
+                            ? `Buy ${offer.crypto} Now (${cryptoAmt.toFixed(5)} ${offer.crypto})`
+                            : `Sell ${offer.crypto} Now (${cryptoAmt.toFixed(5)} ${offer.crypto})`}
+                    </button>
+                    {onMessageTrader && (
+                      <button
+                        type="button"
+                        onClick={() => onMessageTrader(offer.traderUsername, offer)}
+                        className="inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-xl border border-[#DCE2E1] bg-white px-4 py-2 text-xs font-semibold text-[#0E1715] hover:bg-[#F5F7F7] dark:border-[#263130] dark:bg-[#0F1515] dark:text-white dark:hover:bg-[#1A2423]"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                        <span>Write to @{offer.traderUsername} First</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             )}

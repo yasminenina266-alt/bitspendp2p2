@@ -18,6 +18,8 @@ import type {
   AppNotification,
   ChainId,
   CryptoAsset,
+  DirectChat,
+  DirectMessage,
   FiatCurrency,
   MarketPrices,
   P2POffer,
@@ -90,6 +92,7 @@ const TABLE_PATHS = {
   offers: path.join(TABLES_DIR, 'offers.json'),
   sessions: path.join(TABLES_DIR, 'sessions.json'),
   trades: path.join(TABLES_DIR, 'trades.json'),
+  chats: path.join(TABLES_DIR, 'chats.json'),
   notifications: path.join(TABLES_DIR, 'notifications.json'),
   swaps: path.join(TABLES_DIR, 'swaps.json'),
   cards: path.join(TABLES_DIR, 'cards.json'),
@@ -107,6 +110,7 @@ interface DatabaseSchema {
   sessions: Record<string, string>; // token -> username
   trades: Record<string, TradeOrder[]>; // legacy per-user trades index
   tradeRooms: Record<string, TradeOrder>; // shared tradeId -> TradeOrder
+  chats: Record<string, DirectChat>; // shared chatId -> DirectChat
   notifications: Record<string, AppNotification[]>; // username -> notifications
   swaps: Record<string, SwapOrder[]>; // username -> swaps
   cards: Record<string, VirtualCard[]>; // username -> cards
@@ -432,10 +436,16 @@ let db: DatabaseSchema = {
   sessions: {},
   trades: {},
   tradeRooms: {},
+  chats: {},
   notifications: {},
   swaps: {},
   cards: {},
 };
+
+function isSameUser(a?: string | null, b?: string | null): boolean {
+  if (!a || !b) return false;
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
 
 function findUserByUsername(username: string): StoredUser | undefined {
   const clean = username.trim();
@@ -451,6 +461,28 @@ function findTraderByUsername(username: string): TraderProfile | undefined {
   if (db.traders[clean]) return db.traders[clean];
   const key = Object.keys(db.traders).find((k) => k.toLowerCase() === clean.toLowerCase());
   return key ? db.traders[key] : undefined;
+}
+
+function findOfferById(offerId?: string): P2POffer | undefined {
+  const clean = (offerId ?? '').trim().toLowerCase();
+  if (!clean) return undefined;
+  return db.offers.find((o) => o.id.toLowerCase() === clean);
+}
+
+function findTradeById(tradeId?: string): TradeOrder | undefined {
+  const clean = (tradeId ?? '').trim();
+  if (!clean) return undefined;
+  if (db.tradeRooms[clean]) return db.tradeRooms[clean];
+  const key = Object.keys(db.tradeRooms).find((k) => k.toLowerCase() === clean.toLowerCase());
+  return key ? db.tradeRooms[key] : undefined;
+}
+
+function findDirectChatById(chatId?: string): DirectChat | undefined {
+  const clean = (chatId ?? '').trim();
+  if (!clean) return undefined;
+  if (db.chats[clean]) return db.chats[clean];
+  const key = Object.keys(db.chats).find((k) => k.toLowerCase() === clean.toLowerCase());
+  return key ? db.chats[key] : undefined;
 }
 
 async function readJsonFile<T>(filePath: string): Promise<T | null> {
@@ -470,6 +502,7 @@ async function loadDb() {
       tblOffers,
       tblSessions,
       tblTrades,
+      tblChats,
       tblNotifications,
       tblSwaps,
       tblCards,
@@ -479,6 +512,7 @@ async function loadDb() {
       readJsonFile<P2POffer[]>(TABLE_PATHS.offers),
       readJsonFile<Record<string, string>>(TABLE_PATHS.sessions),
       readJsonFile<Record<string, TradeOrder>>(TABLE_PATHS.trades),
+      readJsonFile<Record<string, DirectChat>>(TABLE_PATHS.chats),
       readJsonFile<Record<string, AppNotification[]>>(TABLE_PATHS.notifications),
       readJsonFile<Record<string, SwapOrder[]>>(TABLE_PATHS.swaps),
       readJsonFile<Record<string, VirtualCard[]>>(TABLE_PATHS.cards),
@@ -561,13 +595,24 @@ async function loadDb() {
       }
     }
 
+    // Prune orphaned sessions that no longer correspond to a real user
+    const rawSessions = tblSessions ?? legacy?.sessions ?? {};
+    const validUsernamesLower = new Set(Object.keys(users).map((k) => k.toLowerCase()));
+    const validSessions: Record<string, string> = {};
+    for (const [tok, uname] of Object.entries(rawSessions)) {
+      if (typeof uname === 'string' && validUsernamesLower.has(uname.toLowerCase())) {
+        validSessions[tok] = uname;
+      }
+    }
+
     db = {
       traders: mergedTraders,
       offers: mergedOffers.length > 0 ? mergedOffers : [...SEED_OFFERS],
       users,
-      sessions: tblSessions ?? legacy?.sessions ?? {},
+      sessions: validSessions,
       trades: legacyTrades,
       tradeRooms,
+      chats: tblChats ?? {},
       notifications: tblNotifications ?? legacy?.notifications ?? {},
       swaps: tblSwaps ?? legacy?.swaps ?? {},
       cards: tblCards ?? legacy?.cards ?? {},
@@ -575,7 +620,8 @@ async function loadDb() {
 
     // Materialize structured table files in /data/tables/
     await saveDb();
-  } catch {
+  } catch (err) {
+    console.error('[OOSAB loadDb error]', err);
     await saveDb();
   }
 }
@@ -598,13 +644,14 @@ function saveDb(): Promise<void> {
         writeJsonAtomic(TABLE_PATHS.offers, db.offers),
         writeJsonAtomic(TABLE_PATHS.sessions, db.sessions),
         writeJsonAtomic(TABLE_PATHS.trades, db.tradeRooms),
+        writeJsonAtomic(TABLE_PATHS.chats, db.chats),
         writeJsonAtomic(TABLE_PATHS.notifications, db.notifications),
         writeJsonAtomic(TABLE_PATHS.swaps, db.swaps),
         writeJsonAtomic(TABLE_PATHS.cards, db.cards),
       ]);
     })
-    .catch(() => {
-      // Keep running in-memory if filesystem is read-only
+    .catch((err) => {
+      console.error('[OOSAB saveDb error]', err);
     });
   return saveQueue;
 }
@@ -615,8 +662,7 @@ function getAuthUser(req: express.Request): StoredUser | null {
   const token = header.slice(7).trim();
   const username = db.sessions[token];
   if (!username) return null;
-  const user = db.users[username];
-  return user ? ensureUserFields(user) : null;
+  return findUserByUsername(username) ?? null;
 }
 
 function computeOfferUnitPrice(offer: P2POffer, prices: MarketPrices): number {
@@ -673,9 +719,10 @@ async function startServer() {
   const httpServer = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
   const userSockets = new Map<string, Set<WebSocket>>();
+  const canonicalOnlineNames = new Map<string, string>();
 
   const sendToUser = (username: string, payload: unknown) => {
-    const set = userSockets.get(username);
+    const set = userSockets.get(username.trim().toLowerCase());
     if (!set || set.size === 0) return;
     const raw = JSON.stringify(payload);
     for (const sock of set) {
@@ -685,9 +732,8 @@ async function startServer() {
     }
   };
 
-  const broadcastPresence = () => {
-    const onlineUsers = Array.from(userSockets.keys());
-    const raw = JSON.stringify({ type: 'presence:update', onlineUsers });
+  const broadcastAll = (payload: unknown) => {
+    const raw = JSON.stringify(payload);
     for (const set of userSockets.values()) {
       for (const sock of set) {
         if (sock.readyState === 1) sock.send(raw);
@@ -695,8 +741,14 @@ async function startServer() {
     }
   };
 
+  const getOnlineUserList = () => Array.from(canonicalOnlineNames.values());
+
+  const broadcastPresence = () => {
+    broadcastAll({ type: 'presence:update', onlineUsers: getOnlineUserList() });
+  };
+
   const isUserOnline = (username: string) => {
-    const set = userSockets.get(username);
+    const set = userSockets.get(username.trim().toLowerCase());
     return Boolean(set && set.size > 0);
   };
 
@@ -704,29 +756,34 @@ async function startServer() {
     username: string,
     input: Omit<AppNotification, 'id' | 'read' | 'createdAt'>
   ) => {
+    const canonical = findUserByUsername(username)?.username ?? username;
     const notif: AppNotification = {
       id: `ntf-${crypto.randomBytes(4).toString('hex')}`,
       ...input,
       read: false,
       createdAt: new Date().toISOString(),
     };
-    if (!db.notifications[username]) db.notifications[username] = [];
-    db.notifications[username].unshift(notif);
-    if (db.notifications[username].length > 60) {
-      db.notifications[username] = db.notifications[username].slice(0, 60);
+    if (!db.notifications[canonical]) db.notifications[canonical] = [];
+    db.notifications[canonical].unshift(notif);
+    if (db.notifications[canonical].length > 60) {
+      db.notifications[canonical] = db.notifications[canonical].slice(0, 60);
     }
-    const unreadCount = db.notifications[username].filter((n) => !n.read).length;
-    sendToUser(username, { type: 'notification:new', notification: notif, unreadCount });
+    const unreadCount = db.notifications[canonical].filter((n) => !n.read).length;
+    sendToUser(canonical, { type: 'notification:new', notification: notif, unreadCount });
     return notif;
   };
 
   const formatTradeForViewer = (trade: TradeOrder, viewerUsername: string): TradeOrder => {
-    const other =
-      trade.buyerUsername === viewerUsername ? trade.sellerUsername : trade.buyerUsername;
+    const other = isSameUser(trade.buyerUsername, viewerUsername)
+      ? trade.sellerUsername
+      : trade.buyerUsername;
+    const feedbackKey = trade.feedbackBy
+      ? Object.keys(trade.feedbackBy).find((k) => isSameUser(k, viewerUsername))
+      : undefined;
     return {
       ...trade,
       counterpartyIsReal: Boolean(findUserByUsername(other)),
-      feedbackGiven: trade.feedbackBy?.[viewerUsername] ?? trade.feedbackGiven,
+      feedbackGiven: (feedbackKey ? trade.feedbackBy?.[feedbackKey] : undefined) ?? trade.feedbackGiven,
     };
   };
 
@@ -736,16 +793,21 @@ async function startServer() {
       return;
     }
     const token = parsedUrl.searchParams.get('token') ?? '';
-    const username = db.sessions[token];
-    if (!username || !db.users[username]) {
+    const sessionName = db.sessions[token];
+    const authUser = sessionName ? findUserByUsername(sessionName) : undefined;
+    if (!authUser) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
       return;
     }
 
+    const username = authUser.username;
+    const socketKey = username.toLowerCase();
+
     wss.handleUpgrade(req, socket, head, (ws) => {
-      if (!userSockets.has(username)) userSockets.set(username, new Set());
-      userSockets.get(username)!.add(ws);
+      if (!userSockets.has(socketKey)) userSockets.set(socketKey, new Set());
+      userSockets.get(socketKey)!.add(ws);
+      canonicalOnlineNames.set(socketKey, username);
       if (db.traders[username]) {
         db.traders[username].lastSeenMinutes = 0;
       }
@@ -754,7 +816,7 @@ async function startServer() {
         JSON.stringify({
           type: 'connected',
           username,
-          onlineUsers: Array.from(userSockets.keys()),
+          onlineUsers: getOnlineUserList(),
         })
       );
       broadcastPresence();
@@ -764,6 +826,7 @@ async function startServer() {
           const msg = JSON.parse(String(raw)) as {
             type?: string;
             tradeId?: string;
+            chatId?: string;
             isTyping?: boolean;
           };
           if (msg.type === 'ping') {
@@ -771,23 +834,46 @@ async function startServer() {
             return;
           }
           if (msg.type === 'typing' && msg.tradeId) {
-            const trade = db.tradeRooms[msg.tradeId];
+            const trade = findTradeById(msg.tradeId);
             if (!trade) return;
-            if (trade.buyerUsername !== username && trade.sellerUsername !== username) return;
-            const other =
-              trade.buyerUsername === username ? trade.sellerUsername : trade.buyerUsername;
+            if (!isSameUser(trade.buyerUsername, username) && !isSameUser(trade.sellerUsername, username)) {
+              return;
+            }
+            const other = isSameUser(trade.buyerUsername, username)
+              ? trade.sellerUsername
+              : trade.buyerUsername;
             sendToUser(other, {
               type: 'trade:typing',
               tradeId: trade.id,
               username,
               isTyping: Boolean(msg.isTyping),
             });
+          } else if (msg.type === 'dm:typing' && msg.chatId) {
+            const chat = findDirectChatById(msg.chatId);
+            if (!chat || !chat.participants.some((p) => isSameUser(p, username))) return;
+            const other = chat.participants.find((p) => !isSameUser(p, username));
+            if (other) {
+              sendToUser(other, {
+                type: 'dm:typing',
+                chatId: chat.id,
+                username,
+                isTyping: Boolean(msg.isTyping),
+              });
+            }
           } else if (msg.type === 'trade:read' && msg.tradeId) {
-            const trade = db.tradeRooms[msg.tradeId];
+            const trade = findTradeById(msg.tradeId);
             if (!trade) return;
-            if (trade.buyerUsername !== username && trade.sellerUsername !== username) return;
+            if (!isSameUser(trade.buyerUsername, username) && !isSameUser(trade.sellerUsername, username)) {
+              return;
+            }
             if (!trade.lastReadAtBy) trade.lastReadAtBy = {};
             trade.lastReadAtBy[username] = new Date().toISOString();
+            await saveDb();
+          } else if (msg.type === 'dm:read' && msg.chatId) {
+            const chat = findDirectChatById(msg.chatId);
+            if (!chat || !chat.participants.some((p) => isSameUser(p, username))) return;
+            if (!chat.lastReadAtBy) chat.lastReadAtBy = {};
+            chat.lastReadAtBy[username] = new Date().toISOString();
             await saveDb();
           }
         } catch {
@@ -796,13 +882,27 @@ async function startServer() {
       });
 
       ws.on('close', () => {
-        const set = userSockets.get(username);
+        const set = userSockets.get(socketKey);
         if (set) {
           set.delete(ws);
-          if (set.size === 0) userSockets.delete(username);
+          if (set.size === 0) {
+            userSockets.delete(socketKey);
+            canonicalOnlineNames.delete(socketKey);
+          }
         }
         broadcastPresence();
       });
+    });
+  });
+
+  app.get('/api/health', (_req, res) => {
+    res.json({
+      ok: true,
+      users: Object.keys(db.users).length,
+      offers: db.offers.length,
+      trades: Object.keys(db.tradeRooms).length,
+      chats: Object.keys(db.chats).length,
+      timestamp: Date.now(),
     });
   });
 
@@ -853,7 +953,7 @@ async function startServer() {
     }
     const enriched = buildTraderDetails(rawTrader, db.offers);
     const activeOffers = db.offers.filter(
-      (o) => o.traderUsername === enriched.username && o.active
+      (o) => isSameUser(o.traderUsername, enriched.username) && o.active
     );
     const online = isUserOnline(enriched.username) || enriched.lastSeenMinutes === 0;
     return res.json({
@@ -907,10 +1007,7 @@ async function startServer() {
     if (typeof confirmPassword === 'string' && password !== confirmPassword) {
       return res.status(400).json({ error: 'Passwords do not match.' });
     }
-    const existing = Object.keys(db.users).find(
-      (k) => k.toLowerCase() === cleanName.toLowerCase()
-    );
-    if (existing || db.traders[cleanName]) {
+    if (findUserByUsername(cleanName) || findTraderByUsername(cleanName)) {
       return res.status(409).json({ error: 'That username is already taken.' });
     }
 
@@ -967,12 +1064,15 @@ async function startServer() {
       tradeHistory: [],
     };
     db.trades[cleanName] = [];
+    db.notifications[cleanName] = [];
     db.swaps[cleanName] = [];
     db.cards[cleanName] = [];
 
     const token = crypto.randomBytes(32).toString('hex');
     db.sessions[token] = cleanName;
     await saveDb();
+
+    broadcastAll({ type: 'trader:updated', trader: db.traders[cleanName] });
 
     return res.status(201).json({
       token,
@@ -1092,13 +1192,17 @@ async function startServer() {
     }
 
     const sanitized = sanitizeUser(user);
+    const updatedTrader = db.traders[user.username]
+      ? buildTraderDetails(db.traders[user.username], db.offers)
+      : undefined;
     sendToUser(user.username, { type: 'user:updated', user: sanitized });
+    if (updatedTrader) {
+      broadcastAll({ type: 'trader:updated', trader: updatedTrader });
+    }
     await saveDb();
     return res.json({
       user: sanitized,
-      trader: db.traders[user.username]
-        ? buildTraderDetails(db.traders[user.username], db.offers)
-        : undefined,
+      trader: updatedTrader,
     });
   });
 
@@ -1248,6 +1352,7 @@ async function startServer() {
       };
       db.offers.unshift(newOffer);
       await saveDb();
+      broadcastAll({ type: 'offer:created', offer: newOffer });
       return res.status(201).json({ offer: newOffer });
     }
 
@@ -1327,33 +1432,37 @@ async function startServer() {
 
     db.offers.unshift(newOffer);
     await saveDb();
+    broadcastAll({ type: 'offer:created', offer: newOffer });
     return res.status(201).json({ offer: newOffer });
   });
 
   app.patch('/api/offers/:id', async (req, res) => {
     const user = getAuthUser(req);
     if (!user) return res.status(401).json({ error: 'Authentication required' });
-    const offer = db.offers.find((o) => o.id === req.params.id);
+    const offer = findOfferById(req.params.id);
     if (!offer) return res.status(404).json({ error: 'Offer not found' });
-    if (offer.traderUsername !== user.username) {
+    if (!isSameUser(offer.traderUsername, user.username)) {
       return res.status(403).json({ error: 'You can only modify your own offers' });
     }
     if (typeof req.body.active === 'boolean') offer.active = req.body.active;
     if (typeof req.body.marginPct === 'number') offer.marginPct = req.body.marginPct;
     await saveDb();
+    broadcastAll({ type: 'offer:updated', offer });
     return res.json({ offer });
   });
 
   app.delete('/api/offers/:id', async (req, res) => {
     const user = getAuthUser(req);
     if (!user) return res.status(401).json({ error: 'Authentication required' });
-    const idx = db.offers.findIndex((o) => o.id === req.params.id);
+    const cleanId = req.params.id.trim().toLowerCase();
+    const idx = db.offers.findIndex((o) => o.id.toLowerCase() === cleanId);
     if (idx === -1) return res.status(404).json({ error: 'Offer not found' });
-    if (db.offers[idx].traderUsername !== user.username) {
+    if (!isSameUser(db.offers[idx].traderUsername, user.username)) {
       return res.status(403).json({ error: 'You can only delete your own offers' });
     }
-    db.offers.splice(idx, 1);
+    const [removed] = db.offers.splice(idx, 1);
     await saveDb();
+    broadcastAll({ type: 'offer:deleted', offerId: removed.id });
     return res.json({ ok: true });
   });
 
@@ -1362,7 +1471,7 @@ async function startServer() {
     const user = getAuthUser(req);
     if (!user) return res.status(401).json({ error: 'Authentication required' });
     const list = Object.values(db.tradeRooms)
-      .filter((t) => t.buyerUsername === user.username || t.sellerUsername === user.username)
+      .filter((t) => isSameUser(t.buyerUsername, user.username) || isSameUser(t.sellerUsername, user.username))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .map((t) => formatTradeForViewer(t, user.username));
     return res.json({ trades: list });
@@ -1377,9 +1486,9 @@ async function startServer() {
       fiatAmount?: number;
       swapAmount?: number;
     };
-    const offer = db.offers.find((o) => o.id === offerId);
+    const offer = findOfferById(offerId);
     if (!offer) return res.status(404).json({ error: 'Offer not found' });
-    if (offer.traderUsername.toLowerCase() === user.username.toLowerCase()) {
+    if (isSameUser(offer.traderUsername, user.username)) {
       return res.status(400).json({ error: 'You cannot place a trade on your own offer.' });
     }
 
@@ -1609,8 +1718,8 @@ async function startServer() {
   app.post('/api/trades/:id/read', async (req, res) => {
     const user = getAuthUser(req);
     if (!user) return res.status(401).json({ error: 'Authentication required' });
-    const trade = db.tradeRooms[req.params.id];
-    if (!trade || (trade.buyerUsername !== user.username && trade.sellerUsername !== user.username)) {
+    const trade = findTradeById(req.params.id);
+    if (!trade || (!isSameUser(trade.buyerUsername, user.username) && !isSameUser(trade.sellerUsername, user.username))) {
       return res.status(404).json({ error: 'Trade not found' });
     }
     if (!trade.lastReadAtBy) trade.lastReadAtBy = {};
@@ -1622,8 +1731,8 @@ async function startServer() {
   app.post('/api/trades/:id/messages', async (req, res) => {
     const user = getAuthUser(req);
     if (!user) return res.status(401).json({ error: 'Authentication required' });
-    const trade = db.tradeRooms[req.params.id];
-    if (!trade || (trade.buyerUsername !== user.username && trade.sellerUsername !== user.username)) {
+    const trade = findTradeById(req.params.id);
+    if (!trade || (!isSameUser(trade.buyerUsername, user.username) && !isSameUser(trade.sellerUsername, user.username))) {
       return res.status(404).json({ error: 'Trade not found' });
     }
 
@@ -1641,8 +1750,9 @@ async function startServer() {
     if (!trade.lastReadAtBy) trade.lastReadAtBy = {};
     trade.lastReadAtBy[user.username] = nowIso;
 
-    const otherUsername =
-      trade.buyerUsername === user.username ? trade.sellerUsername : trade.buyerUsername;
+    const otherUsername = isSameUser(trade.buyerUsername, user.username)
+      ? trade.sellerUsername
+      : trade.buyerUsername;
     const otherUser = findUserByUsername(otherUsername);
 
     if (otherUser) {
@@ -1692,8 +1802,8 @@ async function startServer() {
   app.post('/api/trades/:id/action', async (req, res) => {
     const user = getAuthUser(req);
     if (!user) return res.status(401).json({ error: 'Authentication required' });
-    const trade = db.tradeRooms[req.params.id];
-    if (!trade || (trade.buyerUsername !== user.username && trade.sellerUsername !== user.username)) {
+    const trade = findTradeById(req.params.id);
+    if (!trade || (!isSameUser(trade.buyerUsername, user.username) && !isSameUser(trade.sellerUsername, user.username))) {
       return res.status(404).json({ error: 'Trade not found' });
     }
 
@@ -1703,8 +1813,9 @@ async function startServer() {
       comment?: string;
     };
 
-    const otherUsername =
-      trade.buyerUsername === user.username ? trade.sellerUsername : trade.buyerUsername;
+    const otherUsername = isSameUser(trade.buyerUsername, user.username)
+      ? trade.sellerUsername
+      : trade.buyerUsername;
     const otherUser = findUserByUsername(otherUsername);
     const bothRealUsers = Boolean(
       findUserByUsername(trade.buyerUsername) && findUserByUsername(trade.sellerUsername)
@@ -1741,7 +1852,7 @@ async function startServer() {
         });
       }
     } else if (action === 'release' && (trade.status === 'escrow_funded' || trade.status === 'payment_sent')) {
-      if (bothRealUsers && user.username !== trade.sellerUsername) {
+      if (bothRealUsers && !isSameUser(user.username, trade.sellerUsername)) {
         return res.status(403).json({
           error: `Only the seller (${trade.sellerUsername}) can confirm receipt and release escrow.`,
         });
@@ -1942,6 +2053,158 @@ async function startServer() {
       trade: formatTradeForViewer(trade, user.username),
       user: sanitizeUser(user),
     });
+  });
+
+  // Direct User-to-User & Offer Messaging
+  app.get('/api/chats', (req, res) => {
+    const user = getAuthUser(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
+    const list = Object.values(db.chats)
+      .filter((c) => c.participants.some((p) => isSameUser(p, user.username)))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    return res.json({ chats: list });
+  });
+
+  app.post('/api/chats', async (req, res) => {
+    const user = getAuthUser(req);
+    if (!user) return res.status(401).json({ error: 'Sign in or register to message traders.' });
+    const { targetUsername, offerId } = (req.body ?? {}) as {
+      targetUsername?: string;
+      offerId?: string;
+    };
+    const targetUser = targetUsername ? findUserByUsername(targetUsername) : undefined;
+    const targetTrader = targetUsername ? findTraderByUsername(targetUsername) : undefined;
+    if (!targetUser && !targetTrader) {
+      return res.status(404).json({ error: 'Target trader not found.' });
+    }
+    const resolvedTarget = targetUser?.username ?? targetTrader!.username;
+    if (isSameUser(resolvedTarget, user.username)) {
+      return res.status(400).json({ error: 'You cannot start a direct message with yourself.' });
+    }
+
+    const pairSorted = [user.username, resolvedTarget].sort((a, b) =>
+      a.toLowerCase().localeCompare(b.toLowerCase())
+    ) as [string, string];
+    const existingChat = Object.values(db.chats).find(
+      (c) =>
+        c.participants.length === 2 &&
+        c.participants.some((p) => isSameUser(p, pairSorted[0])) &&
+        c.participants.some((p) => isSameUser(p, pairSorted[1]))
+    );
+
+    const linkedOffer = offerId ? findOfferById(offerId) : undefined;
+    const offerSummary = linkedOffer
+      ? linkedOffer.side === 'swap_crypto' && linkedOffer.swapToCrypto
+        ? `Swap ${linkedOffer.swapToCrypto} → ${linkedOffer.crypto}`
+        : `${linkedOffer.side === 'sell_crypto' ? 'Buy' : 'Sell'} ${linkedOffer.crypto} · ${linkedOffer.paymentMethod}`
+      : undefined;
+
+    if (existingChat) {
+      if (linkedOffer) {
+        existingChat.offerId = linkedOffer.id;
+        existingChat.offerSummary = offerSummary;
+        await saveDb();
+      }
+      return res.json({ chat: existingChat });
+    }
+
+    const nowIso = new Date().toISOString();
+    const chat: DirectChat = {
+      id: `chat-${crypto.randomBytes(4).toString('hex')}`,
+      participants: pairSorted,
+      offerId: linkedOffer?.id,
+      offerSummary,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      messages: [],
+      lastReadAtBy: { [user.username]: nowIso },
+    };
+
+    db.chats[chat.id] = chat;
+    await saveDb();
+    return res.status(201).json({ chat });
+  });
+
+  app.post('/api/chats/:id/read', async (req, res) => {
+    const user = getAuthUser(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
+    const chat = findDirectChatById(req.params.id);
+    if (!chat || !chat.participants.some((p) => isSameUser(p, user.username))) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+    if (!chat.lastReadAtBy) chat.lastReadAtBy = {};
+    chat.lastReadAtBy[user.username] = new Date().toISOString();
+    await saveDb();
+    return res.json({ chat });
+  });
+
+  app.post('/api/chats/:id/messages', async (req, res) => {
+    const user = getAuthUser(req);
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
+    const chat = findDirectChatById(req.params.id);
+    if (!chat || !chat.participants.some((p) => isSameUser(p, user.username))) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const text = String(req.body?.text ?? '').trim();
+    if (!text) return res.status(400).json({ error: 'Message cannot be empty' });
+
+    const reqOfferId = typeof req.body?.offerId === 'string' ? req.body.offerId : undefined;
+    const nowIso = new Date().toISOString();
+    const message: DirectMessage = {
+      id: `dmsg-${crypto.randomBytes(4).toString('hex')}`,
+      sender: user.username,
+      text,
+      timestamp: nowIso,
+      offerId: reqOfferId || chat.offerId,
+    };
+
+    chat.messages.push(message);
+    chat.updatedAt = nowIso;
+    if (!chat.lastReadAtBy) chat.lastReadAtBy = {};
+    chat.lastReadAtBy[user.username] = nowIso;
+
+    const otherName = chat.participants.find((p) => !isSameUser(p, user.username)) ?? '';
+    const otherUser = otherName ? findUserByUsername(otherName) : undefined;
+
+    if (otherUser) {
+      pushNotification(otherUser.username, {
+        type: 'direct_message',
+        title: `Direct message from @${user.username}`,
+        body: text.length > 90 ? `${text.slice(0, 87)}...` : text,
+        chatId: chat.id,
+        offerId: message.offerId,
+        fromUsername: user.username,
+      });
+      sendToUser(otherUser.username, {
+        type: 'dm:message',
+        chatId: chat.id,
+        message,
+        chat,
+      });
+      sendToUser(user.username, {
+        type: 'dm:updated',
+        chat,
+      });
+    } else if (otherName) {
+      // Desk auto-acknowledgment if messaging a seeded desk trader
+      const linked = message.offerId ? findOfferById(message.offerId) : undefined;
+      const replyText = linked
+        ? `Thanks for reaching out about offer ${linked.id} (${linked.paymentMethod}). Click "Open Offer" to enter your amount and start escrow whenever you're ready.`
+        : `Hi @${user.username}, thanks for messaging @${otherName}. Select any of my active offers to open a 2-of-3 multi-sig escrow room.`;
+      const replyMsg: DirectMessage = {
+        id: `dmsg-${crypto.randomBytes(4).toString('hex')}`,
+        sender: otherName,
+        text: replyText,
+        timestamp: new Date(Date.now() + 500).toISOString(),
+        offerId: message.offerId,
+      };
+      chat.messages.push(replyMsg);
+      chat.updatedAt = replyMsg.timestamp;
+    }
+
+    await saveDb();
+    return res.json({ chat });
   });
 
   // Notifications
@@ -2662,11 +2925,13 @@ async function startServer() {
                   ? Object.keys(db.sessions).length
                   : name === 'trades'
                     ? Object.keys(db.tradeRooms).length
-                    : name === 'notifications'
-                      ? Object.values(db.notifications).reduce((s, a) => s + a.length, 0)
-                      : name === 'swaps'
-                        ? Object.values(db.swaps).reduce((s, a) => s + a.length, 0)
-                        : Object.values(db.cards).reduce((s, a) => s + a.length, 0);
+                    : name === 'chats'
+                      ? Object.keys(db.chats).length
+                      : name === 'notifications'
+                        ? Object.values(db.notifications).reduce((s, a) => s + a.length, 0)
+                        : name === 'swaps'
+                          ? Object.values(db.swaps).reduce((s, a) => s + a.length, 0)
+                          : Object.values(db.cards).reduce((s, a) => s + a.length, 0);
         return {
           name: `${name}.json`,
           path: `data/tables/${name}.json`,
@@ -2679,7 +2944,7 @@ async function startServer() {
     const savedAccounts = Object.values(db.users).map((raw) => {
       const u = ensureUserFields(raw);
       const t = db.traders[u.username];
-      const offersCount = db.offers.filter((o) => o.traderUsername === u.username).length;
+      const offersCount = db.offers.filter((o) => isSameUser(o.traderUsername, u.username)).length;
       return {
         username: u.username,
         createdAt: u.createdAt,
@@ -2719,6 +2984,7 @@ async function startServer() {
       traders: customTraders,
       offers: customOffers,
       tradeRooms: db.tradeRooms,
+      chats: db.chats,
       notifications: db.notifications,
       swaps: db.swaps,
       cards: db.cards,
@@ -2731,6 +2997,7 @@ async function startServer() {
       traders?: Record<string, TraderProfile>;
       offers?: P2POffer[];
       tradeRooms?: Record<string, TradeOrder>;
+      chats?: Record<string, DirectChat>;
       notifications?: Record<string, AppNotification[]>;
       swaps?: Record<string, SwapOrder[]>;
       cards?: Record<string, VirtualCard[]>;
@@ -2824,6 +3091,11 @@ async function startServer() {
         if (t?.id && !db.tradeRooms[tid]) db.tradeRooms[tid] = t;
       }
     }
+    if (payload.chats && typeof payload.chats === 'object') {
+      for (const [cid, c] of Object.entries(payload.chats)) {
+        if (c?.id && !db.chats[cid]) db.chats[cid] = c;
+      }
+    }
     if (payload.notifications && typeof payload.notifications === 'object') {
       Object.assign(db.notifications, payload.notifications);
     }
@@ -2836,6 +3108,11 @@ async function startServer() {
 
     await saveDb();
     return res.json({ ok: true, importedUsers, importedOffers });
+  });
+
+  // Never fall through to SPA HTML on unknown /api/* routes
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'API endpoint not found' });
   });
 
   // Vite Dev Middleware or Static Production Build

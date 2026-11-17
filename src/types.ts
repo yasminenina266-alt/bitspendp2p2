@@ -189,10 +189,30 @@ export interface TradeOrder {
   };
 }
 
+export interface DirectMessage {
+  id: string;
+  sender: string;
+  text: string;
+  timestamp: string;
+  offerId?: string;
+}
+
+export interface DirectChat {
+  id: string;
+  participants: [string, string];
+  offerId?: string;
+  offerSummary?: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: DirectMessage[];
+  lastReadAtBy?: Record<string, string>;
+}
+
 export type NotificationType =
   | 'trade_opened'
   | 'trade_message'
   | 'trade_status'
+  | 'direct_message'
   | 'wallet_credit'
   | 'feedback_received';
 
@@ -203,6 +223,7 @@ export interface AppNotification {
   body: string;
   tradeId?: string;
   offerId?: string;
+  chatId?: string;
   fromUsername?: string;
   read: boolean;
   createdAt: string;
