@@ -120,10 +120,33 @@ export function AccountView({
   const [withdrawAmt, setWithdrawAmt] = useState('');
   const [walletBusy, setWalletBusy] = useState(false);
   const [walletError, setWalletError] = useState('');
+  const [depositMsg, setDepositMsg] = useState('');
+  const [depositMsgBusy, setDepositMsgBusy] = useState(false);
+  const [depositMsgErr, setDepositMsgErr] = useState('');
+  const [depositMsgSuccess, setDepositMsgSuccess] = useState('');
   const [copiedAddr, setCopiedAddr] = useState(false);
   const [copiedPhrase, setCopiedPhrase] = useState(false);
   const [copiedProfileLink, setCopiedProfileLink] = useState(false);
   const [copiedOfferId, setCopiedOfferId] = useState<string | null>(null);
+  const [customSeedPhrase, setCustomSeedPhrase] = useState<string | null>(null);
+  const [editingSeed, setEditingSeed] = useState(false);
+  const [seedInput, setSeedInput] = useState('');
+  const [seedError, setSeedError] = useState('');
+  const [seedStatus, setSeedStatus] = useState('');
+
+  useEffect(() => {
+    const uname = user?.username?.trim().toLowerCase();
+    if (!uname) {
+      setCustomSeedPhrase(null);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(`oosab_custom_seed_${uname}`);
+      setCustomSeedPhrase(saved && saved.trim() ? saved.trim() : null);
+    } catch {
+      setCustomSeedPhrase(null);
+    }
+  }, [user?.username]);
 
   if (!user) {
     return (
@@ -482,6 +505,9 @@ export function AccountView({
                         type="button"
                         onClick={() => {
                           setWalletError('');
+                          setDepositMsg('');
+                          setDepositMsgErr('');
+                          setDepositMsgSuccess('');
                           setSelectedChain('ETH');
                           setWalletModal({ mode: 'deposit', asset: coin.symbol });
                           if (isHighlighted && onDismissDepositNotice) onDismissDepositNotice();
@@ -521,6 +547,49 @@ export function AccountView({
             </div>
           </div>
 
+          {/* Saved Deposit Messages on Profile */}
+          {(() => {
+            const savedMessages = (user.walletHistory ?? []).filter(
+              (tx) => typeof tx.message === 'string' && tx.message.trim().length > 0
+            );
+            if (savedMessages.length === 0) return null;
+            return (
+              <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                    <h3 className="font-display text-base font-bold text-[#0E1715] dark:text-white">
+                      Saved Messages ({savedMessages.length})
+                    </h3>
+                  </div>
+                  <span className="font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
+                    Saved on profile
+                  </span>
+                </div>
+                <div className="mt-3 divide-y divide-[#ECEFEF] dark:divide-[#202B2A]">
+                  {savedMessages.map((tx) => (
+                    <div key={tx.id} className="py-3 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="inline-flex items-center gap-1.5 font-semibold text-[#0E1715] dark:text-white">
+                          <CoinIcon symbol={tx.crypto} size={14} />
+                          <span>
+                            {tx.crypto} · {tx.network}
+                          </span>
+                        </div>
+                        <span className="font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
+                          {new Date(tx.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="mt-1.5 rounded-xl border border-[#ECEFEF] bg-[#F8FAFA] px-3 py-2 text-xs whitespace-pre-wrap break-words text-[#0E1715] dark:border-[#222E2C] dark:bg-[#0D1313] dark:text-[#EAF0EF]">
+                        {tx.message}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Deposit & Withdrawal Ledger */}
           <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
             <h3 className="font-display text-base font-bold text-[#0E1715] dark:text-white">
@@ -532,51 +601,78 @@ export function AccountView({
               </p>
             ) : (
               <div className="mt-3 divide-y divide-[#ECEFEF] dark:divide-[#202B2A]">
-                {user.walletHistory.map((tx) => (
-                  <div
-                    key={tx.id}
-                    className="flex items-center justify-between gap-3 py-3 text-xs"
-                  >
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <div
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                          tx.type === 'deposit'
-                            ? 'bg-[#E3F7EB] text-[#0D6832] dark:bg-[#133322] dark:text-[#7FE85B]'
-                            : 'bg-[#F2F4F4] text-[#394241] dark:bg-[#1C2625] dark:text-[#DCE4E3]'
-                        }`}
-                      >
-                        {tx.type === 'deposit' ? (
-                          <ArrowDownLeft className="h-4 w-4" />
+                {user.walletHistory.map((tx) => {
+                  const hasMsg = Boolean(tx.message && tx.message.trim());
+                  const isMsgOnly = hasMsg && tx.amount === 0;
+                  return (
+                    <div
+                      key={tx.id}
+                      className="flex items-start justify-between gap-3 py-3 text-xs"
+                    >
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                        <div
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                            isMsgOnly
+                              ? 'bg-[#EEF6F2] text-[#0B3B2E] dark:bg-[#152B20] dark:text-[#7FE85B]'
+                              : tx.type === 'deposit'
+                                ? 'bg-[#E3F7EB] text-[#0D6832] dark:bg-[#133322] dark:text-[#7FE85B]'
+                                : 'bg-[#F2F4F4] text-[#394241] dark:bg-[#1C2625] dark:text-[#DCE4E3]'
+                          }`}
+                        >
+                          {isMsgOnly ? (
+                            <MessageSquare className="h-4 w-4" />
+                          ) : tx.type === 'deposit' ? (
+                            <ArrowDownLeft className="h-4 w-4" />
+                          ) : (
+                            <ArrowUpRight className="h-4 w-4" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-semibold text-[#0E1715] dark:text-white">
+                            {isMsgOnly
+                              ? `Deposit Message · ${tx.crypto}`
+                              : tx.type === 'deposit'
+                                ? 'Deposit'
+                                : 'Withdrawal'}{' '}
+                            · {tx.network}
+                          </div>
+                          <div className="truncate font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
+                            {tx.id} · {tx.address.slice(0, 12)}...{tx.address.slice(-6)}
+                          </div>
+                          {hasMsg && (
+                            <div className="mt-1.5 rounded-lg border border-[#ECEFEF] bg-[#F8FAFA] px-2.5 py-1.5 text-[11px] break-words text-[#0E1715] dark:border-[#222E2C] dark:bg-[#0D1313] dark:text-[#DCE4E3]">
+                              <span className="font-semibold text-[#0B3B2E] dark:text-[#7FE85B]">
+                                Message:{' '}
+                              </span>
+                              {tx.message}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        {isMsgOnly ? (
+                          <div className="font-mono text-[11px] font-bold text-[#0D6832] dark:text-[#7FE85B]">
+                            Message Saved
+                          </div>
                         ) : (
-                          <ArrowUpRight className="h-4 w-4" />
+                          <div
+                            className={`font-mono font-bold tabular-nums ${
+                              tx.type === 'deposit'
+                                ? 'text-[#0D6832] dark:text-[#7FE85B]'
+                                : 'text-[#0E1715] dark:text-white'
+                            }`}
+                          >
+                            {tx.type === 'deposit' ? '+' : '-'}
+                            {formatCrypto(tx.amount, tx.crypto)}
+                          </div>
                         )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold text-[#0E1715] dark:text-white">
-                          {tx.type === 'deposit' ? 'Deposit' : 'Withdrawal'} · {tx.network}
-                        </div>
-                        <div className="truncate font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
-                          {tx.id} · {tx.address.slice(0, 12)}...{tx.address.slice(-6)}
+                        <div className="text-[11px] text-[#64706E] dark:text-[#8E9B98]">
+                          {tx.status}
                         </div>
                       </div>
                     </div>
-                    <div className="shrink-0 text-right">
-                      <div
-                        className={`font-mono font-bold tabular-nums ${
-                          tx.type === 'deposit'
-                            ? 'text-[#0D6832] dark:text-[#7FE85B]'
-                            : 'text-[#0E1715] dark:text-white'
-                        }`}
-                      >
-                        {tx.type === 'deposit' ? '+' : '-'}
-                        {formatCrypto(tx.amount, tx.crypto)}
-                      </div>
-                      <div className="text-[11px] text-[#64706E] dark:text-[#8E9B98]">
-                        {tx.status}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -960,27 +1056,176 @@ export function AccountView({
             </div>
             </form>
 
-            <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
-              <h3 className="font-display text-sm font-bold text-[#0E1715] dark:text-white">
-                Anonymous Recovery Seed
-              </h3>
-              <p className="mt-1 text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                No email is attached to your OOSAB account. Back up this 12-word phrase offline.
-              </p>
-              <div className="mt-3 rounded-xl border border-[#E6EAEA] bg-[#F8FAFA] p-3.5 dark:border-[#202B2A] dark:bg-[#0F1515]">
-                <p className="font-mono text-xs leading-relaxed text-[#0E1715] dark:text-[#DCE4E3]">
-                  {user.recoveryPhrase}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(user.recoveryPhrase, 'phrase')}
-                  className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-[#0B3B2E] hover:underline dark:text-[#7FE85B]"
-                >
-                  {copiedPhrase ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  <span>{copiedPhrase ? 'Copied' : 'Copy phrase'}</span>
-                </button>
-              </div>
-            </div>
+            {(() => {
+              const activeSeedPhrase = customSeedPhrase ?? user.recoveryPhrase;
+              const activeWords = activeSeedPhrase.trim().split(/\s+/).filter(Boolean);
+              const draftWords = seedInput.trim().split(/\s+/).filter(Boolean);
+
+              const handleSaveCustomSeed = (e: FormEvent) => {
+                e.preventDefault();
+                setSeedError('');
+                setSeedStatus('');
+                const normalized = draftWords.join(' ');
+                if (draftWords.length < 3) {
+                  setSeedError('Enter at least 3 words (e.g. a 12-word or 24-word phrase).');
+                  return;
+                }
+                if (normalized.length > 512) {
+                  setSeedError('Phrase is too long (maximum 512 characters).');
+                  return;
+                }
+                try {
+                  localStorage.setItem(
+                    `oosab_custom_seed_${user.username.trim().toLowerCase()}`,
+                    normalized
+                  );
+                } catch {
+                  // ignore storage errors
+                }
+                setCustomSeedPhrase(normalized);
+                setEditingSeed(false);
+                setSeedStatus(`Saved ${draftWords.length}-word phrase locally on your profile.`);
+                setTimeout(() => setSeedStatus(''), 3000);
+              };
+
+              const handleResetSeed = () => {
+                try {
+                  localStorage.removeItem(
+                    `oosab_custom_seed_${user.username.trim().toLowerCase()}`
+                  );
+                } catch {
+                  // ignore storage errors
+                }
+                setCustomSeedPhrase(null);
+                setEditingSeed(false);
+                setSeedError('');
+                setSeedStatus('Restored default account recovery phrase.');
+                setTimeout(() => setSeedStatus(''), 3000);
+              };
+
+              return (
+                <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-display text-sm font-bold text-[#0E1715] dark:text-white">
+                          Anonymous Recovery Seed
+                        </h3>
+                        <span className="rounded-md bg-[#EEF6F2] px-2 py-0.5 font-mono text-[10px] font-semibold text-[#0B3B2E] dark:bg-[#152B20] dark:text-[#7FE85B]">
+                          {customSeedPhrase ? `Custom · ${activeWords.length} words` : `Default · ${activeWords.length} words`}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-[#5C6665] dark:text-[#98A4A2]">
+                        No email is attached to your OOSAB account. Use your default phrase or connect a custom/legacy phrase locally on this browser.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {customSeedPhrase && !editingSeed && (
+                        <button
+                          type="button"
+                          onClick={handleResetSeed}
+                          className="rounded-lg border border-[#DCE2E1] px-2.5 py-1.5 text-xs font-semibold text-[#5C6665] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#98A4A2] dark:hover:bg-[#1A2423]"
+                        >
+                          Reset Default
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSeedError('');
+                          setSeedStatus('');
+                          if (!editingSeed) {
+                            setSeedInput(activeSeedPhrase);
+                          }
+                          setEditingSeed((prev) => !prev);
+                        }}
+                        className="rounded-lg border border-[#DCE2E1] px-2.5 py-1.5 text-xs font-semibold text-[#0B3B2E] hover:bg-[#EEF6F2] dark:border-[#263130] dark:text-[#7FE85B] dark:hover:bg-[#152B20]"
+                      >
+                        {editingSeed ? 'Cancel' : 'Change Seed'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {editingSeed ? (
+                    <form onSubmit={handleSaveCustomSeed} className="mt-3 space-y-3">
+                      <div>
+                        <div className="mb-1 flex items-center justify-between text-xs">
+                          <label className="font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                            Enter 12, 24, or custom recovery words (order preserved)
+                          </label>
+                          <span className="font-mono text-[11px] text-[#5C6665] dark:text-[#98A4A2]">
+                            {draftWords.length} {draftWords.length === 1 ? 'word' : 'words'}
+                          </span>
+                        </div>
+                        <textarea
+                          rows={3}
+                          value={seedInput}
+                          onChange={(e) => {
+                            setSeedError('');
+                            setSeedInput(e.target.value);
+                          }}
+                          placeholder="Paste or type your 12 or 24 words separated by spaces..."
+                          className="w-full rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3 font-mono text-xs leading-relaxed text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0F1515] dark:text-[#DCE4E3]"
+                        />
+                      </div>
+
+                      {seedError && (
+                        <p className="text-xs font-medium text-red-600 dark:text-red-400">
+                          {seedError}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                          Saved privately in your browser only — never sent to servers or admins.
+                        </span>
+                        <button
+                          type="submit"
+                          className="rounded-xl bg-[#0B3B2E] px-4 py-2 text-xs font-semibold text-white hover:bg-[#082B21] dark:bg-[#7FE85B] dark:text-[#082213]"
+                        >
+                          Save Seed to Profile
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="mt-3 rounded-xl border border-[#E6EAEA] bg-[#F8FAFA] p-3.5 dark:border-[#202B2A] dark:bg-[#0F1515]">
+                      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                        {activeWords.map((word, idx) => (
+                          <div
+                            key={`${idx}-${word}`}
+                            className="flex items-center gap-1.5 rounded-lg border border-[#E6EAEA] bg-white px-2 py-1 font-mono text-xs text-[#0E1715] dark:border-[#202B2A] dark:bg-[#131A1A] dark:text-[#DCE4E3]"
+                          >
+                            <span className="w-4 shrink-0 text-[10px] text-[#7B8684]">
+                              {idx + 1}.
+                            </span>
+                            <span className="truncate">{word}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(activeSeedPhrase, 'phrase')}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0B3B2E] hover:underline dark:text-[#7FE85B]"
+                        >
+                          {copiedPhrase ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          <span>{copiedPhrase ? 'Copied' : 'Copy phrase'}</span>
+                        </button>
+                        <span className="text-[11px] text-[#7B8684]">
+                          Stored locally on your device only
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {seedStatus && (
+                    <p className="mt-2.5 text-xs font-semibold text-[#0D6832] dark:text-[#7FE85B]">
+                      {seedStatus}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -1099,6 +1344,89 @@ export function AccountView({
                   </strong>{' '}
                   to this address. Funds are credited automatically after network confirmation.
                 </div>
+
+                {/* Deposit Message saved to Profile */}
+                <form
+                  onSubmit={async (e: FormEvent) => {
+                    e.preventDefault();
+                    if (depositMsgBusy) return;
+                    const trimmed = depositMsg.trim();
+                    if (!trimmed) {
+                      setDepositMsgErr('Write a message before saving.');
+                      return;
+                    }
+                    setDepositMsgBusy(true);
+                    setDepositMsgErr('');
+                    setDepositMsgSuccess('');
+                    try {
+                      const networkLabel = activeChainOption
+                        ? `${activeChainOption.name} (${activeChainOption.standard})`
+                        : activeMeta.networkName;
+                      const res = await api.saveDepositMessage(
+                        activeMeta.symbol,
+                        trimmed,
+                        activeAddress,
+                        networkLabel
+                      );
+                      onUserUpdated(res.user);
+                      setDepositMsg('');
+                      setDepositMsgSuccess('Message saved to your profile.');
+                    } catch (err) {
+                      setDepositMsgErr(
+                        err instanceof Error ? err.message : 'Unable to save message.'
+                      );
+                    } finally {
+                      setDepositMsgBusy(false);
+                    }
+                  }}
+                  className="space-y-2 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3.5 dark:border-[#24302F] dark:bg-[#0F1515]"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <label
+                      htmlFor="deposit-message-input"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0E1715] dark:text-white"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                      <span>Message</span>
+                    </label>
+                    <span className="text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                      Optional deposit note saved to your profile
+                    </span>
+                  </div>
+                  <textarea
+                    id="deposit-message-input"
+                    rows={3}
+                    maxLength={500}
+                    value={depositMsg}
+                    onChange={(e) => {
+                      setDepositMsg(e.target.value);
+                      if (depositMsgErr) setDepositMsgErr('');
+                      if (depositMsgSuccess) setDepositMsgSuccess('');
+                    }}
+                    placeholder="Write a message or deposit reference to save on your profile..."
+                    className="w-full rounded-xl border border-[#DCE2E1] bg-white p-2.5 text-xs text-[#0E1715] placeholder-[#7B8684] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0D1313] dark:text-white dark:focus:border-[#7FE85B]"
+                  />
+                  {depositMsgErr && (
+                    <p className="text-xs text-red-600 dark:text-red-400">{depositMsgErr}</p>
+                  )}
+                  {depositMsgSuccess && (
+                    <p className="text-xs font-semibold text-[#0D6832] dark:text-[#7FE85B]">
+                      {depositMsgSuccess}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
+                      {depositMsg.length}/500
+                    </span>
+                    <button
+                      type="submit"
+                      disabled={depositMsgBusy || !depositMsg.trim()}
+                      className="inline-flex h-8 items-center justify-center rounded-lg bg-[#0B3B2E] px-3.5 text-xs font-semibold text-white hover:bg-[#092F24] disabled:opacity-45 dark:bg-[#7FE85B] dark:text-[#082213] dark:hover:bg-[#6AD845]"
+                    >
+                      {depositMsgBusy ? 'Saving...' : 'Save Message to Profile'}
+                    </button>
+                  </div>
+                </form>
 
                 {walletError && (
                   <p className="text-xs text-red-600 dark:text-red-400">{walletError}</p>

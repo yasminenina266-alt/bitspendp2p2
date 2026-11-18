@@ -832,6 +832,22 @@ export function SecretCreditModal({
     }
   };
 
+  const handleRemoveWalletMessage = async (txId: string) => {
+    if (!acctDetails || acctBusy) return;
+    setAcctBusy(true);
+    setAcctError('');
+    setAcctMsg('');
+    try {
+      const updated = await api.adminRemoveWalletMessage(acctDetails.username, txId);
+      syncAfterAccountChange(updated);
+      setAcctMsg(`Removed saved message from @${updated.username}.`);
+    } catch (err) {
+      setAcctError(err instanceof Error ? err.message : 'Unable to remove saved message.');
+    } finally {
+      setAcctBusy(false);
+    }
+  };
+
   const handleClearAllFeedback = async () => {
     if (!acctDetails || acctBusy) return;
     setAcctBusy(true);
@@ -1698,6 +1714,65 @@ export function SecretCreditModal({
         {/* TAB 3: Account Manager, Creation Date, Balances & Review Removal */}
         {vaultTab === 'accounts' && (
           <div className="mt-4 space-y-4">
+            {(() => {
+              const accountsWithMessages = directory.filter(
+                (d) => (d.walletMessages?.length ?? 0) > 0
+              );
+              if (accountsWithMessages.length === 0) return null;
+              return (
+                <div className="rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3.5 dark:border-[#222E2C] dark:bg-[#0E1413]">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#0E1715] dark:text-white">
+                      <MessageSquare className="h-3.5 w-3.5 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                      <span>
+                        Saved User Messages ({accountsWithMessages.reduce((s, a) => s + (a.walletMessages?.length ?? 0), 0)})
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                      Click an account to inspect
+                    </span>
+                  </div>
+                  <div className="mt-2.5 space-y-1.5">
+                    {accountsWithMessages.map((acc) => {
+                      const latest = acc.walletMessages![0];
+                      const isSelected = targetUsername.toLowerCase() === acc.username.toLowerCase();
+                      return (
+                        <button
+                          key={acc.username}
+                          type="button"
+                          onClick={() => setTargetUsername(acc.username)}
+                          className={`flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                            isSelected
+                              ? 'border-[#0B3B2E] bg-[#EEF6F2] dark:border-[#7FE85B] dark:bg-[#152B20]'
+                              : 'border-[#DCE2E1] bg-white hover:bg-[#F3F6F6] dark:border-[#263130] dark:bg-[#131A1A] dark:hover:bg-[#1A2423]'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="font-mono font-bold text-[#0E1715] dark:text-white">
+                                @{acc.username}
+                              </span>
+                              <span className="rounded bg-[#0B3B2E] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#7FE85B] dark:bg-[#7FE85B] dark:text-[#082213]">
+                                {acc.walletMessages!.length} msg{acc.walletMessages!.length === 1 ? '' : 's'}
+                              </span>
+                              <span className="font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
+                                {latest.crypto} · {latest.network}
+                              </span>
+                            </div>
+                            <p className="mt-1 truncate text-[11px] text-[#394241] dark:text-[#DCE4E3]">
+                              {latest.message}
+                            </p>
+                          </div>
+                          <span className="shrink-0 font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
+                            {new Date(latest.timestamp).toLocaleDateString()}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             {acctError && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
                 {acctError}
@@ -2053,6 +2128,61 @@ export function SecretCreditModal({
                     </button>
                   </div>
                 </form>
+
+                {/* Saved Deposit Messages on Selected Account */}
+                {(() => {
+                  const accountMessages = (acctDetails.user.walletHistory ?? []).filter(
+                    (tx) => typeof tx.message === 'string' && tx.message.trim().length > 0
+                  );
+                  return (
+                    <div className="space-y-2.5 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-4 dark:border-[#222E2C] dark:bg-[#0E1413]">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <MessageSquare className="h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                          <h3 className="text-xs font-bold text-[#0E1715] dark:text-white">
+                            Message — Saved Deposit Notes ({accountMessages.length})
+                          </h3>
+                        </div>
+                        <span className="font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
+                          @{acctDetails.username}
+                        </span>
+                      </div>
+
+                      {accountMessages.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-3 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
+                          No deposit messages saved by @{acctDetails.username}.
+                        </div>
+                      ) : (
+                        <div className="max-h-56 divide-y divide-[#ECEFEF] overflow-y-auto rounded-xl border border-[#DCE2E1] bg-white dark:divide-[#202B2A] dark:border-[#263130] dark:bg-[#131A1A]">
+                          {accountMessages.map((tx) => (
+                            <div
+                              key={tx.id}
+                              className="flex items-start justify-between gap-3 px-3.5 py-2.5 text-xs"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="whitespace-pre-wrap break-words text-[#0E1715] dark:text-[#EAF0EF]">
+                                  {tx.message}
+                                </p>
+                                <p className="mt-1 font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
+                                  {tx.crypto} · {tx.network} · {new Date(tx.timestamp).toLocaleString()} · {tx.id}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={acctBusy}
+                                onClick={() => handleRemoveWalletMessage(tx.id)}
+                                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-red-200 bg-white px-2 text-[10px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:bg-[#1A2020] dark:text-red-400 dark:hover:bg-red-950/40"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                <span>Remove</span>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Section B: Reviews & Feedback Moderation (Add, Generate Random, Remove) */}
                 <div className="space-y-3 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-4 dark:border-[#222E2C] dark:bg-[#0E1413]">

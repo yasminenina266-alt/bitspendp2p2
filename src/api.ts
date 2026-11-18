@@ -70,6 +70,13 @@ export interface DirectoryUser {
   ratingPct: number;
   feedbackCount: number;
   verified: boolean;
+  walletMessages?: {
+    id: string;
+    crypto: CryptoAsset;
+    network: string;
+    message: string;
+    timestamp: string;
+  }[];
 }
 
 export interface AdminAccountDetails {
@@ -1568,6 +1575,15 @@ export const api = {
         const u = normalizeUserDoc(raw);
         const t = traderMap.get(u.username.toLowerCase());
         if (t?.tagline === REMOVED_ACCOUNT_MARKER) continue;
+        const walletMessages = (u.walletHistory ?? [])
+          .filter((tx) => typeof tx.message === 'string' && tx.message.trim().length > 0)
+          .map((tx) => ({
+            id: tx.id,
+            crypto: tx.crypto,
+            network: tx.network,
+            message: tx.message!.trim(),
+            timestamp: tx.timestamp,
+          }));
         users.push({
           username: u.username,
           createdAt: u.createdAt,
@@ -1577,6 +1593,7 @@ export const api = {
           ratingPct: t?.ratingPct ?? 100,
           feedbackCount: t?.recentFeedback?.length ?? 0,
           verified: t?.verified ?? false,
+          walletMessages,
         });
       }
       users.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -3601,6 +3618,47 @@ export const api = {
     };
   },
 
+  async saveDepositMessage(
+    asset: CryptoAsset,
+    message: string,
+    address?: string,
+    network?: string
+  ): Promise<{ user: UserAccount }> {
+    const { uid, user } = await requireCurrentAccount();
+    const cleanMsg = message.trim().slice(0, 500);
+    if (!cleanMsg) {
+      throw new ApiError('Enter a message before saving.', 400);
+    }
+
+    const cleanAddr = (address ?? '').trim() || generateDepositAddress(asset);
+    const cleanNetwork = (network ?? '').trim() || `${asset} Mainnet`;
+    const tx: WalletTx = {
+      id: `MSG-${randomHex(3).toUpperCase()}`,
+      type: 'deposit',
+      crypto: asset,
+      amount: 0,
+      address: cleanAddr,
+      txHash: randomHex(32),
+      network: cleanNetwork,
+      status: 'Confirmed',
+      timestamp: new Date().toISOString(),
+      message: cleanMsg,
+    };
+    const nextHistory = [tx, ...(user.walletHistory ?? [])].slice(0, 100);
+
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        walletHistory: nextHistory,
+        updatedAt: serverTimestamp(),
+      });
+      return {
+        user: { ...user, walletHistory: nextHistory },
+      };
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
+    }
+  },
+
   async withdrawCrypto(
     asset: CryptoAsset,
     amount: number,
@@ -5030,6 +5088,39 @@ export const api = {
       };
     } catch (err) {
       return wrapFirestoreError(err, OperationType.UPDATE, `traders/${target.canonicalUsername}`);
+    }
+  },
+
+  async adminRemoveWalletMessage(
+    targetUsername: string,
+    txId: string
+  ): Promise<AdminAccountDetails> {
+    const clean = targetUsername.trim();
+    const target = await resolveUsernameTarget(clean);
+    if (!target.isReal || !target.uid) {
+      throw new ApiError(`Registered account "${clean}" not found.`, 404);
+    }
+
+    const uid = target.uid;
+    const uRef = doc(db, 'users', uid);
+    const uSnap = await getDoc(uRef).catch((err) =>
+      wrapFirestoreError(err, OperationType.GET, `users/${uid}`)
+    );
+    if (!uSnap.exists()) {
+      throw new ApiError(`Account records for "${clean}" were not found.`, 404);
+    }
+
+    const existingUser = normalizeUserDoc(uSnap.data());
+    const nextHistory = (existingUser.walletHistory ?? []).filter((tx) => tx.id !== txId);
+
+    try {
+      await updateDoc(uRef, {
+        walletHistory: nextHistory,
+        updatedAt: serverTimestamp(),
+      });
+      return await api.adminGetAccountDetails(target.canonicalUsername);
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
     }
   },
 

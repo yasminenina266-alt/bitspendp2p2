@@ -283,6 +283,7 @@ export interface WalletTx {
   network: string;
   status: 'Confirmed';
   timestamp: string;
+  message?: string;
 }
 
 export interface UserSettings {
