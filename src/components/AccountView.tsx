@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useState, type FormEvent } from 'react';
-import { api } from '../api';
+import { api, getXmrMinWithdrawInfo, isXmrAmountAtLeastMinUsd } from '../api';
 import {
   ASSET_CHAINS,
   CRYPTO_ASSETS,
@@ -196,8 +196,28 @@ export function AccountView({
   const handleWithdrawSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!walletModal) return;
-    setWalletBusy(true);
     setWalletError('');
+
+    const parsedAmt = Number(withdrawAmt);
+    if (walletModal.asset === 'XMR') {
+      const xmrPriceUsd = prices.usdPrices.XMR ?? 0;
+      const xmrBal = user.balances.XMR ?? 0;
+      const minInfo = getXmrMinWithdrawInfo(xmrPriceUsd, xmrBal);
+      if (!minInfo.hasEnoughWalletBalance) {
+        setWalletError(
+          `You need at least $2,000.00 USD (${minInfo.minXmr.toFixed(6)} XMR) in your wallet to withdraw Monero. Add ${minInfo.shortfallXmr.toFixed(6)} more XMR ($${minInfo.shortfallUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD).`
+        );
+        return;
+      }
+      if (!isXmrAmountAtLeastMinUsd(parsedAmt, minInfo.xmrUsdPrice)) {
+        setWalletError(
+          `Minimum Monero (XMR) withdrawal is $2,000.00 USD (${minInfo.minXmr.toFixed(6)} XMR at $${minInfo.xmrUsdPrice.toFixed(2)}/XMR).`
+        );
+        return;
+      }
+    }
+
+    setWalletBusy(true);
     try {
       const meta = CRYPTO_ASSETS.find((c) => c.symbol === walletModal.asset);
       const chains = ASSET_CHAINS[walletModal.asset];
@@ -207,7 +227,7 @@ export function AccountView({
         : meta?.networkName;
       const res = await api.withdrawCrypto(
         walletModal.asset,
-        Number(withdrawAmt),
+        parsedAmt,
         withdrawAddr,
         networkLabel
       );
@@ -1085,77 +1105,168 @@ export function AccountView({
                 )}
               </div>
             ) : (
-              <form onSubmit={handleWithdrawSubmit} className="mt-5 space-y-4">
-                <div className="flex items-center justify-between text-xs text-[#5C6665] dark:text-[#98A4A2]">
-                  <span>Available Balance</span>
-                  <span className="font-mono font-bold text-[#0E1715] dark:text-white">
-                    {formatCrypto(user.balances[activeMeta.symbol] ?? 0, activeMeta.symbol)}
-                  </span>
-                </div>
+              (() => {
+                const walletBal = user.balances[activeMeta.symbol] ?? 0;
+                const spotUsd = prices.usdPrices[activeMeta.symbol] ?? 0;
+                const walletUsd = walletBal * spotUsd;
+                const xmrMin =
+                  activeMeta.symbol === 'XMR' ? getXmrMinWithdrawInfo(spotUsd, walletBal) : null;
+                const parsedWithdraw = Number(withdrawAmt);
+                const withdrawUsd =
+                  Number.isFinite(parsedWithdraw) && parsedWithdraw > 0
+                    ? parsedWithdraw * (xmrMin ? xmrMin.xmrUsdPrice : spotUsd)
+                    : 0;
+                const xmrBlockedByBalance = Boolean(xmrMin && !xmrMin.hasEnoughWalletBalance);
+                const xmrAmtBelowMin = Boolean(
+                  xmrMin &&
+                    Number.isFinite(parsedWithdraw) &&
+                    parsedWithdraw > 0 &&
+                    !isXmrAmountAtLeastMinUsd(parsedWithdraw, xmrMin.xmrUsdPrice)
+                );
 
-                <div>
-                  <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
-                    Destination {activeMeta.symbol} Address
-                    {activeChainOption ? ` (${activeChainOption.name} · ${activeChainOption.standard})` : ''}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={withdrawAddr}
-                    onChange={(e) => setWithdrawAddr(e.target.value)}
-                    placeholder={`Paste external ${activeMeta.symbol} wallet address`}
-                    className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3.5 font-mono text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
-                  />
-                </div>
+                return (
+                  <form onSubmit={handleWithdrawSubmit} className="mt-5 space-y-4">
+                    <div className="flex items-center justify-between text-xs text-[#5C6665] dark:text-[#98A4A2]">
+                      <span>Available Balance</span>
+                      <span className="font-mono font-bold text-[#0E1715] dark:text-white">
+                        {formatCrypto(walletBal, activeMeta.symbol)}{' '}
+                        <span className="font-normal text-[#5C6665] dark:text-[#8E9B98]">
+                          (≈ ${walletUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD)
+                        </span>
+                      </span>
+                    </div>
 
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="font-semibold text-[#394241] dark:text-[#C5D1CF]">
-                      Amount ({activeMeta.symbol})
-                    </span>
+                    {xmrMin && (
+                      <div
+                        className={`rounded-xl border p-3 text-xs leading-relaxed ${
+                          xmrMin.hasEnoughWalletBalance
+                            ? 'border-[#8CE89E] bg-[#EAFBF0] text-[#0B3B2E] dark:border-[#1E4D33] dark:bg-[#112A1D] dark:text-[#7FE85B]'
+                            : 'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800/70 dark:bg-amber-950/35 dark:text-amber-200'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-1 font-semibold">
+                          <span>Minimum XMR Withdrawal: $2,000.00 USD</span>
+                          <span className="font-mono">
+                            {xmrMin.minXmr.toFixed(6)} XMR @ ${xmrMin.xmrUsdPrice.toFixed(2)}
+                          </span>
+                        </div>
+                        {xmrMin.hasEnoughWalletBalance ? (
+                          <p className="mt-1 text-[11px] opacity-90">
+                            Your wallet holds{' '}
+                            <strong>
+                              ${xmrMin.walletUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                            </strong>{' '}
+                            worth of XMR — withdrawal enabled.
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-[11px] opacity-95">
+                            At least <strong>$2,000.00 USD</strong> ({xmrMin.minXmr.toFixed(6)} XMR) is required in your wallet to withdraw Monero. You need{' '}
+                            <strong>{xmrMin.shortfallXmr.toFixed(6)} more XMR</strong> ($
+                            {xmrMin.shortfallUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD).
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-semibold text-[#394241] dark:text-[#C5D1CF] mb-1.5">
+                        Destination {activeMeta.symbol} Address
+                        {activeChainOption ? ` (${activeChainOption.name} · ${activeChainOption.standard})` : ''}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={withdrawAddr}
+                        onChange={(e) => setWithdrawAddr(e.target.value)}
+                        placeholder={`Paste external ${activeMeta.symbol} wallet address`}
+                        className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3.5 font-mono text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                          Amount ({activeMeta.symbol})
+                        </span>
+                        <div className="flex items-center gap-3">
+                          {xmrMin && xmrMin.hasEnoughWalletBalance && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setWalletError('');
+                                setWithdrawAmt(String(xmrMin.quickFillMinXmr));
+                              }}
+                              className="font-mono font-semibold text-[#0B3B2E] hover:underline dark:text-[#7FE85B]"
+                            >
+                              Min ($2k)
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWalletError('');
+                              setWithdrawAmt(String(walletBal));
+                            }}
+                            className="font-mono font-semibold text-[#0B3B2E] hover:underline dark:text-[#7FE85B]"
+                          >
+                            Max
+                          </button>
+                        </div>
+                      </div>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0.0001"
+                        required
+                        value={withdrawAmt}
+                        onChange={(e) => {
+                          setWalletError('');
+                          setWithdrawAmt(e.target.value);
+                        }}
+                        placeholder={xmrMin ? xmrMin.minXmr.toFixed(6) : '0.00'}
+                        className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3.5 font-mono text-sm font-bold text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                      />
+                      {withdrawAmt !== '' && Number.isFinite(parsedWithdraw) && parsedWithdraw > 0 && (
+                        <div className="mt-1.5 flex items-center justify-between text-[11px]">
+                          <span className="font-mono text-[#5C6665] dark:text-[#8E9B98]">
+                            ≈ ${withdrawUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                          </span>
+                          {xmrAmtBelowMin && xmrMin && (
+                            <span className="font-medium text-amber-700 dark:text-amber-300">
+                              Minimum is {xmrMin.minXmr.toFixed(6)} XMR ($2,000.00 USD)
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-xl bg-[#F8FAFA] px-3.5 py-2.5 text-xs dark:bg-[#0F1515]">
+                      <span className="text-[#5C6665] dark:text-[#8E9B98]">Estimated Network Fee</span>
+                      <span className="font-mono font-semibold text-[#0E1715] dark:text-white">
+                        {activeMeta.networkFee} {activeMeta.symbol}
+                      </span>
+                    </div>
+
+                    {walletError && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+                        {walletError}
+                      </div>
+                    )}
+
                     <button
-                      type="button"
-                      onClick={() =>
-                        setWithdrawAmt(String(user.balances[activeMeta.symbol] ?? 0))
-                      }
-                      className="font-mono font-semibold text-[#0B3B2E] hover:underline dark:text-[#7FE85B]"
+                      type="submit"
+                      disabled={walletBusy || xmrBlockedByBalance}
+                      className="w-full rounded-xl bg-[#0B3B2E] py-3 text-sm font-semibold text-white hover:bg-[#082B21] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#7FE85B] dark:text-[#082213]"
                     >
-                      Max
+                      {walletBusy
+                        ? 'Broadcasting...'
+                        : xmrBlockedByBalance
+                          ? 'Minimum $2,000.00 USD in XMR Required'
+                          : `Withdraw ${activeMeta.symbol}`}
                     </button>
-                  </div>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0.0001"
-                    required
-                    value={withdrawAmt}
-                    onChange={(e) => setWithdrawAmt(e.target.value)}
-                    placeholder="0.00"
-                    className="h-11 w-full rounded-xl border border-[#DCE2E1] bg-white px-3.5 font-mono text-sm font-bold text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between rounded-xl bg-[#F8FAFA] px-3.5 py-2.5 text-xs dark:bg-[#0F1515]">
-                  <span className="text-[#5C6665] dark:text-[#8E9B98]">Estimated Network Fee</span>
-                  <span className="font-mono font-semibold text-[#0E1715] dark:text-white">
-                    {activeMeta.networkFee} {activeMeta.symbol}
-                  </span>
-                </div>
-
-                {walletError && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
-                    {walletError}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={walletBusy}
-                  className="w-full rounded-xl bg-[#0B3B2E] py-3 text-sm font-semibold text-white hover:bg-[#082B21] dark:bg-[#7FE85B] dark:text-[#082213]"
-                >
-                  {walletBusy ? 'Broadcasting...' : `Withdraw ${activeMeta.symbol}`}
-                </button>
-              </form>
+                  </form>
+                );
+              })()
             )}
           </div>
         </div>

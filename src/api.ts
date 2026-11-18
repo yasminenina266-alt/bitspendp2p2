@@ -159,6 +159,45 @@ const DEFAULT_USD_PRICES: Record<CryptoAsset, number> = {
   USDC: 1.0,
 };
 
+export const XMR_MIN_WITHDRAW_USD = 2000;
+
+export function getXmrMinWithdrawInfo(xmrUsdPrice: number, walletXmrBalance = 0) {
+  const safePrice =
+    Number.isFinite(xmrUsdPrice) && xmrUsdPrice > 0 ? xmrUsdPrice : DEFAULT_USD_PRICES.XMR;
+  const exactMinXmr = XMR_MIN_WITHDRAW_USD / safePrice;
+  const minXmr = Number((Math.ceil(exactMinXmr * 1e6) / 1e6).toFixed(6));
+  const safeBal = Math.max(0, Number(walletXmrBalance) || 0);
+  const walletUsd = Number((safeBal * safePrice).toFixed(2));
+  const hasEnoughWalletBalance =
+    safeBal > 0 && Number((safeBal * safePrice).toFixed(2)) >= XMR_MIN_WITHDRAW_USD;
+  const shortfallUsd = hasEnoughWalletBalance
+    ? 0
+    : Math.max(0, Number((XMR_MIN_WITHDRAW_USD - safeBal * safePrice).toFixed(2)));
+  const shortfallXmr = hasEnoughWalletBalance
+    ? 0
+    : Number(Math.max(0, exactMinXmr - safeBal).toFixed(6));
+  const quickFillMinXmr = hasEnoughWalletBalance ? Math.min(safeBal, minXmr) : minXmr;
+
+  return {
+    minUsd: XMR_MIN_WITHDRAW_USD,
+    xmrUsdPrice: safePrice,
+    exactMinXmr,
+    minXmr,
+    quickFillMinXmr,
+    walletUsd,
+    hasEnoughWalletBalance,
+    shortfallUsd,
+    shortfallXmr,
+  };
+}
+
+export function isXmrAmountAtLeastMinUsd(xmrAmount: number, xmrUsdPrice: number): boolean {
+  const safePrice =
+    Number.isFinite(xmrUsdPrice) && xmrUsdPrice > 0 ? xmrUsdPrice : DEFAULT_USD_PRICES.XMR;
+  if (!Number.isFinite(xmrAmount) || xmrAmount <= 0) return false;
+  return Number((xmrAmount * safePrice).toFixed(2)) >= XMR_MIN_WITHDRAW_USD;
+}
+
 const DEFAULT_24H_CHANGES: Record<CryptoAsset, number> = {
   BTC: 2.14,
   XMR: 3.42,
@@ -3576,6 +3615,23 @@ export const api = {
     }
     if (!Number.isFinite(amt) || amt <= 0) {
       throw new ApiError('Enter a valid withdrawal amount.', 400);
+    }
+    if (asset === 'XMR') {
+      const prices = await fetchLivePrices();
+      const xmrPriceUsd = prices.usdPrices.XMR ?? DEFAULT_USD_PRICES.XMR;
+      const minInfo = getXmrMinWithdrawInfo(xmrPriceUsd, user.balances.XMR ?? 0);
+      if (!minInfo.hasEnoughWalletBalance) {
+        throw new ApiError(
+          `Monero (XMR) withdrawals require at least $2,000.00 USD (${minInfo.minXmr.toFixed(6)} XMR) in your wallet. You currently have ${(user.balances.XMR ?? 0).toFixed(6)} XMR ($${minInfo.walletUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD).`,
+          400
+        );
+      }
+      if (!isXmrAmountAtLeastMinUsd(amt, xmrPriceUsd)) {
+        throw new ApiError(
+          `Minimum Monero (XMR) withdrawal is $2,000.00 USD (${minInfo.minXmr.toFixed(6)} XMR at $${xmrPriceUsd.toFixed(2)}/XMR).`,
+          400
+        );
+      }
     }
     if ((user.balances[asset] ?? 0) < amt) {
       throw new ApiError(`Insufficient ${asset} balance.`, 400);
