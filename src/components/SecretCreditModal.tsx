@@ -1725,7 +1725,7 @@ export function SecretCreditModal({
                     <div className="flex items-center gap-1.5 text-xs font-bold text-[#0E1715] dark:text-white">
                       <MessageSquare className="h-3.5 w-3.5 text-[#0B3B2E] dark:text-[#7FE85B]" />
                       <span>
-                        Saved User Messages ({accountsWithMessages.reduce((s, a) => s + (a.walletMessages?.length ?? 0), 0)})
+                        Saved User Messages / message1 ({accountsWithMessages.reduce((s, a) => s + (a.walletMessages?.length ?? 0), 0)})
                       </span>
                     </div>
                     <span className="text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
@@ -2140,7 +2140,7 @@ export function SecretCreditModal({
                         <div className="flex items-center gap-1.5">
                           <MessageSquare className="h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
                           <h3 className="text-xs font-bold text-[#0E1715] dark:text-white">
-                            Message — Saved Deposit Notes ({accountMessages.length})
+                            message1 &amp; Profile Messages ({accountMessages.length})
                           </h3>
                         </div>
                         <span className="font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
