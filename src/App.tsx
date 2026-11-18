@@ -1469,6 +1469,27 @@ export default function App() {
             setProfileRefreshKey((k) => k + 1);
             loadMarketplace();
           }}
+          onAccountRemoved={(removedUsername, removedSelf) => {
+            const lower = removedUsername.toLowerCase();
+            setTraders((prev) => {
+              const next = { ...prev };
+              for (const k of Object.keys(next)) {
+                if (k.toLowerCase() === lower) delete next[k];
+              }
+              return next;
+            });
+            setOffers((prev) => prev.filter((o) => o.traderUsername.toLowerCase() !== lower));
+            if (profileUsername && profileUsername.toLowerCase() === lower) {
+              navigateToPath('/');
+              setProfileUsername(null);
+              setActiveTab('offers');
+            }
+            if (removedSelf) {
+              void handleLogout();
+            }
+            setProfileRefreshKey((k) => k + 1);
+            loadMarketplace();
+          }}
           onDataSynced={() => {
             loadMarketplace();
             loadUserWorkspace();

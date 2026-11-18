@@ -19,8 +19,10 @@ import {
   SEED_OFFERS,
   SEED_TRADERS,
   buildTraderDetails,
+  generateRandomBuyerFeedback,
   generateTraderFeedbackPage,
   generateTraderTradesPage,
+  pickRandomBuyerAuthor,
 } from '../server/seedData';
 import { DEFAULT_FIAT_RATES } from './constants/market';
 import { OperationType, db, handleFirestoreError } from './firebase';
@@ -62,10 +64,21 @@ export interface ProfileUpdatePayload {
 export interface DirectoryUser {
   username: string;
   createdAt: string;
+  joinedAt: string;
   balances: Record<CryptoAsset, number>;
   tradesCount: number;
   ratingPct: number;
+  feedbackCount: number;
   verified: boolean;
+}
+
+export interface AdminAccountDetails {
+  uid: string;
+  username: string;
+  createdAt: string;
+  user: UserAccount;
+  trader: TraderProfile;
+  offers: P2POffer[];
 }
 
 export interface TableFileInfo {
@@ -114,6 +127,7 @@ export class ApiError extends Error {
 }
 
 const TOKEN_KEY = 'oosab_session_token';
+const REMOVED_ACCOUNT_MARKER = '__REMOVED__';
 const SUPPORTED_ASSETS: CryptoAsset[] = ['BTC', 'XMR', 'ETH', 'USDT', 'LTC', 'SOL', 'USDC'];
 const ALLOWED_PROFILE_THEMES = new Set<ProfileThemeId>([
   'emerald',
@@ -836,6 +850,10 @@ async function requireCurrentAccount(): Promise<{ uid: string; user: UserAccount
       throw new ApiError('Session expired. Please sign in again.', 401, 'UNAUTHENTICATED');
     }
     const raw = snap.data();
+    if (raw.tagline === REMOVED_ACCOUNT_MARKER) {
+      setToken(null);
+      throw new ApiError('This account has been removed.', 401, 'UNAUTHENTICATED');
+    }
     return { uid: session.uid, user: normalizeUserDoc(raw), raw };
   } catch (err) {
     return wrapFirestoreError(err, OperationType.GET, path);
@@ -1261,6 +1279,9 @@ export const api = {
     }
 
     let user = normalizeUserDoc(userSnap.data());
+    if (user.tagline === REMOVED_ACCOUNT_MARKER) {
+      throw new ApiError('This account has been removed.', 403, 'ACCOUNT_REMOVED');
+    }
     const token = randomHex(32);
 
     const batch = writeBatch(db);
@@ -1313,17 +1334,26 @@ export const api = {
         .map((d) => normalizeOfferDoc(d.data()))
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      const customIds = new Set(customOffers.map((o) => o.id.toLowerCase()));
-      const offers = [
-        ...customOffers,
-        ...SEED_OFFERS.filter((o) => !customIds.has(o.id.toLowerCase())),
-      ];
-
+      const removedUsernames = new Set<string>();
       const traders: Record<string, TraderProfile> = { ...SEED_TRADERS };
       for (const d of tradersSnap.docs) {
-        const t = normalizeTraderDoc(d.data());
+        const raw = d.data();
+        const t = normalizeTraderDoc(raw);
+        if (raw.tagline === REMOVED_ACCOUNT_MARKER) {
+          if (t.username) removedUsernames.add(t.username.toLowerCase());
+          continue;
+        }
         if (t.username) traders[t.username] = t;
       }
+
+      const visibleCustomOffers = customOffers.filter(
+        (o) => !removedUsernames.has(o.traderUsername.toLowerCase())
+      );
+      const customIds = new Set(visibleCustomOffers.map((o) => o.id.toLowerCase()));
+      const offers = [
+        ...visibleCustomOffers,
+        ...SEED_OFFERS.filter((o) => !customIds.has(o.id.toLowerCase())),
+      ];
 
       return { offers, traders };
     } catch (err) {
@@ -1389,18 +1419,24 @@ export const api = {
         const t = normalizeTraderDoc(d.data());
         traderMap.set(t.username.toLowerCase(), t);
       });
-      const users: DirectoryUser[] = usersSnap.docs.map((d) => {
-        const u = normalizeUserDoc(d.data());
+      const users: DirectoryUser[] = [];
+      for (const d of usersSnap.docs) {
+        const raw = d.data();
+        if (raw.tagline === REMOVED_ACCOUNT_MARKER) continue;
+        const u = normalizeUserDoc(raw);
         const t = traderMap.get(u.username.toLowerCase());
-        return {
+        if (t?.tagline === REMOVED_ACCOUNT_MARKER) continue;
+        users.push({
           username: u.username,
           createdAt: u.createdAt,
+          joinedAt: t?.joinedAt ?? u.createdAt.slice(0, 10),
           balances: u.balances,
           tradesCount: t?.tradesCount ?? 0,
           ratingPct: t?.ratingPct ?? 100,
+          feedbackCount: t?.recentFeedback?.length ?? 0,
           verified: t?.verified ?? false,
-        };
-      });
+        });
+      }
       users.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       return { users };
     } catch (err) {
@@ -1431,14 +1467,24 @@ export const api = {
     }
 
     let baseTrader: TraderProfile | undefined;
+    let isRemovedAccount = false;
     try {
       const tSnap = await getDoc(doc(db, 'traders', canonical));
       if (tSnap.exists()) {
-        baseTrader = normalizeTraderDoc(tSnap.data());
-        isRegisteredUser = Boolean(tSnap.data().isRegisteredUser);
+        const rawT = tSnap.data();
+        if (rawT.tagline === REMOVED_ACCOUNT_MARKER) {
+          isRemovedAccount = true;
+        } else {
+          baseTrader = normalizeTraderDoc(rawT);
+          isRegisteredUser = Boolean(rawT.isRegisteredUser);
+        }
       }
     } catch {
       // continue to seed fallback
+    }
+
+    if (isRemovedAccount) {
+      throw new ApiError('Trader not found', 404, 'TRADER_NOT_FOUND');
     }
 
     if (!baseTrader) {
@@ -3632,7 +3678,7 @@ export const api = {
     if (payload.feedback?.comment?.trim()) {
       nextFeedback.unshift({
         id: `fb-${randomHex(3)}`,
-        author: payload.feedback.author?.trim() || 'anon_trader',
+        author: payload.feedback.author?.trim() || 'Victor7777',
         positive: payload.feedback.positive !== false,
         comment: payload.feedback.comment.trim(),
         asset: payload.feedback.asset ?? 'BTC',
@@ -4207,6 +4253,612 @@ export const api = {
       );
     } catch (err) {
       return wrapFirestoreError(err, OperationType.WRITE, `trades/${tradeId}`);
+    }
+  },
+
+  // -------------------------------------------------------------------------
+  // Admin Account, Profile, Reviews & History Moderation Methods
+  // -------------------------------------------------------------------------
+  async adminGetAccountDetails(targetUsername: string): Promise<AdminAccountDetails> {
+    const clean = targetUsername.trim();
+    if (!clean) throw new ApiError('Select an account first.', 400);
+
+    const target = await resolveUsernameTarget(clean);
+    if (!target.isReal || !target.uid) {
+      throw new ApiError(`Registered account "${clean}" not found.`, 404);
+    }
+
+    const uid = target.uid;
+    const canonical = target.canonicalUsername;
+    try {
+      const [uSnap, tSnap, offersSnap] = await Promise.all([
+        getDoc(doc(db, 'users', uid)),
+        getDoc(doc(db, 'traders', canonical)),
+        getDocs(query(collection(db, 'offers'), where('traderUsername', '==', canonical))),
+      ]);
+
+      if (!uSnap.exists() || !tSnap.exists()) {
+        throw new ApiError(`Account records for "${clean}" were not found.`, 404);
+      }
+      const uRaw = uSnap.data();
+      const tRaw = tSnap.data();
+      if (uRaw.tagline === REMOVED_ACCOUNT_MARKER || tRaw.tagline === REMOVED_ACCOUNT_MARKER) {
+        throw new ApiError(`Account @${canonical} has been removed.`, 404);
+      }
+
+      const user = normalizeUserDoc(uRaw);
+      const trader = normalizeTraderDoc(tRaw);
+      const offers = offersSnap.docs
+        .map((d) => normalizeOfferDoc(d.data()))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      return {
+        uid,
+        username: canonical,
+        createdAt: user.createdAt,
+        user,
+        trader,
+        offers,
+      };
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.GET, `users/${uid}`);
+    }
+  },
+
+  async adminUpdateAccount(
+    targetUsername: string,
+    payload: {
+      joinedAt?: string;
+      tradesCount?: number;
+      ratingPct?: number;
+      avgReleaseMinutes?: number;
+      completionRatePct?: number;
+      lastSeenMinutes?: number;
+      verified?: boolean;
+      totalVolumeUsd?: number;
+      volumeTier?: string;
+      totalFeedbackCount?: number;
+      bio?: string;
+      tagline?: string;
+      location?: string;
+      tradingHours?: string;
+      balances?: Partial<Record<CryptoAsset, number>>;
+      clearWalletHistory?: boolean;
+      removeAvatar?: boolean;
+      removeBanner?: boolean;
+    }
+  ): Promise<AdminAccountDetails> {
+    const clean = targetUsername.trim();
+    if (!clean) throw new ApiError('Select an account first.', 400);
+
+    const target = await resolveUsernameTarget(clean);
+    if (!target.isReal || !target.uid) {
+      throw new ApiError(`Registered account "${clean}" not found.`, 404);
+    }
+
+    const uid = target.uid;
+    const canonical = target.canonicalUsername;
+    const userRef = doc(db, 'users', uid);
+    const traderRef = doc(db, 'traders', canonical);
+
+    const [uSnap, tSnap] = await Promise.all([
+      getDoc(userRef).catch((err) => wrapFirestoreError(err, OperationType.GET, `users/${uid}`)),
+      getDoc(traderRef).catch((err) =>
+        wrapFirestoreError(err, OperationType.GET, `traders/${canonical}`)
+      ),
+    ]);
+
+    if (!uSnap.exists() || !tSnap.exists()) {
+      throw new ApiError(`Account "${clean}" not found.`, 404);
+    }
+    const existingUser = normalizeUserDoc(uSnap.data());
+    if (
+      uSnap.data().tagline === REMOVED_ACCOUNT_MARKER ||
+      tSnap.data().tagline === REMOVED_ACCOUNT_MARKER
+    ) {
+      throw new ApiError(`Account @${canonical} has been removed.`, 404);
+    }
+
+    const userUpdates: Record<string, unknown> = { updatedAt: serverTimestamp() };
+    const traderUpdates: Record<string, unknown> = { updatedAt: serverTimestamp() };
+
+    if (typeof payload.joinedAt === 'string' && payload.joinedAt.trim()) {
+      traderUpdates.joinedAt = payload.joinedAt.trim().slice(0, 32);
+    }
+    if (typeof payload.tradesCount === 'number' && Number.isFinite(payload.tradesCount)) {
+      traderUpdates.tradesCount = Math.max(0, Math.round(payload.tradesCount));
+    }
+    if (typeof payload.ratingPct === 'number' && Number.isFinite(payload.ratingPct)) {
+      traderUpdates.ratingPct = Math.max(0, Math.min(100, Math.round(payload.ratingPct)));
+    }
+    if (typeof payload.avgReleaseMinutes === 'number' && Number.isFinite(payload.avgReleaseMinutes)) {
+      traderUpdates.avgReleaseMinutes = Math.max(0, Math.round(payload.avgReleaseMinutes));
+    }
+    if (
+      typeof payload.completionRatePct === 'number' &&
+      Number.isFinite(payload.completionRatePct)
+    ) {
+      traderUpdates.completionRatePct = Math.max(
+        0,
+        Math.min(100, Number(payload.completionRatePct.toFixed(1)))
+      );
+    }
+    if (typeof payload.lastSeenMinutes === 'number' && Number.isFinite(payload.lastSeenMinutes)) {
+      traderUpdates.lastSeenMinutes = Math.max(0, Math.round(payload.lastSeenMinutes));
+    }
+    if (typeof payload.verified === 'boolean') {
+      traderUpdates.verified = payload.verified;
+    }
+    if (typeof payload.totalVolumeUsd === 'number' && Number.isFinite(payload.totalVolumeUsd)) {
+      const nextVol = Math.max(0, Number(payload.totalVolumeUsd.toFixed(2)));
+      traderUpdates.totalVolumeUsd = nextVol;
+      if (typeof payload.volumeTier !== 'string') {
+        traderUpdates.volumeTier =
+          nextVol >= 250000
+            ? '$250K+ Desk'
+            : nextVol >= 50000
+              ? '$50K+ Desk'
+              : nextVol >= 10000
+                ? '$10K+ Trader'
+                : 'Starter';
+      }
+    }
+    if (typeof payload.volumeTier === 'string' && payload.volumeTier.trim()) {
+      traderUpdates.volumeTier = payload.volumeTier.trim().slice(0, 40);
+    }
+    if (
+      typeof payload.totalFeedbackCount === 'number' &&
+      Number.isFinite(payload.totalFeedbackCount)
+    ) {
+      traderUpdates.totalFeedbackCount = Math.max(0, Math.round(payload.totalFeedbackCount));
+    }
+    if (typeof payload.bio === 'string') {
+      const cleanBio = payload.bio.trim().slice(0, 320);
+      userUpdates.bio = cleanBio;
+      traderUpdates.bio = cleanBio;
+    }
+    if (typeof payload.tagline === 'string') {
+      const cleanTagline = payload.tagline.trim().slice(0, 90);
+      const safeTagline =
+        cleanTagline === REMOVED_ACCOUNT_MARKER ? null : cleanTagline || null;
+      userUpdates.tagline = safeTagline;
+      traderUpdates.tagline = safeTagline;
+    }
+    if (typeof payload.location === 'string') {
+      const cleanLoc = payload.location.trim().slice(0, 60) || null;
+      userUpdates.location = cleanLoc;
+      traderUpdates.location = cleanLoc;
+    }
+    if (typeof payload.tradingHours === 'string') {
+      const cleanHours = payload.tradingHours.trim().slice(0, 60) || null;
+      userUpdates.tradingHours = cleanHours;
+      traderUpdates.tradingHours = cleanHours;
+    }
+    if (payload.removeAvatar) {
+      userUpdates.avatarUrl = null;
+      traderUpdates.avatarUrl = null;
+    }
+    if (payload.removeBanner) {
+      userUpdates.bannerUrl = null;
+      traderUpdates.bannerUrl = null;
+    }
+    if (payload.clearWalletHistory) {
+      userUpdates.walletHistory = [];
+    }
+    if (payload.balances) {
+      const nextBalances = { ...existingUser.balances };
+      for (const asset of SUPPORTED_ASSETS) {
+        const val = payload.balances[asset];
+        if (typeof val === 'number' && Number.isFinite(val) && val >= 0) {
+          nextBalances[asset] = Number(val.toFixed(8));
+        }
+      }
+      userUpdates.balances = nextBalances;
+    }
+
+    const batch = writeBatch(db);
+    batch.update(userRef, userUpdates);
+    batch.update(traderRef, traderUpdates);
+
+    try {
+      await batch.commit();
+      return await api.adminGetAccountDetails(canonical);
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.WRITE, `users/${uid}`);
+    }
+  },
+
+  async adminAddFeedback(
+    targetUsername: string,
+    payload: {
+      custom?: {
+        author?: string;
+        comment: string;
+        positive?: boolean;
+        asset?: CryptoAsset;
+        date?: string;
+      };
+      generateCount?: number;
+      asset?: CryptoAsset | 'MIXED';
+      positiveOnly?: boolean;
+      incrementTradesCount?: boolean;
+      recalcRating?: boolean;
+    }
+  ): Promise<{ trader: TraderProfile; addedCount: number }> {
+    const clean = targetUsername.trim();
+    const target = await resolveUsernameTarget(clean);
+    if (!target.isReal || !target.uid) {
+      throw new ApiError(`Registered account "${clean}" not found.`, 404);
+    }
+
+    const tRef = doc(db, 'traders', target.canonicalUsername);
+    const tSnap = await getDoc(tRef).catch((err) =>
+      wrapFirestoreError(err, OperationType.GET, `traders/${target.canonicalUsername}`)
+    );
+    if (!tSnap.exists()) {
+      throw new ApiError(`Trader profile "${clean}" not found.`, 404);
+    }
+
+    const t = normalizeTraderDoc(tSnap.data());
+    const added: TraderFeedback[] = [];
+
+    if (payload.custom) {
+      const comment = payload.custom.comment.trim().slice(0, 400);
+      if (!comment) {
+        throw new ApiError('Enter a feedback comment first.', 400);
+      }
+      const author =
+        payload.custom.author?.trim().slice(0, 32) ||
+        pickRandomBuyerAuthor([t.username, ...t.recentFeedback.map((f) => f.author)]);
+      added.push({
+        id: `fb-${randomHex(4)}`,
+        author,
+        positive: payload.custom.positive !== false,
+        comment,
+        asset: payload.custom.asset ?? 'BTC',
+        date: (payload.custom.date?.trim() || 'Just now').slice(0, 32),
+      });
+    } else if (typeof payload.generateCount === 'number' && payload.generateCount > 0) {
+      const generated = generateRandomBuyerFeedback({
+        targetUsername: t.username,
+        count: payload.generateCount,
+        asset: payload.asset ?? 'MIXED',
+        existingAuthors: t.recentFeedback.map((f) => f.author),
+        positiveOnly: payload.positiveOnly !== false,
+      });
+      for (const item of generated) {
+        added.push({
+          id: `fb-${randomHex(4)}`,
+          ...item,
+        });
+      }
+    } else {
+      throw new ApiError('Provide a feedback comment or a count to generate.', 400);
+    }
+
+    const nextFeedback = [...added, ...t.recentFeedback].slice(0, 40);
+    const nextTotalFeedback = Math.max(
+      nextFeedback.length,
+      (t.totalFeedbackCount ?? t.recentFeedback.length) + added.length
+    );
+    const nextTradesCount = payload.incrementTradesCount
+      ? t.tradesCount + added.length
+      : t.tradesCount;
+
+    let nextRating = t.ratingPct;
+    if (payload.recalcRating && nextFeedback.length > 0) {
+      const pos = nextFeedback.filter((f) => f.positive).length;
+      nextRating = Math.round((pos / nextFeedback.length) * 100);
+    }
+
+    try {
+      await updateDoc(tRef, {
+        recentFeedback: nextFeedback,
+        totalFeedbackCount: nextTotalFeedback,
+        tradesCount: nextTradesCount,
+        ratingPct: nextRating,
+        updatedAt: serverTimestamp(),
+      });
+      return {
+        trader: {
+          ...t,
+          recentFeedback: nextFeedback,
+          totalFeedbackCount: nextTotalFeedback,
+          tradesCount: nextTradesCount,
+          ratingPct: nextRating,
+        },
+        addedCount: added.length,
+      };
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `traders/${target.canonicalUsername}`);
+    }
+  },
+
+  async adminRemoveFeedback(
+    targetUsername: string,
+    feedbackId: string,
+    recalcRating = true
+  ): Promise<{ trader: TraderProfile }> {
+    const clean = targetUsername.trim();
+    const target = await resolveUsernameTarget(clean);
+    if (!target.isReal || !target.uid) {
+      throw new ApiError(`Registered account "${clean}" not found.`, 404);
+    }
+
+    const tRef = doc(db, 'traders', target.canonicalUsername);
+    const tSnap = await getDoc(tRef).catch((err) =>
+      wrapFirestoreError(err, OperationType.GET, `traders/${target.canonicalUsername}`)
+    );
+    if (!tSnap.exists()) {
+      throw new ApiError(`Trader profile "${clean}" not found.`, 404);
+    }
+
+    const t = normalizeTraderDoc(tSnap.data());
+    const nextFeedback = t.recentFeedback.filter((fb) => fb.id !== feedbackId);
+    const removedCount = t.recentFeedback.length - nextFeedback.length;
+    if (removedCount === 0) {
+      return { trader: t };
+    }
+
+    const prevTotal = t.totalFeedbackCount ?? t.recentFeedback.length;
+    const nextTotalFeedback = Math.max(nextFeedback.length, Math.max(0, prevTotal - removedCount));
+    let nextRating = t.ratingPct;
+    if (recalcRating) {
+      if (nextFeedback.length === 0) {
+        nextRating = 100;
+      } else {
+        const pos = nextFeedback.filter((f) => f.positive).length;
+        nextRating = Math.round((pos / nextFeedback.length) * 100);
+      }
+    }
+
+    try {
+      await updateDoc(tRef, {
+        recentFeedback: nextFeedback,
+        totalFeedbackCount: nextTotalFeedback,
+        ratingPct: nextRating,
+        updatedAt: serverTimestamp(),
+      });
+      return {
+        trader: {
+          ...t,
+          recentFeedback: nextFeedback,
+          totalFeedbackCount: nextTotalFeedback,
+          ratingPct: nextRating,
+        },
+      };
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `traders/${target.canonicalUsername}`);
+    }
+  },
+
+  async adminClearAllFeedback(
+    targetUsername: string,
+    resetRating = true
+  ): Promise<{ trader: TraderProfile }> {
+    const clean = targetUsername.trim();
+    const target = await resolveUsernameTarget(clean);
+    if (!target.isReal || !target.uid) {
+      throw new ApiError(`Registered account "${clean}" not found.`, 404);
+    }
+
+    const tRef = doc(db, 'traders', target.canonicalUsername);
+    const tSnap = await getDoc(tRef).catch((err) =>
+      wrapFirestoreError(err, OperationType.GET, `traders/${target.canonicalUsername}`)
+    );
+    if (!tSnap.exists()) {
+      throw new ApiError(`Trader profile "${clean}" not found.`, 404);
+    }
+
+    const t = normalizeTraderDoc(tSnap.data());
+    const nextRating = resetRating ? 100 : t.ratingPct;
+    try {
+      await updateDoc(tRef, {
+        recentFeedback: [],
+        totalFeedbackCount: 0,
+        ratingPct: nextRating,
+        updatedAt: serverTimestamp(),
+      });
+      return {
+        trader: {
+          ...t,
+          recentFeedback: [],
+          totalFeedbackCount: 0,
+          ratingPct: nextRating,
+        },
+      };
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `traders/${target.canonicalUsername}`);
+    }
+  },
+
+  async adminRemoveTradeHistoryEntry(
+    targetUsername: string,
+    recordId: string,
+    decrementCount = true
+  ): Promise<{ trader: TraderProfile }> {
+    const clean = targetUsername.trim();
+    const target = await resolveUsernameTarget(clean);
+    if (!target.isReal || !target.uid) {
+      throw new ApiError(`Registered account "${clean}" not found.`, 404);
+    }
+
+    const tRef = doc(db, 'traders', target.canonicalUsername);
+    const tSnap = await getDoc(tRef).catch((err) =>
+      wrapFirestoreError(err, OperationType.GET, `traders/${target.canonicalUsername}`)
+    );
+    if (!tSnap.exists()) {
+      throw new ApiError(`Trader profile "${clean}" not found.`, 404);
+    }
+
+    const t = normalizeTraderDoc(tSnap.data());
+    const existingList = t.tradeHistory ?? [];
+    const nextHistory = existingList.filter((r) => r.id !== recordId);
+    const removed = existingList.length - nextHistory.length;
+    const nextTradesCount =
+      decrementCount && removed > 0 ? Math.max(0, t.tradesCount - removed) : t.tradesCount;
+
+    try {
+      await updateDoc(tRef, {
+        tradeHistory: nextHistory,
+        tradesCount: nextTradesCount,
+        updatedAt: serverTimestamp(),
+      });
+      return {
+        trader: {
+          ...t,
+          tradeHistory: nextHistory,
+          tradesCount: nextTradesCount,
+        },
+      };
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `traders/${target.canonicalUsername}`);
+    }
+  },
+
+  async adminClearTradeHistory(
+    targetUsername: string,
+    resetStats = true
+  ): Promise<{ trader: TraderProfile }> {
+    const clean = targetUsername.trim();
+    const target = await resolveUsernameTarget(clean);
+    if (!target.isReal || !target.uid) {
+      throw new ApiError(`Registered account "${clean}" not found.`, 404);
+    }
+
+    const tRef = doc(db, 'traders', target.canonicalUsername);
+    const tSnap = await getDoc(tRef).catch((err) =>
+      wrapFirestoreError(err, OperationType.GET, `traders/${target.canonicalUsername}`)
+    );
+    if (!tSnap.exists()) {
+      throw new ApiError(`Trader profile "${clean}" not found.`, 404);
+    }
+
+    const t = normalizeTraderDoc(tSnap.data());
+    const updates: Record<string, unknown> = {
+      tradeHistory: [],
+      updatedAt: serverTimestamp(),
+    };
+    if (resetStats) {
+      updates.tradesCount = 0;
+      updates.totalVolumeUsd = 0;
+      updates.volumeTier = 'Starter';
+    }
+
+    try {
+      await updateDoc(tRef, updates);
+      return {
+        trader: {
+          ...t,
+          tradeHistory: [],
+          ...(resetStats
+            ? { tradesCount: 0, totalVolumeUsd: 0, volumeTier: 'Starter' }
+            : {}),
+        },
+      };
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `traders/${target.canonicalUsername}`);
+    }
+  },
+
+  async adminRemoveAccount(targetUsername: string): Promise<{
+    removedUsername: string;
+    removedSelf: boolean;
+    deletedOffers: number;
+  }> {
+    const clean = targetUsername.trim();
+    if (!clean) throw new ApiError('Select an account to remove.', 400);
+
+    const target = await resolveUsernameTarget(clean);
+    if (!target.isReal || !target.uid) {
+      throw new ApiError(`Registered account "${clean}" not found.`, 404);
+    }
+
+    const uid = target.uid;
+    const canonical = target.canonicalUsername;
+    const lower = canonical.toLowerCase();
+    const session = await getSessionContext();
+    const removedSelf = Boolean(session && session.uid === uid);
+
+    const [offersSnap, notifSnap, credSnap] = await Promise.all([
+      getDocs(collection(db, 'offers')).catch(() => null),
+      getDocs(query(collection(db, 'notifications'), where('toUid', '==', uid))).catch(() => null),
+      getDoc(doc(db, 'authCredentials', lower)).catch(() => null),
+    ]);
+
+    const batch = writeBatch(db);
+    let deletedOffers = 0;
+
+    if (offersSnap) {
+      for (const oDoc of offersSnap.docs) {
+        const oData = oDoc.data();
+        const oOwner = String(oData.ownerUid ?? '');
+        const oTrader = String(oData.traderUsername ?? '').toLowerCase();
+        if (oOwner === uid || oTrader === lower) {
+          batch.delete(doc(db, 'offers', oDoc.id));
+          deletedOffers += 1;
+        }
+      }
+    }
+
+    if (notifSnap) {
+      for (const nDoc of notifSnap.docs) {
+        batch.delete(doc(db, 'notifications', nDoc.id));
+      }
+    }
+
+    batch.update(doc(db, 'users', uid), {
+      balances: createZeroBalances(),
+      walletHistory: [],
+      bio: 'Account removed by admin',
+      tagline: REMOVED_ACCOUNT_MARKER,
+      location: null,
+      tradingHours: null,
+      avatarUrl: null,
+      bannerUrl: null,
+      updatedAt: serverTimestamp(),
+    });
+
+    batch.update(doc(db, 'traders', canonical), {
+      tradesCount: 0,
+      ratingPct: 100,
+      verified: false,
+      lastSeenMinutes: 999999,
+      bio: 'Account removed by admin',
+      tagline: REMOVED_ACCOUNT_MARKER,
+      location: null,
+      tradingHours: null,
+      avatarUrl: null,
+      bannerUrl: null,
+      preferredMethods: [],
+      volumeTier: 'Starter',
+      totalVolumeUsd: 0,
+      totalFeedbackCount: 0,
+      recentFeedback: [],
+      tradeHistory: [],
+      updatedAt: serverTimestamp(),
+    });
+
+    if (credSnap?.exists()) {
+      batch.update(doc(db, 'authCredentials', lower), {
+        passwordHash: randomHex(32),
+        salt: randomHex(16),
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    try {
+      await batch.commit();
+      if (removedSelf) {
+        setToken(null);
+      }
+      return {
+        removedUsername: canonical,
+        removedSelf,
+        deletedOffers,
+      };
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.WRITE, `users/${uid}`);
     }
   },
 };

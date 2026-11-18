@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   Award,
+  CalendarClock,
   CheckCircle2,
   Coins,
   Database,
@@ -20,8 +21,12 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
   Upload,
+  UserCog,
+  UserX,
   Users,
   Wallet,
   X,
@@ -31,6 +36,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 import {
   api,
   enrichTradeMessages,
+  type AdminAccountDetails,
   type DirectoryUser,
   type TablesSummaryResponse,
 } from '../api';
@@ -60,6 +66,7 @@ interface SecretCreditModalProps {
   onRequireAuth: (mode: 'login' | 'register') => void;
   onUserUpdated: (user: UserAccount) => void;
   onProfileUpdated?: (trader: TraderProfile) => void;
+  onAccountRemoved?: (username: string, removedSelf: boolean) => void;
   onDataSynced?: () => void;
   onNavigateProfile?: (username: string) => void;
   onOpenWallet: () => void;
@@ -74,6 +81,12 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+function shiftIsoDate(monthsAgo: number): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() - monthsAgo);
+  return d.toISOString().slice(0, 10);
+}
+
 export function SecretCreditModal({
   user,
   prices,
@@ -81,14 +94,58 @@ export function SecretCreditModal({
   onRequireAuth,
   onUserUpdated,
   onProfileUpdated,
+  onAccountRemoved,
   onDataSynced,
   onNavigateProfile,
   onOpenWallet,
 }: SecretCreditModalProps) {
-  const [vaultTab, setVaultTab] = useState<'credit' | 'reputation' | 'trades' | 'tables'>('credit');
+  const [vaultTab, setVaultTab] = useState<'credit' | 'reputation' | 'accounts' | 'trades' | 'tables'>('credit');
   const [directory, setDirectory] = useState<DirectoryUser[]>([]);
   const [targetUsername, setTargetUsername] = useState<string>(user?.username ?? '');
   const [userSearch, setUserSearch] = useState('');
+
+  // Account Manager & Reviews Moderation tab state
+  const [acctDetails, setAcctDetails] = useState<AdminAccountDetails | null>(null);
+  const [acctLoading, setAcctLoading] = useState(false);
+  const [acctBusy, setAcctBusy] = useState(false);
+  const [acctError, setAcctError] = useState('');
+  const [acctMsg, setAcctMsg] = useState('');
+  const [editJoinedAt, setEditJoinedAt] = useState('');
+  const [editTradesCount, setEditTradesCount] = useState('0');
+  const [editRatingPct, setEditRatingPct] = useState('100');
+  const [editAvgRelease, setEditAvgRelease] = useState('5');
+  const [editCompletionPct, setEditCompletionPct] = useState('99.4');
+  const [editLastSeen, setEditLastSeen] = useState('0');
+  const [editTotalVolUsd, setEditTotalVolUsd] = useState('0');
+  const [editVolumeTier, setEditVolumeTier] = useState('Starter');
+  const [editFeedbackCount, setEditFeedbackCount] = useState('0');
+  const [editVerified, setEditVerified] = useState(false);
+  const [editBio, setEditBio] = useState('');
+  const [editTagline, setEditTagline] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editTradingHours, setEditTradingHours] = useState('');
+  const [editBalances, setEditBalances] = useState<Record<CryptoAsset, string>>({
+    BTC: '0',
+    XMR: '0',
+    ETH: '0',
+    USDT: '0',
+    LTC: '0',
+    SOL: '0',
+    USDC: '0',
+  });
+  const [stripAvatar, setStripAvatar] = useState(false);
+  const [stripBanner, setStripBanner] = useState(false);
+  const [clearWalletHist, setClearWalletHist] = useState(false);
+  const [recalcOnReviewDelete, setRecalcOnReviewDelete] = useState(true);
+  const [decrementOnHistDelete, setDecrementOnHistDelete] = useState(true);
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
+  const [newFbComment, setNewFbComment] = useState('');
+  const [newFbAuthor, setNewFbAuthor] = useState('');
+  const [newFbAsset, setNewFbAsset] = useState<CryptoAsset>('BTC');
+  const [newFbPositive, setNewFbPositive] = useState(true);
+  const [newFbDate, setNewFbDate] = useState('Just now');
+  const [genFbAsset, setGenFbAsset] = useState<CryptoAsset | 'MIXED'>('MIXED');
+  const [genFbIncTrades, setGenFbIncTrades] = useState(false);
 
   // Live Trades Admin tab state
   const [allTrades, setAllTrades] = useState<TradeOrder[]>([]);
@@ -148,7 +205,7 @@ export function SecretCreditModal({
   const [recMethod, setRecMethod] = useState(PAYMENT_METHODS[0].name);
   const [recCounterparty, setRecCounterparty] = useState('v***x');
 
-  const [fbAuthor, setFbAuthor] = useState('satoshi_desk');
+  const [fbAuthor, setFbAuthor] = useState('Victor7777');
   const [fbPositive, setFbPositive] = useState(true);
   const [fbAsset, setFbAsset] = useState<CryptoAsset>('BTC');
   const [fbComment, setFbComment] = useState(
@@ -254,6 +311,77 @@ export function SecretCreditModal({
       setTargetUsername(user.username);
     }
   }, [user?.username]);
+
+  const hydrateAccountForm = (details: AdminAccountDetails) => {
+    setAcctDetails(details);
+    setEditJoinedAt(details.trader.joinedAt || details.createdAt.slice(0, 10));
+    setEditTradesCount(String(details.trader.tradesCount ?? 0));
+    setEditRatingPct(String(details.trader.ratingPct ?? 100));
+    setEditAvgRelease(String(details.trader.avgReleaseMinutes ?? 5));
+    setEditCompletionPct(
+      String(details.trader.completionRatePct ?? (details.trader.tradesCount > 0 ? 99.4 : 100))
+    );
+    setEditLastSeen(String(details.trader.lastSeenMinutes ?? 0));
+    setEditTotalVolUsd(
+      String(details.trader.totalVolumeUsd ?? (details.trader.tradesCount > 0 ? details.trader.tradesCount * 420 : 0))
+    );
+    setEditVolumeTier(details.trader.volumeTier || 'Starter');
+    setEditFeedbackCount(
+      String(details.trader.totalFeedbackCount ?? details.trader.recentFeedback.length)
+    );
+    setEditVerified(Boolean(details.trader.verified));
+    setEditBio(details.trader.bio ?? '');
+    setEditTagline(details.trader.tagline ?? '');
+    setEditLocation(details.trader.location ?? '');
+    setEditTradingHours(details.trader.tradingHours ?? '');
+    setEditBalances({
+      BTC: String(details.user.balances.BTC ?? 0),
+      XMR: String(details.user.balances.XMR ?? 0),
+      ETH: String(details.user.balances.ETH ?? 0),
+      USDT: String(details.user.balances.USDT ?? 0),
+      LTC: String(details.user.balances.LTC ?? 0),
+      SOL: String(details.user.balances.SOL ?? 0),
+      USDC: String(details.user.balances.USDC ?? 0),
+    });
+    setStripAvatar(false);
+    setStripBanner(false);
+    setClearWalletHist(false);
+    setConfirmDeleteAccount(false);
+  };
+
+  const loadSelectedAccountDetails = (usernameToLoad: string, preserveNotice = false) => {
+    const clean = usernameToLoad.trim();
+    if (!clean) {
+      setAcctDetails(null);
+      return;
+    }
+    setAcctLoading(true);
+    setAcctError('');
+    if (!preserveNotice) setAcctMsg('');
+    api
+      .adminGetAccountDetails(clean)
+      .then((details) => {
+        hydrateAccountForm(details);
+      })
+      .catch((err) => {
+        setAcctDetails(null);
+        setAcctError(err instanceof Error ? err.message : 'Unable to load account details.');
+      })
+      .finally(() => {
+        setAcctLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    if (vaultTab === 'accounts') {
+      const target = targetUsername.trim() || user?.username || '';
+      if (target) {
+        loadSelectedAccountDetails(target);
+      } else {
+        setAcctDetails(null);
+      }
+    }
+  }, [vaultTab, targetUsername]);
 
   const filteredDirectory = useMemo(() => {
     const q = userSearch.trim().toLowerCase();
@@ -379,7 +507,7 @@ export function SecretCreditModal({
           : undefined,
         feedback: fbComment.trim()
           ? {
-              author: fbAuthor.trim() || 'anon_trader',
+              author: fbAuthor.trim() || 'Victor7777',
               positive: fbPositive,
               asset: fbAsset,
               comment: fbComment.trim(),
@@ -576,11 +704,291 @@ export function SecretCreditModal({
     }
   };
 
+  const syncAfterAccountChange = (updated: AdminAccountDetails) => {
+    hydrateAccountForm(updated);
+    if (user && user.username.toLowerCase() === updated.username.toLowerCase()) {
+      onUserUpdated(updated.user);
+    }
+    onProfileUpdated?.(updated.trader);
+    loadDirectory();
+    loadTablesSummary();
+    onDataSynced?.();
+  };
+
+  const handleSaveAccountDetails = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!acctDetails || acctBusy) return;
+    setAcctBusy(true);
+    setAcctError('');
+    setAcctMsg('');
+    try {
+      const parsedBalances: Partial<Record<CryptoAsset, number>> = {};
+      for (const coin of CRYPTO_ASSETS) {
+        const val = Number(editBalances[coin.symbol]);
+        if (Number.isFinite(val) && val >= 0) {
+          parsedBalances[coin.symbol] = val;
+        }
+      }
+      const updated = await api.adminUpdateAccount(acctDetails.username, {
+        joinedAt: editJoinedAt.trim() || undefined,
+        tradesCount: Number(editTradesCount),
+        ratingPct: Number(editRatingPct),
+        avgReleaseMinutes: Number(editAvgRelease),
+        completionRatePct: Number(editCompletionPct),
+        lastSeenMinutes: Number(editLastSeen),
+        verified: editVerified,
+        totalVolumeUsd: Number(editTotalVolUsd),
+        volumeTier: editVolumeTier.trim() || undefined,
+        totalFeedbackCount: Number(editFeedbackCount),
+        bio: editBio,
+        tagline: editTagline,
+        location: editLocation,
+        tradingHours: editTradingHours,
+        balances: parsedBalances,
+        clearWalletHistory: clearWalletHist,
+        removeAvatar: stripAvatar,
+        removeBanner: stripBanner,
+      });
+      syncAfterAccountChange(updated);
+      setAcctMsg(`Saved account profile, creation date & balances for @${updated.username}.`);
+    } catch (err) {
+      setAcctError(err instanceof Error ? err.message : 'Failed to save account changes.');
+    } finally {
+      setAcctBusy(false);
+    }
+  };
+
+  const handleZeroAllBalances = async () => {
+    if (!acctDetails || acctBusy) return;
+    setAcctBusy(true);
+    setAcctError('');
+    setAcctMsg('');
+    try {
+      const updated = await api.adminUpdateAccount(acctDetails.username, {
+        balances: { BTC: 0, XMR: 0, ETH: 0, USDT: 0, LTC: 0, SOL: 0, USDC: 0 },
+      });
+      syncAfterAccountChange(updated);
+      setAcctMsg(`Reset all wallet balances to 0 for @${updated.username}.`);
+    } catch (err) {
+      setAcctError(err instanceof Error ? err.message : 'Unable to reset balances.');
+    } finally {
+      setAcctBusy(false);
+    }
+  };
+
+  const handleRemoveFeedbackItem = async (feedbackId: string) => {
+    if (!acctDetails || acctBusy) return;
+    setAcctBusy(true);
+    setAcctError('');
+    setAcctMsg('');
+    try {
+      const res = await api.adminRemoveFeedback(
+        acctDetails.username,
+        feedbackId,
+        recalcOnReviewDelete
+      );
+      onProfileUpdated?.(res.trader);
+      loadDirectory();
+      loadSelectedAccountDetails(acctDetails.username, true);
+      setAcctMsg('Removed review from account feedback.');
+    } catch (err) {
+      setAcctError(err instanceof Error ? err.message : 'Unable to remove feedback.');
+    } finally {
+      setAcctBusy(false);
+    }
+  };
+
+  const handleClearAllFeedback = async () => {
+    if (!acctDetails || acctBusy) return;
+    setAcctBusy(true);
+    setAcctError('');
+    setAcctMsg('');
+    try {
+      const res = await api.adminClearAllFeedback(acctDetails.username, recalcOnReviewDelete);
+      onProfileUpdated?.(res.trader);
+      loadDirectory();
+      loadSelectedAccountDetails(acctDetails.username, true);
+      setAcctMsg(`Cleared all reviews & feedback for @${acctDetails.username}.`);
+    } catch (err) {
+      setAcctError(err instanceof Error ? err.message : 'Unable to clear feedback.');
+    } finally {
+      setAcctBusy(false);
+    }
+  };
+
+  const handleAddCustomFeedback = async () => {
+    if (!acctDetails || acctBusy) return;
+    if (!newFbComment.trim()) {
+      setAcctError('Enter a feedback comment to add.');
+      return;
+    }
+    setAcctBusy(true);
+    setAcctError('');
+    setAcctMsg('');
+    try {
+      const res = await api.adminAddFeedback(acctDetails.username, {
+        custom: {
+          author: newFbAuthor.trim() || undefined,
+          comment: newFbComment.trim(),
+          positive: newFbPositive,
+          asset: newFbAsset,
+          date: newFbDate.trim() || 'Just now',
+        },
+        incrementTradesCount: genFbIncTrades,
+        recalcRating: recalcOnReviewDelete,
+      });
+      setNewFbComment('');
+      setNewFbAuthor('');
+      onProfileUpdated?.(res.trader);
+      loadDirectory();
+      loadSelectedAccountDetails(acctDetails.username, true);
+      setAcctMsg(`Added feedback comment to @${acctDetails.username}.`);
+    } catch (err) {
+      setAcctError(err instanceof Error ? err.message : 'Unable to add feedback comment.');
+    } finally {
+      setAcctBusy(false);
+    }
+  };
+
+  const handleGenerateRandomFeedback = async (count: number) => {
+    const target = acctDetails?.username || resolvedTarget;
+    if (!target) return;
+    const isAccountsTab = vaultTab === 'accounts';
+    if (isAccountsTab) {
+      if (acctBusy) return;
+      setAcctBusy(true);
+      setAcctError('');
+      setAcctMsg('');
+    } else {
+      if (repBusy) return;
+      setRepBusy(true);
+      setRepError('');
+      setRepSuccess('');
+    }
+    try {
+      const res = await api.adminAddFeedback(target, {
+        generateCount: count,
+        asset: genFbAsset,
+        positiveOnly: true,
+        incrementTradesCount: genFbIncTrades,
+        recalcRating: recalcOnReviewDelete,
+      });
+      onProfileUpdated?.(res.trader);
+      loadDirectory();
+      if (isAccountsTab) {
+        loadSelectedAccountDetails(target, true);
+        setAcctMsg(`Generated ${res.addedCount} random buyer review(s) on @${target}.`);
+      } else {
+        setRepSuccess(`Added ${res.addedCount} random buyer review(s) to @${res.trader.username}.`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unable to generate reviews.';
+      if (isAccountsTab) setAcctError(msg);
+      else setRepError(msg);
+    } finally {
+      if (isAccountsTab) setAcctBusy(false);
+      else setRepBusy(false);
+    }
+  };
+
+  const handleRemoveTradeHistoryItem = async (recordId: string) => {
+    if (!acctDetails || acctBusy) return;
+    setAcctBusy(true);
+    setAcctError('');
+    setAcctMsg('');
+    try {
+      const res = await api.adminRemoveTradeHistoryEntry(
+        acctDetails.username,
+        recordId,
+        decrementOnHistDelete
+      );
+      onProfileUpdated?.(res.trader);
+      loadDirectory();
+      loadSelectedAccountDetails(acctDetails.username, true);
+      setAcctMsg('Removed trade history entry.');
+    } catch (err) {
+      setAcctError(err instanceof Error ? err.message : 'Unable to remove trade record.');
+    } finally {
+      setAcctBusy(false);
+    }
+  };
+
+  const handleClearTradeHistory = async () => {
+    if (!acctDetails || acctBusy) return;
+    setAcctBusy(true);
+    setAcctError('');
+    setAcctMsg('');
+    try {
+      const res = await api.adminClearTradeHistory(acctDetails.username, decrementOnHistDelete);
+      onProfileUpdated?.(res.trader);
+      loadDirectory();
+      loadSelectedAccountDetails(acctDetails.username, true);
+      setAcctMsg(`Cleared trade history for @${acctDetails.username}.`);
+    } catch (err) {
+      setAcctError(err instanceof Error ? err.message : 'Unable to clear trade history.');
+    } finally {
+      setAcctBusy(false);
+    }
+  };
+
+  const handleDeleteUserOffer = async (offerId: string) => {
+    if (!acctDetails || acctBusy) return;
+    setAcctBusy(true);
+    setAcctError('');
+    setAcctMsg('');
+    try {
+      await api.deleteOffer(offerId);
+      loadSelectedAccountDetails(acctDetails.username, true);
+      loadTablesSummary();
+      onDataSynced?.();
+      setAcctMsg(`Deleted ad ${offerId}.`);
+    } catch (err) {
+      setAcctError(err instanceof Error ? err.message : 'Unable to delete offer.');
+    } finally {
+      setAcctBusy(false);
+    }
+  };
+
+  const handleRemoveAccount = async () => {
+    if (!acctDetails || acctBusy) return;
+    const victim = acctDetails.username;
+    setAcctBusy(true);
+    setAcctError('');
+    setAcctMsg('');
+    try {
+      const res = await api.adminRemoveAccount(victim);
+      setConfirmDeleteAccount(false);
+      setAcctDetails(null);
+      setTargetUsername((prev) =>
+        prev.toLowerCase() === victim.toLowerCase()
+          ? user && user.username.toLowerCase() !== victim.toLowerCase()
+            ? user.username
+            : ''
+          : prev
+      );
+      loadDirectory();
+      loadTablesSummary();
+      onAccountRemoved?.(res.removedUsername, res.removedSelf);
+      onDataSynced?.();
+      setAcctMsg(
+        `Removed account @${res.removedUsername} (${res.deletedOffers} ad${res.deletedOffers === 1 ? '' : 's'} deleted).`
+      );
+    } catch (err) {
+      setAcctError(err instanceof Error ? err.message : 'Unable to remove account.');
+    } finally {
+      setAcctBusy(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-xs sm:items-center sm:p-4">
       <div
         className={`relative max-h-[92vh] w-full overflow-y-auto rounded-t-2xl border border-[#DCE2E1] bg-white p-5 shadow-2xl transition-all sm:rounded-2xl sm:p-6 dark:border-[#243230] dark:bg-[#121918] ${
-          vaultTab === 'trades' ? 'max-w-5xl' : 'max-w-xl'
+          vaultTab === 'trades'
+            ? 'max-w-5xl'
+            : vaultTab === 'accounts'
+              ? 'max-w-4xl'
+              : 'max-w-2xl'
         }`}
       >
         {/* Header */}
@@ -599,7 +1007,7 @@ export function SecretCreditModal({
                 </span>
               </div>
               <p className="text-xs text-[#5C6665] dark:text-[#8E9B98]">
-                Manage balances, public reputation, live trades &amp; escrow chat moderation
+                Manage balances, accounts, creation dates, reviews, live trades &amp; escrow chats
               </p>
             </div>
           </div>
@@ -614,11 +1022,11 @@ export function SecretCreditModal({
         </div>
 
         {/* Mode Switcher Tabs */}
-        <div className="mt-4 grid grid-cols-2 gap-1.5 rounded-xl border border-[#DCE2E1] bg-[#F4F6F6] p-1 sm:grid-cols-4 dark:border-[#24302F] dark:bg-[#0E1413]">
+        <div className="mt-4 grid grid-cols-2 gap-1.5 rounded-xl border border-[#DCE2E1] bg-[#F4F6F6] p-1 sm:grid-cols-5 dark:border-[#24302F] dark:bg-[#0E1413]">
           <button
             type="button"
             onClick={() => setVaultTab('credit')}
-            className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
               vaultTab === 'credit'
                 ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
                 : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
@@ -630,7 +1038,7 @@ export function SecretCreditModal({
           <button
             type="button"
             onClick={() => setVaultTab('reputation')}
-            className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
               vaultTab === 'reputation'
                 ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
                 : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
@@ -641,8 +1049,20 @@ export function SecretCreditModal({
           </button>
           <button
             type="button"
+            onClick={() => setVaultTab('accounts')}
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
+              vaultTab === 'accounts'
+                ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
+                : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
+            }`}
+          >
+            <UserCog className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Accounts &amp; Reviews</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setVaultTab('trades')}
-            className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
               vaultTab === 'trades'
                 ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
                 : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
@@ -659,7 +1079,7 @@ export function SecretCreditModal({
           <button
             type="button"
             onClick={() => setVaultTab('tables')}
-            className={`flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
               vaultTab === 'tables'
                 ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
                 : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
@@ -671,7 +1091,7 @@ export function SecretCreditModal({
         </div>
 
         {/* Target Registered Account Picker */}
-        {(vaultTab === 'credit' || vaultTab === 'reputation') && (
+        {(vaultTab === 'credit' || vaultTab === 'reputation' || vaultTab === 'accounts') && (
         <div className="mt-4 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3.5 dark:border-[#222E2C] dark:bg-[#0E1413]">
           <div className="mb-2 flex items-center justify-between text-xs">
             <span className="inline-flex items-center gap-1.5 font-semibold text-[#1E2726] dark:text-[#DCE4E3]">
@@ -734,11 +1154,13 @@ export function SecretCreditModal({
                   <span>
                     Selected: <strong className="text-[#0E1715] dark:text-white">@{activeTargetUser.username}</strong>
                   </span>
+                  <span>· Joined {activeTargetUser.joinedAt}</span>
                   <span>
                     · {formatCrypto(activeTargetUser.balances[selectedCrypto] ?? 0, selectedCrypto)}
                   </span>
                   <span>· {activeTargetUser.tradesCount} trades</span>
                   <span>· {activeTargetUser.ratingPct}% trust</span>
+                  <span>· {activeTargetUser.feedbackCount} reviews</span>
                 </div>
               )}
             </div>
@@ -1146,9 +1568,29 @@ export function SecretCreditModal({
 
             {/* Feedback Entry */}
             <div className="space-y-2.5 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3.5 dark:border-[#222E2C] dark:bg-[#0E1413]">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-[#0E1715] dark:text-white">
-                <MessageSquarePlus className="h-3.5 w-3.5 text-[#0B3B2E] dark:text-[#7FE85B]" />
-                <span>Add Custom Feedback Review (optional)</span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#0E1715] dark:text-white">
+                  <MessageSquarePlus className="h-3.5 w-3.5 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                  <span>Add Custom Feedback Review (optional)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={repBusy || !resolvedTarget}
+                    onClick={() => handleGenerateRandomFeedback(5)}
+                    className="h-7 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-[11px] font-semibold text-[#0E1715] hover:border-[#0B3B2E] disabled:opacity-50 dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                  >
+                    +5 Random
+                  </button>
+                  <button
+                    type="button"
+                    disabled={repBusy || !resolvedTarget}
+                    onClick={() => handleGenerateRandomFeedback(10)}
+                    className="h-7 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-[11px] font-semibold text-[#0E1715] hover:border-[#0B3B2E] disabled:opacity-50 dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                  >
+                    +10 Random
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <input
@@ -1219,7 +1661,733 @@ export function SecretCreditModal({
           </form>
         )}
 
-        {/* TAB 3: Live Trades Admin & Chat Moderation */}
+        {/* TAB 3: Account Manager, Creation Date, Balances & Review Removal */}
+        {vaultTab === 'accounts' && (
+          <div className="mt-4 space-y-4">
+            {acctError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                {acctError}
+              </div>
+            )}
+            {acctMsg && (
+              <div className="flex items-center gap-2 rounded-xl border border-[#8CE89E] bg-[#EAFBF0] px-3.5 py-2.5 text-xs font-semibold text-[#0B3B2E] dark:border-[#1E4D33] dark:bg-[#112A1D] dark:text-[#7FE85B]">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span>{acctMsg}</span>
+              </div>
+            )}
+
+            {acctLoading ? (
+              <div className="rounded-xl border border-dashed border-[#DCE2E1] bg-[#F8FAFA] p-6 text-center text-xs text-[#5C6665] dark:border-[#24302F] dark:bg-[#0E1413] dark:text-[#8E9B98]">
+                Loading account profile, reviews &amp; history...
+              </div>
+            ) : !acctDetails ? (
+              <div className="rounded-xl border border-dashed border-[#DCE2E1] bg-[#F8FAFA] p-6 text-center text-xs text-[#5C6665] dark:border-[#24302F] dark:bg-[#0E1413] dark:text-[#8E9B98]">
+                Select a registered account above to edit its creation date, balances, reviews, or remove the account.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Section A: Creation Date, Stats & Profile Details */}
+                <form
+                  onSubmit={handleSaveAccountDetails}
+                  className="space-y-4 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-4 dark:border-[#222E2C] dark:bg-[#0E1413]"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E3E7E7] pb-2.5 dark:border-[#202B2A]">
+                    <div className="flex items-center gap-2">
+                      <CalendarClock className="h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                      <span className="text-xs font-bold text-[#0E1715] dark:text-white">
+                        Creation Date, Stats &amp; Profile (@{acctDetails.username})
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {onNavigateProfile && (
+                        <button
+                          type="button"
+                          onClick={() => onNavigateProfile(acctDetails.username)}
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-[11px] font-semibold text-[#1E2726] hover:bg-[#F2F5F5] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3]"
+                        >
+                          <span>View /{acctDetails.username}</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => loadSelectedAccountDetails(acctDetails.username)}
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-[11px] font-semibold text-[#1E2726] hover:bg-[#F2F5F5] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3]"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        <span>Reload</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Account Creation / Join Date */}
+                  <div className="rounded-xl border border-[#DCE2E1] bg-white p-3 dark:border-[#24302F] dark:bg-[#131A1A]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="text-xs font-bold text-[#0E1715] dark:text-white">
+                        Account Creation / Joined Date (Public &ldquo;Joined&rdquo; Date)
+                      </label>
+                      <span className="font-mono text-[10px] text-[#5C6665] dark:text-[#8E9B98]">
+                        UID: {acctDetails.uid} · Registered: {acctDetails.createdAt.slice(0, 10)}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <input
+                        type="date"
+                        value={/^\d{4}-\d{2}-\d{2}$/.test(editJoinedAt.trim()) ? editJoinedAt.trim() : ''}
+                        onChange={(e) => {
+                          if (e.target.value) setEditJoinedAt(e.target.value);
+                        }}
+                        className="h-9 rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2.5 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                      />
+                      <input
+                        type="text"
+                        maxLength={32}
+                        value={editJoinedAt}
+                        onChange={(e) => setEditJoinedAt(e.target.value)}
+                        placeholder="e.g. 2021-04-12 or Mar 2020"
+                        className="h-9 rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                      />
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {[
+                        { label: 'Today', val: shiftIsoDate(0) },
+                        { label: '-6 months', val: shiftIsoDate(6) },
+                        { label: '-1 year', val: shiftIsoDate(12) },
+                        { label: '-2 years', val: shiftIsoDate(24) },
+                        { label: '-3 years', val: shiftIsoDate(36) },
+                        { label: '2020-05-01', val: '2020-05-01' },
+                      ].map((p) => (
+                        <button
+                          key={p.label}
+                          type="button"
+                          onClick={() => setEditJoinedAt(p.val)}
+                          className="rounded-md border border-[#DCE2E1] bg-[#F8FAFA] px-2 py-1 font-mono text-[10px] font-semibold text-[#1E2726] hover:border-[#0B3B2E] hover:bg-[#EEF6F2] dark:border-[#24302F] dark:bg-[#17201F] dark:text-[#DCE4E3] dark:hover:border-[#7FE85B]"
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Direct Stats Override */}
+                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                        Total Trades
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editTradesCount}
+                        onChange={(e) => setEditTradesCount(e.target.value)}
+                        className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                        Trust Score %
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={editRatingPct}
+                        onChange={(e) => setEditRatingPct(e.target.value)}
+                        className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                        Avg Release (min)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editAvgRelease}
+                        onChange={(e) => setEditAvgRelease(e.target.value)}
+                        className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                        Completion %
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={editCompletionPct}
+                        onChange={(e) => setEditCompletionPct(e.target.value)}
+                        className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                        Last Seen (min, 0=Now)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editLastSeen}
+                        onChange={(e) => setEditLastSeen(e.target.value)}
+                        className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                        Total Volume (USD)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={editTotalVolUsd}
+                        onChange={(e) => setEditTotalVolUsd(e.target.value)}
+                        className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                        Volume Tier
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={40}
+                        value={editVolumeTier}
+                        onChange={(e) => setEditVolumeTier(e.target.value)}
+                        className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                        Feedback Count
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editFeedbackCount}
+                        onChange={(e) => setEditFeedbackCount(e.target.value)}
+                        className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 font-mono text-xs font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Profile Metadata */}
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                        Tagline
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={90}
+                        value={editTagline}
+                        onChange={(e) => setEditTagline(e.target.value)}
+                        placeholder="Headline (optional)"
+                        className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                        Location
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={60}
+                        value={editLocation}
+                        onChange={(e) => setEditLocation(e.target.value)}
+                        placeholder="e.g. Zurich, CH"
+                        className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                        Trading Hours
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={60}
+                        value={editTradingHours}
+                        onChange={(e) => setEditTradingHours(e.target.value)}
+                        placeholder="e.g. 24/7 UTC"
+                        className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold text-[#394241] dark:text-[#C5D1CF]">
+                      Account Bio
+                    </label>
+                    <textarea
+                      rows={2}
+                      maxLength={320}
+                      value={editBio}
+                      onChange={(e) => setEditBio(e.target.value)}
+                      className="w-full rounded-lg border border-[#DCE2E1] bg-white p-2.5 text-xs text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                    />
+                  </div>
+
+                  {/* Toggles & Cleanup Options */}
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <label className="flex cursor-pointer items-center justify-between rounded-lg border border-[#DCE2E1] bg-white px-3 py-2 text-xs font-semibold text-[#1E2726] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3]">
+                      <span>Verified High-Volume Badge</span>
+                      <input
+                        type="checkbox"
+                        checked={editVerified}
+                        onChange={(e) => setEditVerified(e.target.checked)}
+                        className="h-4 w-4 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                      />
+                    </label>
+                    <label className="flex cursor-pointer items-center justify-between rounded-lg border border-[#DCE2E1] bg-white px-3 py-2 text-xs font-semibold text-[#1E2726] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3]">
+                      <span>Clear Wallet Tx History ({acctDetails.user.walletHistory.length})</span>
+                      <input
+                        type="checkbox"
+                        checked={clearWalletHist}
+                        onChange={(e) => setClearWalletHist(e.target.checked)}
+                        className="h-4 w-4 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                      />
+                    </label>
+                    <label className="flex cursor-pointer items-center justify-between rounded-lg border border-[#DCE2E1] bg-white px-3 py-2 text-xs font-semibold text-[#1E2726] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3]">
+                      <span>Remove Profile Avatar</span>
+                      <input
+                        type="checkbox"
+                        checked={stripAvatar}
+                        onChange={(e) => setStripAvatar(e.target.checked)}
+                        className="h-4 w-4 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                      />
+                    </label>
+                    <label className="flex cursor-pointer items-center justify-between rounded-lg border border-[#DCE2E1] bg-white px-3 py-2 text-xs font-semibold text-[#1E2726] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3]">
+                      <span>Remove Cover Banner</span>
+                      <input
+                        type="checkbox"
+                        checked={stripBanner}
+                        onChange={(e) => setStripBanner(e.target.checked)}
+                        className="h-4 w-4 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Wallet Balances Editor */}
+                  <div className="rounded-xl border border-[#DCE2E1] bg-white p-3 dark:border-[#24302F] dark:bg-[#131A1A]">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-[#0E1715] dark:text-white">
+                        Wallet Balances (Set Exact or Reset)
+                      </span>
+                      <button
+                        type="button"
+                        disabled={acctBusy}
+                        onClick={handleZeroAllBalances}
+                        className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
+                      >
+                        Zero All Balances
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                      {CRYPTO_ASSETS.map((coin) => (
+                        <div key={coin.symbol}>
+                          <label className="mb-1 flex items-center gap-1 text-[10px] font-bold text-[#5C6665] dark:text-[#98A4A2]">
+                            <CoinIcon symbol={coin.symbol} size={12} />
+                            <span>{coin.symbol}</span>
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={editBalances[coin.symbol]}
+                            onChange={(e) =>
+                              setEditBalances((prev) => ({
+                                ...prev,
+                                [coin.symbol]: e.target.value,
+                              }))
+                            }
+                            className="h-8 w-full rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2 font-mono text-[11px] font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={acctBusy}
+                      className="h-9 rounded-xl bg-[#7FE85B] px-5 text-xs font-bold text-[#082213] hover:bg-[#6AD845] disabled:opacity-50"
+                    >
+                      {acctBusy ? 'Saving...' : `Save Account Changes (@${acctDetails.username})`}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Section B: Reviews & Feedback Moderation (Add, Generate Random, Remove) */}
+                <div className="space-y-3 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-4 dark:border-[#222E2C] dark:bg-[#0E1413]">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-xs font-bold text-[#0E1715] dark:text-white">
+                        Reviews &amp; Feedback ({acctDetails.trader.recentFeedback.length})
+                      </h3>
+                      <p className="text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                        Add custom comments, generate 5 or 10 random buyer reviews, or remove existing reviews on @{acctDetails.username}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-[#394241] dark:text-[#C5D1CF]">
+                        <input
+                          type="checkbox"
+                          checked={recalcOnReviewDelete}
+                          onChange={(e) => setRecalcOnReviewDelete(e.target.checked)}
+                          className="h-3.5 w-3.5 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                        />
+                        <span>Recalculate Trust %</span>
+                      </label>
+                      {acctDetails.trader.recentFeedback.length > 0 && (
+                        <button
+                          type="button"
+                          disabled={acctBusy}
+                          onClick={handleClearAllFeedback}
+                          className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-300 bg-red-50 px-2.5 text-[11px] font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span>Remove All Reviews</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Quick Add Feedback Comment + Random Batch Generator */}
+                  <div className="space-y-2.5 rounded-xl border border-[#DCE2E1] bg-white p-3 dark:border-[#263130] dark:bg-[#131A1A]">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ECEFEF] pb-2.5 dark:border-[#202B2A]">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-bold text-[#0E1715] dark:text-white">
+                          Quick Random Reviews:
+                        </span>
+                        <select
+                          value={genFbAsset}
+                          onChange={(e) => setGenFbAsset(e.target.value as CryptoAsset | 'MIXED')}
+                          aria-label="Random review asset"
+                          className="h-7 rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2 text-[11px] font-semibold text-[#0E1715] dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                        >
+                          <option value="MIXED">Mixed Coins</option>
+                          {CRYPTO_ASSETS.map((c) => (
+                            <option key={c.symbol} value={c.symbol}>
+                              {c.symbol} only
+                            </option>
+                          ))}
+                        </select>
+                        <label className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-[#5C6665] dark:text-[#98A4A2]">
+                          <input
+                            type="checkbox"
+                            checked={genFbIncTrades}
+                            onChange={(e) => setGenFbIncTrades(e.target.checked)}
+                            className="h-3 w-3 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                          />
+                          <span>Also +1 trade count each</span>
+                        </label>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={acctBusy}
+                          onClick={() => handleGenerateRandomFeedback(1)}
+                          className="h-7 rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2.5 text-[11px] font-semibold text-[#0E1715] hover:border-[#0B3B2E] disabled:opacity-50 dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                        >
+                          +1 Random
+                        </button>
+                        <button
+                          type="button"
+                          disabled={acctBusy}
+                          onClick={() => handleGenerateRandomFeedback(5)}
+                          className="h-7 rounded-lg border border-[#8CE89E] bg-[#EAFBF0] px-2.5 text-[11px] font-bold text-[#0B3B2E] hover:bg-[#D7F7E2] disabled:opacity-50 dark:border-[#1E4D33] dark:bg-[#112A1D] dark:text-[#7FE85B]"
+                        >
+                          +5 Random
+                        </button>
+                        <button
+                          type="button"
+                          disabled={acctBusy}
+                          onClick={() => handleGenerateRandomFeedback(10)}
+                          className="h-7 rounded-lg bg-[#7FE85B] px-2.5 text-[11px] font-bold text-[#082213] hover:bg-[#6AD845] disabled:opacity-50"
+                        >
+                          +10 Random
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-12">
+                      <input
+                        type="text"
+                        value={newFbComment}
+                        onChange={(e) => setNewFbComment(e.target.value)}
+                        placeholder="Add custom feedback comment (e.g. Fast Zelle trade, thanks!)"
+                        className="h-8 rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2.5 text-xs text-[#0E1715] sm:col-span-5 dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                      />
+                      <input
+                        type="text"
+                        value={newFbAuthor}
+                        onChange={(e) => setNewFbAuthor(e.target.value)}
+                        placeholder="Buyer name (blank = random)"
+                        className="h-8 rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2.5 text-xs text-[#0E1715] sm:col-span-3 dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                      />
+                      <select
+                        value={newFbAsset}
+                        onChange={(e) => setNewFbAsset(e.target.value as CryptoAsset)}
+                        aria-label="Feedback asset"
+                        className="h-8 rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2 text-xs text-[#0E1715] sm:col-span-1 dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                      >
+                        {CRYPTO_ASSETS.map((c) => (
+                          <option key={c.symbol} value={c.symbol}>
+                            {c.symbol}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={newFbPositive ? 'pos' : 'neg'}
+                        onChange={(e) => setNewFbPositive(e.target.value === 'pos')}
+                        aria-label="Feedback sentiment"
+                        className="h-8 rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2 text-xs font-semibold text-[#0E1715] sm:col-span-1 dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                      >
+                        <option value="pos">Pos</option>
+                        <option value="neg">Neg</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={newFbDate}
+                        onChange={(e) => setNewFbDate(e.target.value)}
+                        placeholder="Just now"
+                        aria-label="Feedback date label"
+                        className="h-8 rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2 text-xs text-[#0E1715] sm:col-span-2 dark:border-[#263130] dark:bg-[#0D1313] dark:text-white"
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        disabled={acctBusy || !newFbComment.trim()}
+                        onClick={handleAddCustomFeedback}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#0B3B2E] px-3 text-xs font-bold text-white hover:bg-[#092F24] disabled:opacity-45 dark:bg-[#7FE85B] dark:text-[#082213] dark:hover:bg-[#6AD845]"
+                      >
+                        <MessageSquarePlus className="h-3.5 w-3.5" />
+                        <span>Add Feedback Comment</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {acctDetails.trader.recentFeedback.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-4 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
+                      No reviews or feedback left on @{acctDetails.username}. Use Add Feedback Comment or +5 / +10 Random above.
+                    </div>
+                  ) : (
+                    <div className="max-h-64 divide-y divide-[#ECEFEF] overflow-y-auto rounded-xl border border-[#DCE2E1] bg-white dark:divide-[#202B2A] dark:border-[#263130] dark:bg-[#131A1A]">
+                      {acctDetails.trader.recentFeedback.map((fb) => (
+                        <div
+                          key={fb.id}
+                          className="flex items-start justify-between gap-3 px-3.5 py-2.5 text-xs"
+                        >
+                          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                            {fb.positive ? (
+                              <ThumbsUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#16A34A] dark:text-[#7FE85B]" />
+                            ) : (
+                              <ThumbsDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-600" />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="break-words text-[#0E1715] dark:text-[#EAF0EF]">
+                                {fb.comment}
+                              </p>
+                              <p className="mt-0.5 font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
+                                {fb.author} · {fb.asset} · {fb.date} · {fb.id}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={acctBusy}
+                            onClick={() => handleRemoveFeedbackItem(fb.id)}
+                            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-red-200 bg-white px-2 text-[10px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:bg-[#1A2020] dark:text-red-400 dark:hover:bg-red-950/40"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            <span>Remove</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Section C: Trade History & Active Offers Removal */}
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  {/* Trade History Entries */}
+                  <div className="space-y-2.5 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-4 dark:border-[#222E2C] dark:bg-[#0E1413]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-xs font-bold text-[#0E1715] dark:text-white">
+                          Trade History ({acctDetails.trader.tradeHistory?.length ?? 0})
+                        </h3>
+                        <label className="mt-0.5 inline-flex cursor-pointer items-center gap-1 text-[10px] text-[#5C6665] dark:text-[#8E9B98]">
+                          <input
+                            type="checkbox"
+                            checked={decrementOnHistDelete}
+                            onChange={(e) => setDecrementOnHistDelete(e.target.checked)}
+                            className="h-3 w-3 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                          />
+                          <span>Also subtract/reset trade count</span>
+                        </label>
+                      </div>
+                      {(acctDetails.trader.tradeHistory?.length ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          disabled={acctBusy}
+                          onClick={handleClearTradeHistory}
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-red-300 bg-red-50 px-2 text-[10px] font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span>Clear History</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {(acctDetails.trader.tradeHistory?.length ?? 0) === 0 ? (
+                      <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-3 text-center text-[11px] text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
+                        No trade history entries logged.
+                      </div>
+                    ) : (
+                      <div className="max-h-48 divide-y divide-[#ECEFEF] overflow-y-auto rounded-lg border border-[#DCE2E1] bg-white dark:divide-[#202B2A] dark:border-[#263130] dark:bg-[#131A1A]">
+                        {(acctDetails.trader.tradeHistory ?? []).map((rec) => (
+                          <div
+                            key={rec.id}
+                            className="flex items-center justify-between gap-2 px-3 py-2 text-[11px]"
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate font-mono font-semibold text-[#0E1715] dark:text-white">
+                                {rec.side} {formatCrypto(rec.cryptoAmount, rec.asset)} · {rec.fiatAmount} {rec.fiat}
+                              </div>
+                              <div className="truncate font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
+                                {rec.id} · {rec.counterparty} · {rec.completedAt}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={acctBusy}
+                              onClick={() => handleRemoveTradeHistoryItem(rec.id)}
+                              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-red-200 bg-white px-2 text-[10px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:bg-[#1A2020] dark:text-red-400"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              <span>Remove</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Custom Offers Posted by Account */}
+                  <div className="space-y-2.5 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-4 dark:border-[#222E2C] dark:bg-[#0E1413]">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-xs font-bold text-[#0E1715] dark:text-white">
+                          Posted Offers / Ads ({acctDetails.offers.length})
+                        </h3>
+                        <p className="text-[10px] text-[#5C6665] dark:text-[#8E9B98]">
+                          Remove individual ads created by @{acctDetails.username}
+                        </p>
+                      </div>
+                    </div>
+
+                    {acctDetails.offers.length === 0 ? (
+                      <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-3 text-center text-[11px] text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
+                        No custom ads listed by this account.
+                      </div>
+                    ) : (
+                      <div className="max-h-48 divide-y divide-[#ECEFEF] overflow-y-auto rounded-lg border border-[#DCE2E1] bg-white dark:divide-[#202B2A] dark:border-[#263130] dark:bg-[#131A1A]">
+                        {acctDetails.offers.map((off) => (
+                          <div
+                            key={off.id}
+                            className="flex items-center justify-between gap-2 px-3 py-2 text-[11px]"
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold text-[#0E1715] dark:text-white">
+                                {off.side.replace('_', ' ')} · {off.crypto} · {off.paymentMethod}
+                              </div>
+                              <div className="truncate font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
+                                {off.id} · {off.minFiat}–{off.maxFiat} {off.fiat} · {off.active ? 'Live' : 'Paused'}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={acctBusy}
+                              onClick={() => handleDeleteUserOffer(off.id)}
+                              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-red-200 bg-white px-2 text-[10px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:bg-[#1A2020] dark:text-red-400"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              <span>Delete Ad</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Section D: Danger Zone - Remove Account */}
+                <div className="rounded-xl border border-red-200 bg-red-50/70 p-4 dark:border-red-900/50 dark:bg-red-950/20">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-red-800 dark:text-red-300">
+                        <UserX className="h-4 w-4" />
+                        <span>Remove Account (@{acctDetails.username})</span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-red-700/90 dark:text-red-300/80">
+                        Deletes all posted ads, wipes balances, reviews &amp; history, locks login credentials, and removes the profile from the marketplace.
+                      </p>
+                    </div>
+
+                    {!confirmDeleteAccount ? (
+                      <button
+                        type="button"
+                        disabled={acctBusy}
+                        onClick={() => setConfirmDeleteAccount(true)}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-red-300 bg-white px-3.5 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-800 dark:bg-[#1E1212] dark:text-red-300 dark:hover:bg-red-950/60"
+                      >
+                        <UserX className="h-3.5 w-3.5" />
+                        <span>Remove Account</span>
+                      </button>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={acctBusy}
+                          onClick={handleRemoveAccount}
+                          className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-red-600 px-3.5 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span>{acctBusy ? 'Removing...' : `Confirm Remove @${acctDetails.username}`}</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={acctBusy}
+                          onClick={() => setConfirmDeleteAccount(false)}
+                          className="h-9 rounded-xl border border-[#DCE2E1] bg-white px-3 text-xs font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3]"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-10 rounded-xl border border-[#DCE2E1] px-4 text-sm font-semibold text-[#1E2726] hover:bg-[#F5F7F7] dark:border-[#263130] dark:text-[#DCE4E3] dark:hover:bg-[#1A2423]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: Live Trades Admin & Chat Moderation */}
         {vaultTab === 'trades' && (
           <div className="mt-4 space-y-3">
             {tradesError && (
@@ -1885,6 +3053,16 @@ export function SecretCreditModal({
                         </div>
 
                         <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTargetUsername(acc.username);
+                              setVaultTab('accounts');
+                            }}
+                            className="h-8 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-[11px] font-semibold text-[#0E1715] hover:border-[#0B3B2E] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white dark:hover:border-[#7FE85B]"
+                          >
+                            Manage
+                          </button>
                           <button
                             type="button"
                             onClick={() => {

@@ -1,4 +1,4 @@
-import type { P2POffer, TraderProfile } from '../src/types.ts';
+import type { CryptoAsset, P2POffer, TraderFeedback, TraderProfile } from '../src/types.ts';
 
 export const SEED_TRADERS: Record<string, TraderProfile> = {
   Veyhtr239: {
@@ -14,9 +14,9 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Instant gift card & regional liquidity desk. Fast verification, zero ID checks, automated escrow release.',
     volumeTier: '50+ BTC',
     recentFeedback: [
-      { id: 'fb1', author: 'khalid_m', positive: true, comment: 'Released BTC in under 3 minutes after code check.', asset: 'BTC', date: '2 days ago' },
-      { id: 'fb2', author: 'anon_842', positive: true, comment: 'Smooth PSN card trade, zero hassle.', asset: 'BTC', date: '5 days ago' },
-      { id: 'fb3', author: 'bahrain_hodl', positive: true, comment: 'Reliable regular desk for BHD trades.', asset: 'XMR', date: '1 week ago' },
+      { id: 'fb1', author: 'DubaiCrescent', positive: true, comment: 'Released BTC in under 3 minutes after code check.', asset: 'BTC', date: '2 days ago' },
+      { id: 'fb2', author: 'HugoZhang', positive: true, comment: 'Smooth PSN card trade, zero hassle.', asset: 'BTC', date: '5 days ago' },
+      { id: 'fb3', author: 'jakemin', positive: true, comment: 'Reliable regular desk for BHD trades.', asset: 'XMR', date: '1 week ago' },
     ],
   },
   HugoZhang: {
@@ -32,8 +32,8 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: '24/7 digital voucher and Southeast Asia OTC desk. Supporting BTC, XMR, and USDT with instant settlement.',
     volumeTier: '120+ BTC',
     recentFeedback: [
-      { id: 'fb4', author: 'jakarta_user', positive: true, comment: 'Best IDR rates on OOSAB, instant release.', asset: 'BTC', date: '1 day ago' },
-      { id: 'fb5', author: 'cipher_id', positive: true, comment: 'Bought XMR with Steam card smoothly.', asset: 'XMR', date: '3 days ago' },
+      { id: 'fb4', author: 'kevin94', positive: true, comment: 'Best IDR rates on OOSAB, instant release.', asset: 'BTC', date: '1 day ago' },
+      { id: 'fb5', author: 'rizkyB', positive: true, comment: 'Bought XMR with Steam card smoothly.', asset: 'XMR', date: '3 days ago' },
       { id: 'fb6', author: 'raya99', positive: true, comment: '5500+ trades for a reason. Top trader.', asset: 'USDT', date: '6 days ago' },
     ],
   },
@@ -50,8 +50,8 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Direct bank transfer and Zelle peer-to-peer trader. No ID verification or selfie requests.',
     volumeTier: '5+ BTC',
     recentFeedback: [
-      { id: 'fb7', author: 'texas_btc', positive: true, comment: 'Clean bank transfer at spot price, fast release.', asset: 'BTC', date: '3 days ago' },
-      { id: 'fb8', author: 'privacy_fan', positive: true, comment: 'No KYC nonsense, honest rate.', asset: 'XMR', date: '1 week ago' },
+      { id: 'fb7', author: 'matt.k', positive: true, comment: 'Clean bank transfer at spot price, fast release.', asset: 'BTC', date: '3 days ago' },
+      { id: 'fb8', author: 'sunnyside', positive: true, comment: 'No KYC nonsense, honest rate.', asset: 'XMR', date: '1 week ago' },
     ],
   },
   MoneroVault: {
@@ -67,8 +67,8 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Dedicated Monero (XMR) & Bitcoin liquidity provider. Privacy-first trading via SEPA, Wise, Cash by Mail, and Revolut.',
     volumeTier: '85+ BTC',
     recentFeedback: [
-      { id: 'fb9', author: 'swiss_anon', positive: true, comment: 'My go-to XMR desk in Europe. Zero friction.', asset: 'XMR', date: '6 hours ago' },
-      { id: 'fb10', author: 'tor_nomad', positive: true, comment: 'PGP verified, cash by mail arrived and XMR released immediately.', asset: 'XMR', date: '4 days ago' },
+      { id: 'fb9', author: 'lukasB', positive: true, comment: 'My go-to XMR desk in Europe. Zero friction.', asset: 'XMR', date: '6 hours ago' },
+      { id: 'fb10', author: 'nightowl77', positive: true, comment: 'Cash by mail arrived and XMR released immediately.', asset: 'XMR', date: '4 days ago' },
     ],
   },
   AlpinePrivacy: {
@@ -84,8 +84,8 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Swiss & EU P2P desk specializing in XMR, BTC, and LTC via SEPA Instant, Wise, and Cash in Person (Zurich/Basel).',
     volumeTier: '40+ BTC',
     recentFeedback: [
-      { id: 'fb11', author: 'elena_ch', positive: true, comment: 'SEPA Instant confirmed in 10 seconds, XMR released.', asset: 'XMR', date: '1 day ago' },
-      { id: 'fb12', author: 'marcus_de', positive: true, comment: 'Very professional, clear instructions.', asset: 'BTC', date: '5 days ago' },
+      { id: 'fb11', author: 'elenaR', positive: true, comment: 'SEPA Instant confirmed in 10 seconds, XMR released.', asset: 'XMR', date: '1 day ago' },
+      { id: 'fb12', author: 'MarcusWeber', positive: true, comment: 'Very polite, clear instructions.', asset: 'BTC', date: '5 days ago' },
     ],
   },
   ZeroTrace_OTC: {
@@ -101,8 +101,8 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'High-privacy Cash by Mail & Cardless ATM desk. No ID, no bank statements, PGP encrypted shipping details.',
     volumeTier: '25+ BTC',
     recentFeedback: [
-      { id: 'fb13', author: 'ghost_node', positive: true, comment: 'Cardless ATM code worked like magic for XMR.', asset: 'XMR', date: '2 days ago' },
-      { id: 'fb14', author: 'liberty_tx', positive: true, comment: 'Cash by mail tracked and released same afternoon.', asset: 'BTC', date: '1 week ago' },
+      { id: 'fb13', author: 'coyote42', positive: true, comment: 'Cardless ATM code worked smoothly for XMR.', asset: 'XMR', date: '2 days ago' },
+      { id: 'fb14', author: 'DevonLee', positive: true, comment: 'Cash by mail tracked and released same afternoon.', asset: 'BTC', date: '1 week ago' },
     ],
   },
   NordicSwap: {
@@ -118,8 +118,8 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Fast Revolut, Wise, and SEPA trades across EUR, GBP, and USD. Tight spreads on BTC, ETH, XMR, and USDT.',
     volumeTier: '35+ BTC',
     recentFeedback: [
-      { id: 'fb15', author: 'oslo_dev', positive: true, comment: 'Tightest Revolut spread for ETH.', asset: 'ETH', date: '12 hours ago' },
-      { id: 'fb16', author: 'uk_stacker', positive: true, comment: 'Faster Payments settled in 2 mins.', asset: 'BTC', date: '3 days ago' },
+      { id: 'fb15', author: 'e.lindqvist', positive: true, comment: 'Tightest Revolut spread for ETH.', asset: 'ETH', date: '12 hours ago' },
+      { id: 'fb16', author: 'chris.p', positive: true, comment: 'Faster Payments settled in 2 mins.', asset: 'BTC', date: '3 days ago' },
     ],
   },
   KryptoKat_XMR: {
@@ -135,8 +135,8 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Monero maximalist & multi-asset trader. Buying and selling XMR, LTC, and BTC with Amazon/Apple cards and Wise.',
     volumeTier: '45+ BTC',
     recentFeedback: [
-      { id: 'fb17', author: 'monero_joe', positive: true, comment: 'Always online and super helpful to first-time XMR buyers.', asset: 'XMR', date: '9 hours ago' },
-      { id: 'fb18', author: 'warsaw_p2p', positive: true, comment: 'Fast Wise transfer, zero issues.', asset: 'XMR', date: '4 days ago' },
+      { id: 'fb17', author: 'joeyb91', positive: true, comment: 'Always online and super helpful to first-time XMR buyers.', asset: 'XMR', date: '9 hours ago' },
+      { id: 'fb18', author: 'tomasz404', positive: true, comment: 'Fast Wise transfer, zero issues.', asset: 'XMR', date: '4 days ago' },
     ],
   },
   SatoshiExpress: {
@@ -152,8 +152,8 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'US Zelle, Apple Pay, and Cash App desk. Instant automated release for verified repeat counterparties.',
     volumeTier: '95+ BTC',
     recentFeedback: [
-      { id: 'fb19', author: 'nyc_trader', positive: true, comment: 'Zelle to BTC in under 4 minutes.', asset: 'BTC', date: '1 day ago' },
-      { id: 'fb20', author: 'miami_sol', positive: true, comment: 'Great SOL rate with Apple Pay.', asset: 'SOL', date: '2 days ago' },
+      { id: 'fb19', author: 'TheRock', positive: true, comment: 'Zelle to BTC in under 4 minutes.', asset: 'BTC', date: '1 day ago' },
+      { id: 'fb20', author: 'j.martinez', positive: true, comment: 'Great SOL rate with Apple Pay.', asset: 'SOL', date: '2 days ago' },
     ],
   },
   MapleLeafBTC: {
@@ -169,7 +169,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Canada Interac e-Transfer & Wise liquidity desk. Instant CAD settlements for BTC, XMR, and ETH.',
     volumeTier: '20+ BTC',
     recentFeedback: [
-      { id: 'fb21', author: 'toronto_anon', positive: true, comment: 'Best Interac rate for Monero in Canada.', asset: 'XMR', date: '2 days ago' },
+      { id: 'fb21', author: 'nate99', positive: true, comment: 'Best Interac rate for Monero in Canada.', asset: 'XMR', date: '2 days ago' },
     ],
   },
   SingaporeFlow: {
@@ -185,7 +185,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'APAC high-volume USDT, USDC, and BTC desk. Supporting SGD, AUD, and USD via Wise, Bank Transfer, and Alipay.',
     volumeTier: '30+ BTC',
     recentFeedback: [
-      { id: 'fb22', author: 'sg_whale', positive: true, comment: 'Clean 5k USDT trade, zero delay.', asset: 'USDT', date: '18 hours ago' },
+      { id: 'fb22', author: 'DanielKim', positive: true, comment: 'Clean 5k USDT trade, zero delay.', asset: 'USDT', date: '18 hours ago' },
     ],
   },
   LondonBridgeOTC: {
@@ -201,7 +201,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'UK Faster Payments & Cash in Person (Central London). Low fees on GBP <-> BTC, ETH, XMR.',
     volumeTier: '65+ BTC',
     recentFeedback: [
-      { id: 'fb23', author: 'soho_dev', positive: true, comment: 'FPS arrived and BTC released immediately.', asset: 'BTC', date: '3 days ago' },
+      { id: 'fb23', author: 'Zoeyy', positive: true, comment: 'FPS arrived and BTC released immediately.', asset: 'BTC', date: '3 days ago' },
     ],
   },
   DubaiCrescent: {
@@ -217,7 +217,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'UAE & Gulf Region OTC desk. AED, BHD, and USD trades via Domestic Wire, Wise, and Cash in Person.',
     volumeTier: '55+ BTC',
     recentFeedback: [
-      { id: 'fb24', author: 'abudhabi_otc', positive: true, comment: 'Seamless AED wire for USDT.', asset: 'USDT', date: '2 days ago' },
+      { id: 'fb24', author: 'TarekA', positive: true, comment: 'Seamless AED wire for USDT.', asset: 'USDT', date: '2 days ago' },
     ],
   },
   LatamPulse: {
@@ -233,7 +233,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'PIX, SPEI, and USDT/BTC/LTC regional liquidity across Brazil & Mexico. Fast releases, no KYC.',
     volumeTier: '12+ BTC',
     recentFeedback: [
-      { id: 'fb25', author: 'sao_paulo_btc', positive: true, comment: 'PIX confirmed instantly, LTC released.', asset: 'LTC', date: '5 days ago' },
+      { id: 'fb25', author: 'r.silva', positive: true, comment: 'PIX confirmed instantly, LTC released.', asset: 'LTC', date: '5 days ago' },
     ],
   },
   cryptocoop: {
@@ -249,9 +249,9 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Community-driven P2P desk offering tight BTC, XMR, and USDT spreads via Wise, Revolut, and SEPA Instant. Always escrow-backed.',
     volumeTier: '60+ BTC',
     recentFeedback: [
-      { id: 'fb-cc-1', author: 'nord_p2p', positive: true, comment: 'Great rate and released BTC in under 3 minutes.', asset: 'BTC', date: '1 day ago' },
-      { id: 'fb-cc-2', author: 'xmr_owl', positive: true, comment: 'Smooth Wise trade, polite and fast.', asset: 'XMR', date: '4 days ago' },
-      { id: 'fb-cc-3', author: 'milo_88', positive: true, comment: 'Zero friction, best peer desk on OOSAB.', asset: 'USDT', date: '1 week ago' },
+      { id: 'fb-cc-1', author: 'NordicSwap', positive: true, comment: 'Great rate and released BTC in under 3 minutes.', asset: 'BTC', date: '1 day ago' },
+      { id: 'fb-cc-2', author: 'MoneroVault', positive: true, comment: 'Smooth Wise trade, polite and fast.', asset: 'XMR', date: '4 days ago' },
+      { id: 'fb-cc-3', author: 'eliasse321', positive: true, comment: 'Zero friction, best peer desk on OOSAB.', asset: 'USDT', date: '1 week ago' },
     ],
   },
   poopdeck: {
@@ -267,9 +267,9 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Independent zero-KYC liquidity provider for Monero, Bitcoin, and Litecoin. Fast release once payment clears.',
     volumeTier: '45+ BTC',
     recentFeedback: [
-      { id: 'fb-pd-1', author: 'tomas_k', positive: true, comment: 'Super quick Revolut confirmation and XMR release.', asset: 'XMR', date: '14 hours ago' },
-      { id: 'fb-pd-2', author: 'anon_314', positive: true, comment: 'Clean trade, zero extra questions.', asset: 'BTC', date: '3 days ago' },
-      { id: 'fb-pd-3', author: 'cairo_btc', positive: true, comment: 'Always reliable and fast escrow settlement.', asset: 'LTC', date: '6 days ago' },
+      { id: 'fb-pd-1', author: 'AlpinePrivacy', positive: true, comment: 'Super quick Revolut confirmation and XMR release.', asset: 'XMR', date: '14 hours ago' },
+      { id: 'fb-pd-2', author: 'tomasz404', positive: true, comment: 'Clean trade, zero extra questions.', asset: 'BTC', date: '3 days ago' },
+      { id: 'fb-pd-3', author: 'LynnShaw', positive: true, comment: 'Always reliable and fast escrow settlement.', asset: 'LTC', date: '6 days ago' },
     ],
   },
   Victor7777: {
@@ -285,8 +285,8 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'High-volume P2P merchant specializing in Paysafecard, prepaid vouchers, and Interac CAD liquidity. Instant escrow release.',
     volumeTier: '250+ BTC',
     recentFeedback: [
-      { id: 'fb-vic-1', author: 'mtl_stack', positive: true, comment: '17k+ trades says it all, BTC released in 4 mins.', asset: 'BTC', date: '4 hours ago' },
-      { id: 'fb-vic-2', author: 'nord_cad', positive: true, comment: 'Paysafecard redeemed smoothly with zero hassle.', asset: 'BTC', date: '2 days ago' },
+      { id: 'fb-vic-1', author: 'antoine55', positive: true, comment: '17k+ trades says it all, BTC released in 4 mins.', asset: 'BTC', date: '4 hours ago' },
+      { id: 'fb-vic-2', author: 'Queen13598', positive: true, comment: 'Paysafecard redeemed smoothly with zero hassle.', asset: 'BTC', date: '2 days ago' },
     ],
   },
   BitLords: {
@@ -302,8 +302,8 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Trusted high-volume OTC & Cash in Person desk across major cities. Zero-KYC USDT, BTC, and XMR liquidity.',
     volumeTier: '180+ BTC',
     recentFeedback: [
-      { id: 'fb-bl-1', author: 'mumbai_otc', positive: true, comment: 'Seamless USDT settlement, super professional.', asset: 'USDT', date: '1 day ago' },
-      { id: 'fb-bl-2', author: 'del_trader', positive: true, comment: 'Reliable desk for large trades, fast release.', asset: 'BTC', date: '4 days ago' },
+      { id: 'fb-bl-1', author: 'k.patel', positive: true, comment: 'Seamless USDT settlement, super straightforward.', asset: 'USDT', date: '1 day ago' },
+      { id: 'fb-bl-2', author: 'jakemin', positive: true, comment: 'Reliable seller for large trades, fast release.', asset: 'BTC', date: '4 days ago' },
     ],
   },
   EnoughShoveler: {
@@ -319,8 +319,8 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Fast Release · Best Rates · Trusted P2P Seller. Multi-chain USDT (TRC-20 / ERC-20) and BTC liquidity 24/7.',
     volumeTier: '140+ BTC',
     recentFeedback: [
-      { id: 'fb-es-1', author: 'lagos_fx', positive: true, comment: 'Best NGN rate and released TRC20 USDT immediately.', asset: 'USDT', date: '6 hours ago' },
-      { id: 'fb-es-2', author: 'karachi_p2p', positive: true, comment: 'Super quick response, zero friction.', asset: 'USDT', date: '3 days ago' },
+      { id: 'fb-es-1', author: 'l.okafor', positive: true, comment: 'Best NGN rate and released TRC20 USDT immediately.', asset: 'USDT', date: '6 hours ago' },
+      { id: 'fb-es-2', author: 'omar87', positive: true, comment: 'Super quick response, zero friction.', asset: 'USDT', date: '3 days ago' },
     ],
   },
   Queen13598: {
@@ -336,8 +336,8 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: '24/7 Fast Deals · Secure Trade. Interac e-Transfer, Wise, and Virtual Visa settlement across CAD & USD.',
     volumeTier: '110+ BTC',
     recentFeedback: [
-      { id: 'fb-qn-1', author: 'van_btc', positive: true, comment: 'Fast Interac auto-deposit and instant USDT release.', asset: 'USDT', date: '12 hours ago' },
-      { id: 'fb-qn-2', author: 'calgary_xmr', positive: true, comment: 'Always reliable, clear instructions.', asset: 'BTC', date: '5 days ago' },
+      { id: 'fb-qn-1', author: 'MapleLeafBTC', positive: true, comment: 'Fast Interac auto-deposit and instant USDT release.', asset: 'USDT', date: '12 hours ago' },
+      { id: 'fb-qn-2', author: 'Asfi6325', positive: true, comment: 'Always reliable, clear instructions.', asset: 'BTC', date: '5 days ago' },
     ],
   },
   jakemin: {
@@ -353,7 +353,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Fast Release · Best Rates · Trusted Seller. UPI, IMPS, and PayPal P2P settlements in minutes.',
     volumeTier: '80+ BTC',
     recentFeedback: [
-      { id: 'fb-jm-1', author: 'blr_swap', positive: true, comment: 'Instant UPI verification and USDT release.', asset: 'USDT', date: '1 day ago' },
+      { id: 'fb-jm-1', author: 'Threeking', positive: true, comment: 'Instant UPI verification and USDT release.', asset: 'USDT', date: '1 day ago' },
     ],
   },
   kryptomaster: {
@@ -369,7 +369,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'FAST AND RELIABLE. Long-time US P2P vendor accepting PayPal, Zelle, Apple Pay, and Cash App.',
     volumeTier: '75+ BTC',
     recentFeedback: [
-      { id: 'fb-km-1', author: 'austin_hodl', positive: true, comment: 'Smooth PayPal trade, released BTC right away.', asset: 'BTC', date: '2 days ago' },
+      { id: 'fb-km-1', author: 'jason04', positive: true, comment: 'Smooth PayPal trade, released BTC right away.', asset: 'BTC', date: '2 days ago' },
     ],
   },
   RO_EXCHANGE: {
@@ -385,7 +385,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'European instant bank transfer desk (SEPA Instant, Revolut, RON). Fast verification and 100% escrow track record.',
     volumeTier: '65+ BTC',
     recentFeedback: [
-      { id: 'fb-ro-1', author: 'bucharest_eth', positive: true, comment: 'Instant SEPA settlement, ETH released in 3 mins.', asset: 'ETH', date: '10 hours ago' },
+      { id: 'fb-ro-1', author: 'viktor912', positive: true, comment: 'Instant SEPA settlement, ETH released in 3 mins.', asset: 'ETH', date: '10 hours ago' },
     ],
   },
   Threeking: {
@@ -401,7 +401,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Any cryptocurrency · Best P2P transactions 24/7. Fast UPI, Google Pay, and Virtual Visa settlement.',
     volumeTier: '60+ BTC',
     recentFeedback: [
-      { id: 'fb-tk-1', author: 'pune_btc', positive: true, comment: 'Top trader, zero delays on BTC.', asset: 'BTC', date: '1 day ago' },
+      { id: 'fb-tk-1', author: 'BitLords', positive: true, comment: 'Top trader, zero delays on BTC.', asset: 'BTC', date: '1 day ago' },
     ],
   },
   XingQiu77: {
@@ -417,7 +417,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Fast, secure, and trustworthy. Specializing in Apple Gift Cards, Steam Gift Cards, and AUD/USD P2P swaps.',
     volumeTier: '50+ BTC',
     recentFeedback: [
-      { id: 'fb-xq-1', author: 'syd_stacker', positive: true, comment: 'Apple card verified and BTC released fast.', asset: 'BTC', date: '18 hours ago' },
+      { id: 'fb-xq-1', author: 'Chenyi519', positive: true, comment: 'Apple card verified and BTC released fast.', asset: 'BTC', date: '18 hours ago' },
     ],
   },
   Qing66666: {
@@ -433,7 +433,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Honesty and Speed. Accepting Amazon, Apple, and Steam gift cards for LTC, BTC, and USDT.',
     volumeTier: '40+ BTC',
     recentFeedback: [
-      { id: 'fb-qg-1', author: 'uk_gift', positive: true, comment: 'Super fast gift card verification, highly recommend.', asset: 'LTC', date: '2 days ago' },
+      { id: 'fb-qg-1', author: 'LondonBridgeOTC', positive: true, comment: 'Super fast gift card verification, highly recommend.', asset: 'LTC', date: '2 days ago' },
     ],
   },
   Chenyi519: {
@@ -449,7 +449,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Fast and honest, 24/7 online. Australia PayID, gift cards, and multi-asset P2P liquidity.',
     volumeTier: '38+ BTC',
     recentFeedback: [
-      { id: 'fb-cy-1', author: 'melb_btc', positive: true, comment: 'Clean AUD trade, fast release.', asset: 'BTC', date: '3 days ago' },
+      { id: 'fb-cy-1', author: 'XingQiu77', positive: true, comment: 'Clean AUD trade, fast release.', asset: 'BTC', date: '3 days ago' },
     ],
   },
   Asfi6325: {
@@ -465,7 +465,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Canadian Interac e-Transfer & Virtual Visa P2P desk. Fast release and clear terms.',
     volumeTier: '35+ BTC',
     recentFeedback: [
-      { id: 'fb-as-1', author: 'ottawa_p2p', positive: true, comment: 'Easy Interac e-Transfer, smooth trade.', asset: 'BTC', date: '4 days ago' },
+      { id: 'fb-as-1', author: 'Victor7777', positive: true, comment: 'Easy Interac e-Transfer, smooth trade.', asset: 'BTC', date: '4 days ago' },
     ],
   },
   trade_thunder: {
@@ -481,7 +481,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Bank Transfer, JazzCash, and EasyPaisa Fast Service 24/7 Available.',
     volumeTier: '32+ BTC',
     recentFeedback: [
-      { id: 'fb-tt-1', author: 'lhr_usdt', positive: true, comment: 'EasyPaisa confirmed in 2 mins, prompt release.', asset: 'USDT', date: '1 day ago' },
+      { id: 'fb-tt-1', author: 'SamirK', positive: true, comment: 'EasyPaisa confirmed in 2 mins, prompt release.', asset: 'USDT', date: '1 day ago' },
     ],
   },
   Zoeyy: {
@@ -497,7 +497,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'UK Faster Payments, Wise & Revolut instant GBP liquidity. Fast release and zero KYC friction.',
     volumeTier: '28+ BTC',
     recentFeedback: [
-      { id: 'fb-zy-1', author: 'manchester_btc', positive: true, comment: 'FPS settled instantly, very friendly trader.', asset: 'USDT', date: '2 days ago' },
+      { id: 'fb-zy-1', author: 'Qing66666', positive: true, comment: 'FPS settled instantly, very friendly trader.', asset: 'USDT', date: '2 days ago' },
     ],
   },
   TheRock: {
@@ -513,7 +513,7 @@ export const SEED_TRADERS: Record<string, TraderProfile> = {
     bio: 'Fast trade / 24/7 active. Cash App, Zelle, and Virtual Debit Card P2P settlements.',
     volumeTier: '10+ BTC',
     recentFeedback: [
-      { id: 'fb-tr-1', author: 'chicago_sol', positive: true, comment: 'Cash App to USDT settled in 3 mins.', asset: 'USDT', date: '3 days ago' },
+      { id: 'fb-tr-1', author: 'SatoshiExpress', positive: true, comment: 'Cash App to USDT settled in 3 mins.', asset: 'USDT', date: '3 days ago' },
     ],
   },
 };
@@ -635,13 +635,19 @@ const YEAR_OPTIONS = ['2020', '2021', '2022', '2023', '2024', '2025'];
 const SEEN_OPTIONS = [0, 0, 0, 2, 5, 9, 14, 23, 38];
 const SAMPLE_FB_COMMENTS = [
   'Fast release and clear instructions.',
-  'Smooth zero-KYC trade, would deal again.',
+  'First time buying here, went super smoothly.',
   'Escrow settled in a few minutes without issues.',
-  'Honest pricing and quick response in chat.',
-  'Clean transaction from start to finish.',
+  'Quick reply in chat and got my coins right away.',
+  'Easy trade, no hassle at all.',
+  'Legit seller, released right after I sent payment.',
 ];
 const SAMPLE_FB_AUTHORS = [
-  'milo_88', 'anon_314', 'nord_p2p', 'sara_v', 'tomas_k', 'xmr_owl', 'jules_19', 'cairo_btc',
+  'Victor7777', 'HugoZhang', 'LynnShaw', 'jakemin', 'kryptomaster', 'Zoeyy',
+  'TheRock', 'Threeking', 'BitLords', 'EnoughShoveler', 'Queen13598', 'XingQiu77',
+  'Qing66666', 'Chenyi519', 'Asfi6325', 'eliasse321', 'hana.sato', 'tomasz404',
+  'viktor912', 'antoine55', 'mikael90', 'cryptocoop', 'MoneroVault', 'NordicSwap',
+  'kevin94', 'SarahChen', 'BlueJay', 'matt.k', 'nightowl77', 'DevonLee',
+  'coyote42', 'lukasB', 'sam.k', 'coldbrew9', 'DanielKim', 'raya99',
 ];
 
 for (let idx = 0; idx < COMMUNITY_HANDLES.length; idx++) {
@@ -663,6 +669,18 @@ for (let idx = 0; idx < COMMUNITY_HANDLES.length; idx++) {
   const pgpFingerprint = raw40.match(/.{1,4}/g)?.join(' ') ?? raw40;
   const volBtc = Math.max(2, Math.round(tradesCount / 42));
 
+  let fbAuthor1 = SAMPLE_FB_AUTHORS[h % SAMPLE_FB_AUTHORS.length];
+  if (fbAuthor1.toLowerCase() === entry.username.toLowerCase()) {
+    fbAuthor1 = SAMPLE_FB_AUTHORS[(h + 1) % SAMPLE_FB_AUTHORS.length];
+  }
+  let fbAuthor2 = SAMPLE_FB_AUTHORS[(h + 5) % SAMPLE_FB_AUTHORS.length];
+  if (
+    fbAuthor2.toLowerCase() === entry.username.toLowerCase() ||
+    fbAuthor2.toLowerCase() === fbAuthor1.toLowerCase()
+  ) {
+    fbAuthor2 = SAMPLE_FB_AUTHORS[(h + 7) % SAMPLE_FB_AUTHORS.length];
+  }
+
   SEED_TRADERS[entry.username] = {
     username: entry.username,
     joinedAt: `${year}-${month}-${day}`,
@@ -678,7 +696,7 @@ for (let idx = 0; idx < COMMUNITY_HANDLES.length; idx++) {
     recentFeedback: [
       {
         id: `fb-c-${idx}-1`,
-        author: SAMPLE_FB_AUTHORS[h % SAMPLE_FB_AUTHORS.length],
+        author: fbAuthor1,
         positive: true,
         comment: SAMPLE_FB_COMMENTS[h % SAMPLE_FB_COMMENTS.length],
         asset: (['BTC', 'XMR', 'ETH', 'USDT', 'LTC'] as const)[h % 5],
@@ -686,7 +704,7 @@ for (let idx = 0; idx < COMMUNITY_HANDLES.length; idx++) {
       },
       {
         id: `fb-c-${idx}-2`,
-        author: SAMPLE_FB_AUTHORS[(h + 3) % SAMPLE_FB_AUTHORS.length],
+        author: fbAuthor2,
         positive: true,
         comment: SAMPLE_FB_COMMENTS[(h + 2) % SAMPLE_FB_COMMENTS.length],
         asset: (['XMR', 'BTC', 'USDT', 'SOL', 'USDC'] as const)[(h + 1) % 5],
@@ -1909,11 +1927,44 @@ const SAMPLE_HANDLES = [
   'b***3', 'c***k', 'r***8', 't***w', 'n***5', 'l***p', 'g***1', 'j***6', 'f***m', 'q***z',
 ];
 
+// ~200 organic, non-underscore usernames mixing first-page traders and realistic one-time buyers
 const FEEDBACK_AUTHORS = [
-  'anon_4821', 'xmr_nomad', 'silent_hodl', 'zurich_stack', 'tor_relay', 'desert_btc',
-  'nordic_node', 'cipher_otc', 'privacy_desk', 'tokyo_p2p', 'soho_stacker', 'alpine_xmr',
-  'gulf_trader', 'bay_area_btc', 'monero_fox', 'stealth_swap', 'vancouver_p2p', 'berlin_anon',
-  'singapore_desk', 'oslo_vault', 'rio_crypto', 'seoul_node', 'dubai_otc', 'texas_hodler',
+  // First-page & featured handles (no underscores)
+  'Victor7777', 'HugoZhang', 'LynnShaw', 'MoneroVault', 'AlpinePrivacy', 'NordicSwap',
+  'SatoshiExpress', 'MapleLeafBTC', 'SingaporeFlow', 'LondonBridgeOTC', 'DubaiCrescent',
+  'LatamPulse', 'cryptocoop', 'poopdeck', 'BitLords', 'EnoughShoveler', 'Queen13598',
+  'jakemin', 'kryptomaster', 'Threeking', 'XingQiu77', 'Qing66666', 'Chenyi519',
+  'Asfi6325', 'Zoeyy', 'TheRock', 'Veyhtr239', 'eliasse321', 'tomasz404', 'viktor912',
+  'hana.sato', 'antoine55', 'mikael90', 'raya99',
+  // Everyday human names, initials, dots, birth years (zero underscores)
+  'kevin94', 'SarahChen', 'DevonLee', 'matt.k', 'jason04', 'emilyw', 'lukasB', 'nate99',
+  'TarekA', 'omar87', 'SamirK', 'bennyB', 'chloe.t', 'danielleR', 'ivan91', 'paoloG',
+  'kieran23', 'noahw', 'hanna.b', 'felix07', 'tariqM', 'elenaR', 'zack88', 'alexey90',
+  'DanielKim', 'MarcusWeber', 'KyleMorgan', 'DavidPark', 'AlexeyM', 'CarlosV', 'TomHarris',
+  'NadiaB', 'ChrisL', 'BastianK', 'RomanV', 'j.martinez', 'm.henderson', 'chris.p',
+  't.nguyen', 'alex.r', 'sam.k', 'd.santos', 'k.patel', 'n.hassan', 'l.okafor', 'r.silva',
+  'e.lindqvist', 'joeyb91', 'rizkyB', 'mia.j', 'liam08', 'sophieK', 'arthur95', 'diegoV',
+  'olivia.m', 'ethan72', 'noemiS', 'rafael84', 'klaraP', 'maximeD', 'aaron2k', 'julia.w',
+  'henry66', 'nadineL', 'oscar93', 'fiona.c', 'bruno11', 'tessaM', 'enzo97', 'mayaK',
+  'yanisB', 'claire92', 'petraH', 'remy78', 'kuba44', 'amiraS', 'gideonR', 'valeria89',
+  'arturK', 'matej02', 'celineV', 'dariusM', 'keiko96', 'ninaB', 'tom.h', 'paulC',
+  'steven83', 'rachel.g', 'victor24', 'ali76', 'karimN', 'laura.p', 'niko19', 'yusufK',
+  'simon85', 'jadeL', 'rohan21', 'katjaM', 'farid90', 'irisB', 'hassan73', 'taliaR',
+  // Casual / everyday / gamer-style / hobby handles (how one-time buyers sign up)
+  'coffeeaddict', 'nightowl77', 'BlueJay', 'coyote42', 'SkaterMax', 'redfox', 'sunnyside',
+  'SilverFox', 'pixelking', 'jazzhands', 'luckyseven', 'midnightrun', 'paperplane', 'ironman22',
+  'greenleaf', 'coldbrew9', 'sandstorm', 'rainydays', 'starlight8', 'breezy', 'timberwolf',
+  'fastlane', 'driftking', 'moonwalker', 'oceanview', 'citylights', 'nordicfox', 'wildcat',
+  'maple99', 'snowdrift', 'oakwood', 'thunderbolt', 'pinecone', 'harbor24', 'sunsetblvd',
+  'iceberg', 'neonwave', 'cactusjack', 'skyline7', 'riverstone', 'copperhead', 'bluemoon',
+  'ghostpepper', 'velvet9', 'firefly', 'goldfish', 'roadrunner', 'windbreaker', 'stormchaser',
+  // Casual crypto / peer buyer handles (zero underscores)
+  'satstacker', 'coinboy', 'xmrbuyer', 'stackingSats', 'hodlfast', 'btcman', 'PayQuick',
+  'CashDrop', 'vortex9', 'cipher7', 'nodewatcher', 'chainhopper', 'litespeed', 'blockhead',
+  'swapperDan', 'QuickTrade', 'easybuy24', 'directpay', 'zenwallet', 'NorthStarBTC',
+  'CopperDesk', 'WestCoastSat', 'SignalOTC', 'SilverCoin', 'MinaOTC', 'SamirFX',
+  'ClearVault', 'FastSats', 'CoinRunner', 'AnonBuyer', 'FreshWallet', 'JustBuying',
+  'OneTimeSwap', 'QuietBuyer', 'LocalCash99', 'PeerBuyer', 'EasyEscrow', 'ZeroHassle',
 ];
 
 const SAMPLE_PAYMENTS = [
@@ -1931,30 +1982,50 @@ const SAMPLE_PAYMENTS = [
 
 const POSITIVE_TEMPLATES = [
   (asset: string, method: string, mins: number) =>
+    `First time buying ${asset} here, super easy and got it in ${mins} mins.`,
+  (asset: string, method: string, _mins: number) =>
+    `Sent ${method} and got my ${asset} right away. Thanks!`,
+  (_asset: string, _method: string, _mins: number) =>
+    `Quick and smooth, no hassle at all.`,
+  (_asset: string, method: string, mins: number) =>
+    `Worked great, took about ${mins} min with ${method}.`,
+  (_asset: string, _method: string, _mins: number) =>
+    `Legit seller, fast release once I sent payment.`,
+  (_asset: string, _method: string, _mins: number) =>
+    `Easy trade, instructions were clear.`,
+  (asset: string, _method: string, mins: number) =>
+    `Got my ${asset} in ${mins} mins. Appreciate it!`,
+  (_asset: string, method: string, _mins: number) =>
+    `Smooth ${method} trade, would buy from again.`,
+  (_asset: string, _method: string, _mins: number) =>
+    `Fast response in chat and instant release.`,
+  (_asset: string, _method: string, _mins: number) =>
+    `No issues, everything went through cleanly.`,
+  (asset: string, method: string, _mins: number) =>
+    `Bought some ${asset} with ${method}, arrived fast.`,
+  (_asset: string, _method: string, _mins: number) =>
+    `Great rate and super quick release.`,
+  (_asset: string, _method: string, mins: number) =>
+    `All good, took ${mins} minutes start to finish.`,
+  (asset: string, method: string, _mins: number) =>
+    `Helpful in chat and fast ${asset} release after ${method}.`,
+  (_asset: string, _method: string, _mins: number) =>
+    `Clean trade, thanks!`,
+  (asset: string, method: string, _mins: number) =>
+    `Verified my ${method} quick and released ${asset} right away.`,
+  (asset: string, _method: string, _mins: number) =>
+    `Easy first trade, ${asset} landed in my wallet fast.`,
+  (asset: string, method: string, mins: number) =>
     `Released ${asset} in ${mins} mins via ${method}. Smooth zero-KYC trade.`,
-  (asset: string, method: string, mins: number) =>
-    `Great ${asset} rate using ${method}. Escrow settled in ${mins}m without friction.`,
-  (asset: string, method: string, _mins: number) =>
-    `Fast settlement on ${method}. No ID checks, clear instructions, got my ${asset} right away.`,
-  (asset: string, method: string, mins: number) =>
-    `Repeat ${asset} trade via ${method} — verified and released in under ${mins + 1} minutes.`,
-  (asset: string, method: string, _mins: number) =>
-    `PGP-signed terms and straightforward ${method} transfer. Honest ${asset} pricing.`,
-  (asset: string, method: string, mins: number) =>
-    `Escrow funded immediately and ${asset} hit my wallet ${mins}m after ${method} confirmation.`,
-  (asset: string, method: string, _mins: number) =>
-    `Reliable desk for ${asset}. ${method} went through smoothly with zero hassle.`,
-  (asset: string, method: string, mins: number) =>
-    `Quick ${mins}-minute release after ${method} arrived. Would trade ${asset} here again.`,
 ];
 
 const NEGATIVE_TEMPLATES = [
   (asset: string, method: string) =>
-    `Slow response in chat before releasing ${asset} on ${method}, though escrow eventually settled.`,
+    `Slow response in chat before releasing ${asset} on ${method}, though it eventually settled.`,
   (asset: string, method: string) =>
-    `Took over 25 minutes to verify ${method} payment for ${asset}.`,
+    `Took over 25 minutes to check ${method} payment for ${asset}.`,
   (asset: string, _method: string) =>
-    `Had to remind trader to check confirmation for ${asset} release.`,
+    `Had to message a couple times to get the ${asset} released.`,
 ];
 
 function hashString(str: string): number {
@@ -2111,6 +2182,9 @@ export function generateTraderFeedbackPage(
       : (['XMR', 'BTC', 'ETH', 'USDT'] as const);
 
   const negRatePer100 = Math.max(0, Math.min(10, 100 - Math.round(trader.ratingPct)));
+  const eligibleAuthors = FEEDBACK_AUTHORS.filter(
+    (name) => name.toLowerCase() !== trader.username.toLowerCase()
+  );
   const items: TraderProfile['recentFeedback'] = [];
 
   for (let i = start; i < end; i++) {
@@ -2135,8 +2209,19 @@ export function generateTraderFeedbackPage(
       ? NEGATIVE_TEMPLATES[r1 % NEGATIVE_TEMPLATES.length](asset, method)
       : POSITIVE_TEMPLATES[r1 % POSITIVE_TEMPLATES.length](asset, method, mins);
 
-    const baseAuthor = FEEDBACK_AUTHORS[r2 % FEEDBACK_AUTHORS.length];
-    const author = `${baseAuthor.split('_')[0]}_${100 + ((r0 + genIdx) % 899)}`;
+    const recentSet = new Set([
+      ...realFeedback.slice(0, 10).map((fb) => fb.author.toLowerCase()),
+      ...items.slice(Math.max(0, items.length - 12)).map((fb) => fb.author.toLowerCase()),
+    ]);
+    const startAuthorIdx = (seed + genIdx * 17 + (r2 % 13)) % eligibleAuthors.length;
+    let author = eligibleAuthors[startAuthorIdx];
+    for (let probe = 0; probe < eligibleAuthors.length; probe++) {
+      const candidate = eligibleAuthors[(startAuthorIdx + probe * 7) % eligibleAuthors.length];
+      if (!recentSet.has(candidate.toLowerCase())) {
+        author = candidate;
+        break;
+      }
+    }
     const hoursAgo = 5 + i * 7 + (r3 % 6);
 
     items.push({
@@ -2183,5 +2268,99 @@ export function buildTraderDetails(
     tradeHistory: tradesPage.items,
   };
 }
+
+export function pickRandomBuyerAuthor(excludeUsernames: string[] = []): string {
+  const excluded = new Set(excludeUsernames.map((u) => u.trim().toLowerCase()).filter(Boolean));
+  const pool = FEEDBACK_AUTHORS.filter((name) => !excluded.has(name.toLowerCase()));
+  const source = pool.length > 0 ? pool : FEEDBACK_AUTHORS;
+  return source[Math.floor(Math.random() * source.length)];
+}
+
+export function generateRandomBuyerFeedback(options: {
+  targetUsername: string;
+  count: number;
+  asset?: CryptoAsset | 'MIXED';
+  existingAuthors?: string[];
+  positiveOnly?: boolean;
+}): Array<Omit<TraderFeedback, 'id'>> {
+  const safeCount = Math.max(1, Math.min(25, Math.round(options.count)));
+  const excluded = new Set(
+    [options.targetUsername, ...(options.existingAuthors ?? [])]
+      .map((u) => u.trim().toLowerCase())
+      .filter(Boolean)
+  );
+  const freshPool = FEEDBACK_AUTHORS.filter((name) => !excluded.has(name.toLowerCase()));
+  const fallbackPool = FEEDBACK_AUTHORS.filter(
+    (name) => name.toLowerCase() !== options.targetUsername.trim().toLowerCase()
+  );
+
+  // Shuffle copies using Fisher-Yates so every batch is unpredictable
+  const shuffle = <T,>(arr: T[]): T[] => {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  };
+
+  const authorDeck = [...shuffle(freshPool), ...shuffle(fallbackPool)];
+  const templateIndices = shuffle(POSITIVE_TEMPLATES.map((_, idx) => idx));
+  const assetsPool: CryptoAsset[] = ['BTC', 'XMR', 'USDT', 'ETH', 'LTC', 'SOL', 'USDC'];
+  const methodsPool = [
+    'Zelle',
+    'Wise',
+    'Revolut',
+    'SEPA Instant',
+    'Bank Transfer',
+    'Apple Pay',
+    'Interac e-Transfer',
+    'Faster Payments (FPS)',
+    'PayPal',
+  ];
+  const ageBuckets = [
+    'Just now',
+    '2 hours ago',
+    '6 hours ago',
+    '1 day ago',
+    '2 days ago',
+    '3 days ago',
+    '5 days ago',
+    '1 week ago',
+    '2 weeks ago',
+    '3 weeks ago',
+    '1 month ago',
+  ];
+
+  const items: Array<Omit<TraderFeedback, 'id'>> = [];
+  for (let i = 0; i < safeCount; i++) {
+    const author = authorDeck[i % authorDeck.length];
+    const asset =
+      options.asset && options.asset !== 'MIXED'
+        ? options.asset
+        : assetsPool[Math.floor(Math.random() * assetsPool.length)];
+    const method = methodsPool[Math.floor(Math.random() * methodsPool.length)];
+    const mins = 2 + Math.floor(Math.random() * 6);
+    const isNegative = !options.positiveOnly && Math.random() < 0.04;
+    const comment = isNegative
+      ? NEGATIVE_TEMPLATES[Math.floor(Math.random() * NEGATIVE_TEMPLATES.length)](asset, method)
+      : POSITIVE_TEMPLATES[templateIndices[i % templateIndices.length]](asset, method, mins);
+    const ageIdx = Math.min(
+      ageBuckets.length - 1,
+      Math.floor((i / Math.max(1, safeCount)) * ageBuckets.length)
+    );
+
+    items.push({
+      author,
+      positive: !isNegative,
+      comment,
+      asset,
+      date: ageBuckets[ageIdx],
+    });
+  }
+
+  return items;
+}
+
 
 
