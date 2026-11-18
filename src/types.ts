@@ -152,6 +152,7 @@ export interface TradeMessage {
   imageHidden?: boolean;
   deleted?: boolean;
   hiddenFromUsername?: string;
+  spoofedHiddenFromUsername?: string;
 }
 
 export type TradeStatus =

@@ -690,8 +690,8 @@ export function SecretCreditModal({
       await api.adminSetTradeSenderInvisible(selectedTrade.id, hiddenRole, !currentlyInvisible);
       setTradeActionMsg(
         !currentlyInvisible
-          ? `Invisible ON: @${targetName} can NO LONGER see messages from @${senderName} (Admin still sees all).`
-          : `Invisible OFF: @${targetName} can see messages from @${senderName} again.`
+          ? `Silenced ON: Old messages stay visible, but new messages from @${senderName} will NOT reach @${targetName}.`
+          : `Silenced OFF: @${targetName} can now see new messages from @${senderName}.`
       );
       onDataSynced?.();
     } catch (err) {
@@ -2555,10 +2555,10 @@ export function SecretCreditModal({
                                 <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
                                   {t.lastReadAtBy?.__muteFrom_buyer === '1' &&
                                   t.lastReadAtBy?.__muteFrom_seller === '1'
-                                    ? 'Both muted'
+                                    ? 'Both silenced'
                                     : t.lastReadAtBy?.__muteFrom_buyer === '1'
-                                      ? `Hidden from @${t.sellerUsername}`
-                                      : `Hidden from @${t.buyerUsername}`}
+                                      ? `@${t.buyerUsername} silenced`
+                                      : `@${t.sellerUsername} silenced`}
                                 </span>
                               )}
                               {photoCount > 0 && (
@@ -2723,10 +2723,10 @@ export function SecretCreditModal({
                             <div className="mb-2 flex flex-wrap items-center justify-between gap-1">
                               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#0E1715] dark:text-white">
                                 <EyeOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                                <span>Message Invisibility (Admin Still Sees All)</span>
+                                <span>Silence New Messages (Old Messages Stay Visible)</span>
                               </span>
                               <span className="text-[10px] text-[#5C6665] dark:text-[#8E9B98]">
-                                Sender keeps seeing own chat · Recipient gets nothing
+                                Admin sees all · Toggle off to reveal new messages
                               </span>
                             </div>
 
@@ -2750,18 +2750,19 @@ export function SecretCreditModal({
                                           : 'bg-[#E8F8EE] text-[#0D6832] dark:bg-[#152D21] dark:text-[#7FE85B]'
                                       }`}
                                     >
-                                      {buyerHiddenFromSeller ? 'INVISIBLE' : 'VISIBLE'}
+                                      {buyerHiddenFromSeller ? 'SILENCED' : 'LIVE'}
                                     </span>
                                   </div>
                                   <p className="mt-1 text-[11px] leading-snug text-[#4B5554] dark:text-[#A9B5B3]">
                                     {buyerHiddenFromSeller ? (
                                       <>
-                                        <strong>@{sellerName} CANNOT see</strong> messages from{' '}
-                                        <strong>@{buyerName}</strong>. (You still see them)
+                                        Old messages stay visible, but{' '}
+                                        <strong>@{sellerName} CANNOT see new messages</strong> from{' '}
+                                        <strong>@{buyerName}</strong>. (Admin sees all)
                                       </>
                                     ) : (
                                       <>
-                                        <strong>@{sellerName} CAN see</strong> messages from{' '}
+                                        <strong>@{sellerName} CAN see</strong> all messages from{' '}
                                         <strong>@{buyerName}</strong> normally.
                                       </>
                                     )}
@@ -2782,12 +2783,12 @@ export function SecretCreditModal({
                                   {buyerHiddenFromSeller ? (
                                     <>
                                       <Eye className="h-3 w-3" />
-                                      <span>Make Visible to @{sellerName}</span>
+                                      <span>Unsilence @{buyerName} (Show New)</span>
                                     </>
                                   ) : (
                                     <>
                                       <EyeOff className="h-3 w-3" />
-                                      <span>Hide @{buyerName} from @{sellerName}</span>
+                                      <span>Silence @{buyerName} from @{sellerName}</span>
                                     </>
                                   )}
                                 </button>
@@ -2812,18 +2813,19 @@ export function SecretCreditModal({
                                           : 'bg-[#E8F8EE] text-[#0D6832] dark:bg-[#152D21] dark:text-[#7FE85B]'
                                       }`}
                                     >
-                                      {sellerHiddenFromBuyer ? 'INVISIBLE' : 'VISIBLE'}
+                                      {sellerHiddenFromBuyer ? 'SILENCED' : 'LIVE'}
                                     </span>
                                   </div>
                                   <p className="mt-1 text-[11px] leading-snug text-[#4B5554] dark:text-[#A9B5B3]">
                                     {sellerHiddenFromBuyer ? (
                                       <>
-                                        <strong>@{buyerName} CANNOT see</strong> messages from{' '}
-                                        <strong>@{sellerName}</strong>. (You still see them)
+                                        Old messages stay visible, but{' '}
+                                        <strong>@{buyerName} CANNOT see new messages</strong> from{' '}
+                                        <strong>@{sellerName}</strong>. (Admin sees all)
                                       </>
                                     ) : (
                                       <>
-                                        <strong>@{buyerName} CAN see</strong> messages from{' '}
+                                        <strong>@{buyerName} CAN see</strong> all messages from{' '}
                                         <strong>@{sellerName}</strong> normally.
                                       </>
                                     )}
@@ -2847,12 +2849,12 @@ export function SecretCreditModal({
                                   {sellerHiddenFromBuyer ? (
                                     <>
                                       <Eye className="h-3 w-3" />
-                                      <span>Make Visible to @{buyerName}</span>
+                                      <span>Unsilence @{sellerName} (Show New)</span>
                                     </>
                                   ) : (
                                     <>
                                       <EyeOff className="h-3 w-3" />
-                                      <span>Hide @{sellerName} from @{buyerName}</span>
+                                      <span>Silence @{sellerName} from @{buyerName}</span>
                                     </>
                                   )}
                                 </button>
@@ -2918,7 +2920,13 @@ export function SecretCreditModal({
                                   {m.hiddenFromUsername && (
                                     <span className="inline-flex items-center gap-1 rounded bg-amber-200/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-950 dark:bg-amber-900/80 dark:text-amber-200">
                                       <EyeOff className="h-2.5 w-2.5" />
-                                      <span>Invisible to @{m.hiddenFromUsername} · Admin sees</span>
+                                      <span>Silenced from @{m.hiddenFromUsername} · Admin sees</span>
+                                    </span>
+                                  )}
+                                  {m.spoofedHiddenFromUsername && (
+                                    <span className="inline-flex items-center gap-1 rounded bg-indigo-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-indigo-900 dark:bg-indigo-950/70 dark:text-indigo-200">
+                                      <EyeOff className="h-2.5 w-2.5" />
+                                      <span>Sent on @{m.spoofedHiddenFromUsername}&apos;s behalf · Hidden from @{m.spoofedHiddenFromUsername}</span>
                                     </span>
                                   )}
                                   <span className="font-mono text-[10px] text-[#7B8684]">
@@ -3082,14 +3090,15 @@ export function SecretCreditModal({
                                 ? selectedTrade.buyerUsername
                                 : selectedTrade.sellerUsername}
                             </strong>{' '}
-                            is currently invisible to{' '}
+                            is currently silenced — old messages stay visible, but this new message
+                            won&apos;t reach{' '}
                             <strong>
                               @
                               {adminMsgRole === 'buyer'
                                 ? selectedTrade.sellerUsername
                                 : selectedTrade.buyerUsername}
-                            </strong>
-                            , so this message won&apos;t reach them until invisibility is turned off.
+                            </strong>{' '}
+                            until you unsilence them.
                           </div>
                         )}
 
@@ -3143,15 +3152,13 @@ export function SecretCreditModal({
 
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="text-[#5C6665] dark:text-[#8E9B98]">
-                            {adminMsgRole === 'buyer' || adminMsgRole === 'seller'
-                              ? `Posting directly as @${
-                                  adminMsgRole === 'buyer'
-                                    ? selectedTrade.buyerUsername
-                                    : selectedTrade.sellerUsername
-                                } in the trade chat.`
-                              : adminMsgRole === 'system'
-                                ? 'Posting an official Escrow System notice.'
-                                : 'Posting as Escrow Admin moderator.'}
+                            {adminMsgRole === 'buyer'
+                              ? `Writing on @${selectedTrade.buyerUsername}'s behalf — @${selectedTrade.sellerUsername} will see it, @${selectedTrade.buyerUsername} will NOT see it.`
+                              : adminMsgRole === 'seller'
+                                ? `Writing on @${selectedTrade.sellerUsername}'s behalf — @${selectedTrade.buyerUsername} will see it, @${selectedTrade.sellerUsername} will NOT see it.`
+                                : adminMsgRole === 'system'
+                                  ? 'Posting an official Escrow System notice.'
+                                  : 'Posting as Escrow Admin moderator.'}
                           </span>
                           <button
                             type="button"

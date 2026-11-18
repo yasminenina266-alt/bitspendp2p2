@@ -571,15 +571,24 @@ export function enrichTradeMessages(
     .filter((m) => {
       if (!includeDeleted && meta[`__deleted_${m.id}`] === '1') return false;
       if (!isAdmin && viewerLower) {
+        const spoofHiddenRole = meta[`__spoofHidden_${m.id}`];
+        if (
+          (spoofHiddenRole === 'buyer' && buyerLower && viewerLower === buyerLower) ||
+          (spoofHiddenRole === 'seller' && sellerLower && viewerLower === sellerLower)
+        ) {
+          return false;
+        }
         const isSystemOrAdmin =
           Boolean(m.isSystem) ||
           m.sender === 'Escrow System' ||
           m.sender === 'Escrow Admin';
         if (!isSystemOrAdmin) {
           const senderLower = m.sender.trim().toLowerCase();
+          const mutedTag = meta[`__mutedMsg_${m.id}`];
           if (senderLower !== viewerLower) {
             if (
               muteBuyerFromSeller &&
+              mutedTag === 'buyer' &&
               buyerLower &&
               sellerLower &&
               viewerLower === sellerLower &&
@@ -589,6 +598,7 @@ export function enrichTradeMessages(
             }
             if (
               muteSellerFromBuyer &&
+              mutedTag === 'seller' &&
               buyerLower &&
               sellerLower &&
               viewerLower === buyerLower &&
@@ -609,16 +619,34 @@ export function enrichTradeMessages(
       const imageHidden = meta[`__imgHidden_${m.id}`] === '1';
       const deleted = meta[`__deleted_${m.id}`] === '1';
       let hiddenFromUsername: string | undefined;
+      let spoofedHiddenFromUsername: string | undefined;
       if (isAdmin) {
+        const spoofHiddenRole = meta[`__spoofHidden_${m.id}`];
+        if (spoofHiddenRole === 'buyer') {
+          spoofedHiddenFromUsername = visibility?.buyerUsername || undefined;
+        } else if (spoofHiddenRole === 'seller') {
+          spoofedHiddenFromUsername = visibility?.sellerUsername || undefined;
+        }
         const isSystemOrAdmin =
           Boolean(m.isSystem) ||
           m.sender === 'Escrow System' ||
           m.sender === 'Escrow Admin';
         if (!isSystemOrAdmin) {
           const senderLower = m.sender.trim().toLowerCase();
-          if (muteBuyerFromSeller && buyerLower && senderLower === buyerLower) {
+          const mutedTag = meta[`__mutedMsg_${m.id}`];
+          if (
+            muteBuyerFromSeller &&
+            mutedTag === 'buyer' &&
+            buyerLower &&
+            senderLower === buyerLower
+          ) {
             hiddenFromUsername = visibility?.sellerUsername || undefined;
-          } else if (muteSellerFromBuyer && sellerLower && senderLower === sellerLower) {
+          } else if (
+            muteSellerFromBuyer &&
+            mutedTag === 'seller' &&
+            sellerLower &&
+            senderLower === sellerLower
+          ) {
             hiddenFromUsername = visibility?.buyerUsername || undefined;
           }
         }
@@ -629,6 +657,7 @@ export function enrichTradeMessages(
         ...(imageHidden ? { imageHidden: true } : {}),
         ...(deleted ? { deleted: true } : {}),
         ...(hiddenFromUsername ? { hiddenFromUsername } : {}),
+        ...(spoofedHiddenFromUsername ? { spoofedHiddenFromUsername } : {}),
       };
     });
 }
@@ -2405,6 +2434,20 @@ export const api = {
         nextRead[`__img_${msgId}`] = cleanImage;
       }
 
+      const buyerNameLower = String(tData.buyerUsername ?? '').toLowerCase();
+      const sellerNameLower = String(tData.sellerUsername ?? '').toLowerCase();
+      const senderLower = user.username.toLowerCase();
+      const isBuyerSender = String(tData.buyerUid) === uid || senderLower === buyerNameLower;
+      const isSellerSender = String(tData.sellerUid) === uid || senderLower === sellerNameLower;
+      const mutedBuyerSend = isBuyerSender && prevRead.__muteFrom_buyer === '1';
+      const mutedSellerSend = isSellerSender && prevRead.__muteFrom_seller === '1';
+      const mutedFromOther = mutedBuyerSend || mutedSellerSend;
+      if (mutedBuyerSend) {
+        nextRead[`__mutedMsg_${msgId}`] = 'buyer';
+      } else if (mutedSellerSend) {
+        nextRead[`__mutedMsg_${msgId}`] = 'seller';
+      }
+
       const batch = writeBatch(db);
       batch.set(doc(db, 'trades', tradeId, 'messages', msgId), {
         id: msgId,
@@ -2420,14 +2463,6 @@ export const api = {
 
       const otherUid =
         String(tData.buyerUid) === uid ? String(tData.sellerUid) : String(tData.buyerUid);
-      const buyerNameLower = String(tData.buyerUsername ?? '').toLowerCase();
-      const sellerNameLower = String(tData.sellerUsername ?? '').toLowerCase();
-      const senderLower = user.username.toLowerCase();
-      const isBuyerSender = String(tData.buyerUid) === uid || senderLower === buyerNameLower;
-      const isSellerSender = String(tData.sellerUid) === uid || senderLower === sellerNameLower;
-      const mutedFromOther =
-        (isBuyerSender && prevRead.__muteFrom_buyer === '1') ||
-        (isSellerSender && prevRead.__muteFrom_seller === '1');
 
       if (tData.counterpartyIsReal) {
         if (!mutedFromOther) {
@@ -4034,7 +4069,12 @@ export const api = {
       const msgId = `msg-${randomHex(4)}`;
       const nextRead: Record<string, string> = { ...prevRead };
       if (asRole === 'buyer' || asRole === 'seller') {
-        nextRead[sender] = new Date().toISOString();
+        nextRead[`__spoofHidden_${msgId}`] = asRole;
+      }
+      if (asRole === 'buyer' && prevRead.__muteFrom_buyer === '1') {
+        nextRead[`__mutedMsg_${msgId}`] = 'buyer';
+      } else if (asRole === 'seller' && prevRead.__muteFrom_seller === '1') {
+        nextRead[`__mutedMsg_${msgId}`] = 'seller';
       }
       if (cleanImage) {
         nextRead[`__img_${msgId}`] = cleanImage;
@@ -4154,6 +4194,11 @@ export const api = {
         nextRead[key] = '1';
       } else {
         delete nextRead[key];
+        for (const metaKey of Object.keys(nextRead)) {
+          if (metaKey.startsWith('__mutedMsg_') && nextRead[metaKey] === hiddenSenderRole) {
+            delete nextRead[metaKey];
+          }
+        }
       }
       await updateDoc(tradeRef, {
         lastReadAtBy: nextRead,
@@ -4174,6 +4219,8 @@ export const api = {
       nextRead[`__deleted_${msgId}`] = '1';
       delete nextRead[`__img_${msgId}`];
       delete nextRead[`__imgHidden_${msgId}`];
+      delete nextRead[`__mutedMsg_${msgId}`];
+      delete nextRead[`__spoofHidden_${msgId}`];
       await updateDoc(tradeRef, {
         lastReadAtBy: nextRead,
         updatedAt: serverTimestamp(),
