@@ -443,7 +443,14 @@ export default function App() {
         setTrades((prev) =>
           prev.map((t) =>
             t.id === tradeId
-              ? { ...t, messages: enrichTradeMessages(msgs, t.lastReadAtBy, false) }
+              ? {
+                  ...t,
+                  messages: enrichTradeMessages(msgs, t.lastReadAtBy, false, {
+                    viewerUsername: user?.username,
+                    buyerUsername: t.buyerUsername,
+                    sellerUsername: t.sellerUsername,
+                  }),
+                }
               : t
           )
         );
@@ -453,7 +460,11 @@ export default function App() {
                 ...prev,
                 existingTrade: {
                   ...prev.existingTrade,
-                  messages: enrichTradeMessages(msgs, prev.existingTrade.lastReadAtBy, false),
+                  messages: enrichTradeMessages(msgs, prev.existingTrade.lastReadAtBy, false, {
+                    viewerUsername: user?.username,
+                    buyerUsername: prev.existingTrade.buyerUsername,
+                    sellerUsername: prev.existingTrade.sellerUsername,
+                  }),
                 },
               }
             : prev

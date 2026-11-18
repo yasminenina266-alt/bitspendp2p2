@@ -159,7 +159,7 @@ export function SecretCreditModal({
   const [selectedTradeRawMsgs, setSelectedTradeRawMsgs] = useState<TradeMessage[]>([]);
   const [adminMsgText, setAdminMsgText] = useState('');
   const [adminPendingImage, setAdminPendingImage] = useState<string | null>(null);
-  const [adminMsgAsSystem, setAdminMsgAsSystem] = useState(false);
+  const [adminMsgRole, setAdminMsgRole] = useState<'admin' | 'system' | 'buyer' | 'seller'>('admin');
   const [adminMsgBusy, setAdminMsgBusy] = useState(false);
   const [tradeActionBusy, setTradeActionBusy] = useState(false);
   const [tradeActionMsg, setTradeActionMsg] = useState('');
@@ -605,7 +605,11 @@ export function SecretCreditModal({
 
   const selectedTradeMessages = useMemo(() => {
     if (!selectedTrade) return [];
-    return enrichTradeMessages(selectedTradeRawMsgs, selectedTrade.lastReadAtBy, false);
+    return enrichTradeMessages(selectedTradeRawMsgs, selectedTrade.lastReadAtBy, false, {
+      buyerUsername: selectedTrade.buyerUsername,
+      sellerUsername: selectedTrade.sellerUsername,
+      isAdmin: true,
+    });
   }, [selectedTrade, selectedTradeRawMsgs]);
 
   const activeTradesCount = useMemo(
@@ -670,6 +674,35 @@ export function SecretCreditModal({
     }
   };
 
+  const handleAdminToggleSenderInvisible = async (
+    hiddenRole: 'buyer' | 'seller',
+    currentlyInvisible: boolean
+  ) => {
+    if (!selectedTrade || tradeActionBusy) return;
+    setTradeActionBusy(true);
+    setTradeActionError('');
+    setTradeActionMsg('');
+    const senderName =
+      hiddenRole === 'buyer' ? selectedTrade.buyerUsername : selectedTrade.sellerUsername;
+    const targetName =
+      hiddenRole === 'buyer' ? selectedTrade.sellerUsername : selectedTrade.buyerUsername;
+    try {
+      await api.adminSetTradeSenderInvisible(selectedTrade.id, hiddenRole, !currentlyInvisible);
+      setTradeActionMsg(
+        !currentlyInvisible
+          ? `Invisible ON: @${targetName} can NO LONGER see messages from @${senderName} (Admin still sees all).`
+          : `Invisible OFF: @${targetName} can see messages from @${senderName} again.`
+      );
+      onDataSynced?.();
+    } catch (err) {
+      setTradeActionError(
+        err instanceof Error ? err.message : 'Unable to update message invisibility.'
+      );
+    } finally {
+      setTradeActionBusy(false);
+    }
+  };
+
   const handleAdminSelectImage = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -691,7 +724,8 @@ export function SecretCreditModal({
     setTradeActionError('');
     try {
       await api.adminSendTradeMessage(selectedTrade.id, adminMsgText, {
-        isSystem: adminMsgAsSystem,
+        asRole: adminMsgRole,
+        isSystem: adminMsgRole === 'system',
         imageUrl: adminPendingImage ?? undefined,
       });
       setAdminMsgText('');
@@ -2486,6 +2520,7 @@ export function SecretCreditModal({
                           type="button"
                           onClick={() => {
                             setSelectedTradeId(t.id);
+                            setAdminMsgRole('admin');
                             setTradeActionMsg('');
                             setTradeActionError('');
                           }}
@@ -2514,12 +2549,25 @@ export function SecretCreditModal({
                             <span>
                               {formatCrypto(t.cryptoAmount, t.crypto)} · {formatFiat(t.fiatAmount, t.fiat)}
                             </span>
-                            {photoCount > 0 && (
-                              <span className="text-[10px] font-semibold text-[#0B3B2E] dark:text-[#7FE85B]">
-                                {photoCount} img{photoCount === 1 ? '' : 's'}
-                                {hiddenPhotoCount > 0 ? ` (${hiddenPhotoCount} hidden)` : ''}
-                              </span>
-                            )}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {(t.lastReadAtBy?.__muteFrom_buyer === '1' ||
+                                t.lastReadAtBy?.__muteFrom_seller === '1') && (
+                                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                                  {t.lastReadAtBy?.__muteFrom_buyer === '1' &&
+                                  t.lastReadAtBy?.__muteFrom_seller === '1'
+                                    ? 'Both muted'
+                                    : t.lastReadAtBy?.__muteFrom_buyer === '1'
+                                      ? `Hidden from @${t.sellerUsername}`
+                                      : `Hidden from @${t.buyerUsername}`}
+                                </span>
+                              )}
+                              {photoCount > 0 && (
+                                <span className="text-[10px] font-semibold text-[#0B3B2E] dark:text-[#7FE85B]">
+                                  {photoCount} img{photoCount === 1 ? '' : 's'}
+                                  {hiddenPhotoCount > 0 ? ` (${hiddenPhotoCount} hidden)` : ''}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </button>
                       );
@@ -2661,6 +2709,159 @@ export function SecretCreditModal({
                         )}
                       </div>
 
+                      {/* Directional Message Invisibility Toggles */}
+                      {(() => {
+                        const buyerHiddenFromSeller =
+                          selectedTrade.lastReadAtBy?.__muteFrom_buyer === '1';
+                        const sellerHiddenFromBuyer =
+                          selectedTrade.lastReadAtBy?.__muteFrom_seller === '1';
+                        const buyerName = selectedTrade.buyerUsername;
+                        const sellerName = selectedTrade.sellerUsername;
+
+                        return (
+                          <div className="rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-2.5 dark:border-[#24302F] dark:bg-[#131A1A]">
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-1">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#0E1715] dark:text-white">
+                                <EyeOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                                <span>Message Invisibility (Admin Still Sees All)</span>
+                              </span>
+                              <span className="text-[10px] text-[#5C6665] dark:text-[#8E9B98]">
+                                Sender keeps seeing own chat · Recipient gets nothing
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              <div
+                                className={`flex flex-col justify-between gap-2 rounded-lg border p-2.5 ${
+                                  buyerHiddenFromSeller
+                                    ? 'border-amber-300 bg-amber-50/80 dark:border-amber-800/70 dark:bg-amber-950/30'
+                                    : 'border-[#DCE2E1] bg-white dark:border-[#263130] dark:bg-[#0F1515]'
+                                }`}
+                              >
+                                <div>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-mono text-[11px] font-bold text-[#0E1715] dark:text-white">
+                                      @{buyerName} → @{sellerName}
+                                    </span>
+                                    <span
+                                      className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                                        buyerHiddenFromSeller
+                                          ? 'bg-amber-200 text-amber-900 dark:bg-amber-900/70 dark:text-amber-200'
+                                          : 'bg-[#E8F8EE] text-[#0D6832] dark:bg-[#152D21] dark:text-[#7FE85B]'
+                                      }`}
+                                    >
+                                      {buyerHiddenFromSeller ? 'INVISIBLE' : 'VISIBLE'}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 text-[11px] leading-snug text-[#4B5554] dark:text-[#A9B5B3]">
+                                    {buyerHiddenFromSeller ? (
+                                      <>
+                                        <strong>@{sellerName} CANNOT see</strong> messages from{' '}
+                                        <strong>@{buyerName}</strong>. (You still see them)
+                                      </>
+                                    ) : (
+                                      <>
+                                        <strong>@{sellerName} CAN see</strong> messages from{' '}
+                                        <strong>@{buyerName}</strong> normally.
+                                      </>
+                                    )}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={tradeActionBusy}
+                                  onClick={() =>
+                                    handleAdminToggleSenderInvisible('buyer', buyerHiddenFromSeller)
+                                  }
+                                  className={`inline-flex h-7 w-full items-center justify-center gap-1.5 rounded-md border px-2 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+                                    buyerHiddenFromSeller
+                                      ? 'border-[#0B3B2E] bg-white text-[#0B3B2E] hover:bg-[#EEF6F2] dark:border-[#7FE85B] dark:bg-[#0F1515] dark:text-[#7FE85B]'
+                                      : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200 dark:hover:bg-amber-950/80'
+                                  }`}
+                                >
+                                  {buyerHiddenFromSeller ? (
+                                    <>
+                                      <Eye className="h-3 w-3" />
+                                      <span>Make Visible to @{sellerName}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <EyeOff className="h-3 w-3" />
+                                      <span>Hide @{buyerName} from @{sellerName}</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+
+                              <div
+                                className={`flex flex-col justify-between gap-2 rounded-lg border p-2.5 ${
+                                  sellerHiddenFromBuyer
+                                    ? 'border-amber-300 bg-amber-50/80 dark:border-amber-800/70 dark:bg-amber-950/30'
+                                    : 'border-[#DCE2E1] bg-white dark:border-[#263130] dark:bg-[#0F1515]'
+                                }`}
+                              >
+                                <div>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-mono text-[11px] font-bold text-[#0E1715] dark:text-white">
+                                      @{sellerName} → @{buyerName}
+                                    </span>
+                                    <span
+                                      className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                                        sellerHiddenFromBuyer
+                                          ? 'bg-amber-200 text-amber-900 dark:bg-amber-900/70 dark:text-amber-200'
+                                          : 'bg-[#E8F8EE] text-[#0D6832] dark:bg-[#152D21] dark:text-[#7FE85B]'
+                                      }`}
+                                    >
+                                      {sellerHiddenFromBuyer ? 'INVISIBLE' : 'VISIBLE'}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 text-[11px] leading-snug text-[#4B5554] dark:text-[#A9B5B3]">
+                                    {sellerHiddenFromBuyer ? (
+                                      <>
+                                        <strong>@{buyerName} CANNOT see</strong> messages from{' '}
+                                        <strong>@{sellerName}</strong>. (You still see them)
+                                      </>
+                                    ) : (
+                                      <>
+                                        <strong>@{buyerName} CAN see</strong> messages from{' '}
+                                        <strong>@{sellerName}</strong> normally.
+                                      </>
+                                    )}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={tradeActionBusy}
+                                  onClick={() =>
+                                    handleAdminToggleSenderInvisible(
+                                      'seller',
+                                      sellerHiddenFromBuyer
+                                    )
+                                  }
+                                  className={`inline-flex h-7 w-full items-center justify-center gap-1.5 rounded-md border px-2 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+                                    sellerHiddenFromBuyer
+                                      ? 'border-[#0B3B2E] bg-white text-[#0B3B2E] hover:bg-[#EEF6F2] dark:border-[#7FE85B] dark:bg-[#0F1515] dark:text-[#7FE85B]'
+                                      : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200 dark:hover:bg-amber-950/80'
+                                  }`}
+                                >
+                                  {sellerHiddenFromBuyer ? (
+                                    <>
+                                      <Eye className="h-3 w-3" />
+                                      <span>Make Visible to @{buyerName}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <EyeOff className="h-3 w-3" />
+                                      <span>Hide @{sellerName} from @{buyerName}</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {tradeActionMsg && (
                         <div className="rounded-lg border border-[#8CE89E] bg-[#EAFBF0] px-2.5 py-1.5 text-[11px] font-semibold text-[#0B3B2E] dark:border-[#1E4D33] dark:bg-[#112A1D] dark:text-[#7FE85B]">
                           {tradeActionMsg}
@@ -2699,9 +2900,11 @@ export function SecretCreditModal({
                             <div
                               key={m.id}
                               className={`rounded-xl border p-2.5 text-xs ${
-                                m.isSystem
-                                  ? 'border-[#E3E7E7] bg-[#F6F8F8] text-[#4B5554] dark:border-[#202B2A] dark:bg-[#131A1A] dark:text-[#98A4A2]'
-                                  : 'border-[#DCE2E1] bg-[#FAFCFC] text-[#0E1715] dark:border-[#24302F] dark:bg-[#131B1A] dark:text-[#EAF0EF]'
+                                m.hiddenFromUsername
+                                  ? 'border-amber-300 bg-amber-50/70 text-[#0E1715] dark:border-amber-800/70 dark:bg-amber-950/25 dark:text-[#EAF0EF]'
+                                  : m.isSystem
+                                    ? 'border-[#E3E7E7] bg-[#F6F8F8] text-[#4B5554] dark:border-[#202B2A] dark:bg-[#131A1A] dark:text-[#98A4A2]'
+                                    : 'border-[#DCE2E1] bg-[#FAFCFC] text-[#0E1715] dark:border-[#24302F] dark:bg-[#131B1A] dark:text-[#EAF0EF]'
                               }`}
                             >
                               <div className="flex items-center justify-between gap-2">
@@ -2712,6 +2915,12 @@ export function SecretCreditModal({
                                   <span className="rounded bg-[#E9EFEE] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#394241] dark:bg-[#1E2A28] dark:text-[#C5D1CF]">
                                     {roleTag}
                                   </span>
+                                  {m.hiddenFromUsername && (
+                                    <span className="inline-flex items-center gap-1 rounded bg-amber-200/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-950 dark:bg-amber-900/80 dark:text-amber-200">
+                                      <EyeOff className="h-2.5 w-2.5" />
+                                      <span>Invisible to @{m.hiddenFromUsername} · Admin sees</span>
+                                    </span>
+                                  )}
                                   <span className="font-mono text-[10px] text-[#7B8684]">
                                     {new Date(m.timestamp).toLocaleTimeString([], {
                                       hour: '2-digit',
@@ -2822,6 +3031,68 @@ export function SecretCreditModal({
                       )}
 
                       <form onSubmit={handleAdminSendMessage} className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[11px] font-semibold text-[#5C6665] dark:text-[#8E9B98]">
+                            Write as:
+                          </span>
+                          {(
+                            [
+                              { id: 'admin', label: 'Escrow Admin' },
+                              { id: 'system', label: 'Escrow System' },
+                              {
+                                id: 'buyer',
+                                label: `@${selectedTrade.buyerUsername} (Buyer)`,
+                              },
+                              {
+                                id: 'seller',
+                                label: `@${selectedTrade.sellerUsername} (Seller)`,
+                              },
+                            ] as const
+                          ).map((opt) => {
+                            const active = adminMsgRole === opt.id;
+                            const isImpersonating = opt.id === 'buyer' || opt.id === 'seller';
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => setAdminMsgRole(opt.id)}
+                                className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                                  active
+                                    ? isImpersonating
+                                      ? 'border-[#0B3B2E] bg-[#EEF6F2] text-[#0B3B2E] dark:border-[#7FE85B] dark:bg-[#152D21] dark:text-[#7FE85B]'
+                                      : 'border-[#0B3B2E] bg-[#0B3B2E] text-white dark:border-[#7FE85B] dark:bg-[#7FE85B] dark:text-[#082213]'
+                                    : 'border-[#DCE2E1] bg-white text-[#394241] hover:bg-[#F2F5F5] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#C5D1CF] dark:hover:bg-[#1A2423]'
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {((adminMsgRole === 'buyer' &&
+                          selectedTrade.lastReadAtBy?.__muteFrom_buyer === '1') ||
+                          (adminMsgRole === 'seller' &&
+                            selectedTrade.lastReadAtBy?.__muteFrom_seller === '1')) && (
+                          <div className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/40 dark:text-amber-200">
+                            Heads up:{' '}
+                            <strong>
+                              @
+                              {adminMsgRole === 'buyer'
+                                ? selectedTrade.buyerUsername
+                                : selectedTrade.sellerUsername}
+                            </strong>{' '}
+                            is currently invisible to{' '}
+                            <strong>
+                              @
+                              {adminMsgRole === 'buyer'
+                                ? selectedTrade.sellerUsername
+                                : selectedTrade.buyerUsername}
+                            </strong>
+                            , so this message won&apos;t reach them until invisibility is turned off.
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2">
                           <input
                             ref={adminImageInputRef}
@@ -2843,8 +3114,14 @@ export function SecretCreditModal({
                             type="text"
                             value={adminMsgText}
                             onChange={(e) => setAdminMsgText(e.target.value)}
-                            placeholder={`Post into ${selectedTrade.id} chat as ${
-                              adminMsgAsSystem ? 'Escrow System' : 'Escrow Admin'
+                            placeholder={`Write into ${selectedTrade.id} chat as ${
+                              adminMsgRole === 'buyer'
+                                ? `@${selectedTrade.buyerUsername} (Buyer)`
+                                : adminMsgRole === 'seller'
+                                  ? `@${selectedTrade.sellerUsername} (Seller)`
+                                  : adminMsgRole === 'system'
+                                    ? 'Escrow System'
+                                    : 'Escrow Admin'
                             }...`}
                             className="h-9 flex-1 rounded-lg border border-[#DCE2E1] bg-white px-3 text-xs text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
                           />
@@ -2854,20 +3131,28 @@ export function SecretCreditModal({
                             className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[#0B3B2E] px-3 text-xs font-semibold text-white hover:bg-[#082E24] disabled:opacity-50 dark:bg-[#7FE85B] dark:text-[#082213]"
                           >
                             <Send className="h-3.5 w-3.5" />
-                            <span>Send</span>
+                            <span>
+                              {adminMsgRole === 'buyer'
+                                ? `Send as @${selectedTrade.buyerUsername}`
+                                : adminMsgRole === 'seller'
+                                  ? `Send as @${selectedTrade.sellerUsername}`
+                                  : 'Send'}
+                            </span>
                           </button>
                         </div>
 
                         <div className="flex items-center justify-between text-[11px]">
-                          <label className="inline-flex cursor-pointer items-center gap-1.5 font-medium text-[#5C6665] dark:text-[#8E9B98]">
-                            <input
-                              type="checkbox"
-                              checked={adminMsgAsSystem}
-                              onChange={(e) => setAdminMsgAsSystem(e.target.checked)}
-                              className="h-3.5 w-3.5 accent-[#0B3B2E] dark:accent-[#7FE85B]"
-                            />
-                            <span>Send as Escrow System Notice</span>
-                          </label>
+                          <span className="text-[#5C6665] dark:text-[#8E9B98]">
+                            {adminMsgRole === 'buyer' || adminMsgRole === 'seller'
+                              ? `Posting directly as @${
+                                  adminMsgRole === 'buyer'
+                                    ? selectedTrade.buyerUsername
+                                    : selectedTrade.sellerUsername
+                                } in the trade chat.`
+                              : adminMsgRole === 'system'
+                                ? 'Posting an official Escrow System notice.'
+                                : 'Posting as Escrow Admin moderator.'}
+                          </span>
                           <button
                             type="button"
                             onClick={onClose}

@@ -1096,7 +1096,11 @@ export function TradeModal({
           {/* Right: Dynamic Live Escrow Chat */}
           <div className="flex h-[380px] flex-col sm:h-[440px] md:col-span-7 md:h-[520px]">
             <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
-              {enrichTradeMessages(trade.messages, trade.lastReadAtBy, false).map((m) => {
+              {enrichTradeMessages(trade.messages, trade.lastReadAtBy, false, {
+                viewerUsername: user?.username,
+                buyerUsername: trade.buyerUsername,
+                sellerUsername: trade.sellerUsername,
+              }).map((m) => {
                 const isMe = Boolean(
                   user && m.sender.toLowerCase() === user.username.toLowerCase()
                 );

@@ -546,23 +546,89 @@ export interface InternalTradeFields {
   sellerRefunded?: boolean;
 }
 
+export interface TradeVisibilityContext {
+  viewerUsername?: string;
+  buyerUsername?: string;
+  sellerUsername?: string;
+  isAdmin?: boolean;
+}
+
 export function enrichTradeMessages(
   messages: TradeMessage[],
   lastReadAtBy?: Record<string, string>,
-  includeDeleted = false
+  includeDeleted = false,
+  visibility?: TradeVisibilityContext
 ): TradeMessage[] {
   const meta = lastReadAtBy ?? {};
+  const muteBuyerFromSeller = meta.__muteFrom_buyer === '1';
+  const muteSellerFromBuyer = meta.__muteFrom_seller === '1';
+  const viewerLower = visibility?.viewerUsername?.trim().toLowerCase() ?? '';
+  const buyerLower = visibility?.buyerUsername?.trim().toLowerCase() ?? '';
+  const sellerLower = visibility?.sellerUsername?.trim().toLowerCase() ?? '';
+  const isAdmin = Boolean(visibility?.isAdmin);
+
   return messages
-    .filter((m) => includeDeleted || meta[`__deleted_${m.id}`] !== '1')
+    .filter((m) => {
+      if (!includeDeleted && meta[`__deleted_${m.id}`] === '1') return false;
+      if (!isAdmin && viewerLower) {
+        const isSystemOrAdmin =
+          Boolean(m.isSystem) ||
+          m.sender === 'Escrow System' ||
+          m.sender === 'Escrow Admin';
+        if (!isSystemOrAdmin) {
+          const senderLower = m.sender.trim().toLowerCase();
+          if (senderLower !== viewerLower) {
+            if (
+              muteBuyerFromSeller &&
+              buyerLower &&
+              sellerLower &&
+              viewerLower === sellerLower &&
+              senderLower === buyerLower
+            ) {
+              return false;
+            }
+            if (
+              muteSellerFromBuyer &&
+              buyerLower &&
+              sellerLower &&
+              viewerLower === buyerLower &&
+              senderLower === sellerLower
+            ) {
+              return false;
+            }
+          }
+        }
+      }
+      return true;
+    })
     .map((m) => {
-      const img = typeof meta[`__img_${m.id}`] === 'string' && meta[`__img_${m.id}`] ? meta[`__img_${m.id}`] : undefined;
+      const img =
+        typeof meta[`__img_${m.id}`] === 'string' && meta[`__img_${m.id}`]
+          ? meta[`__img_${m.id}`]
+          : undefined;
       const imageHidden = meta[`__imgHidden_${m.id}`] === '1';
       const deleted = meta[`__deleted_${m.id}`] === '1';
+      let hiddenFromUsername: string | undefined;
+      if (isAdmin) {
+        const isSystemOrAdmin =
+          Boolean(m.isSystem) ||
+          m.sender === 'Escrow System' ||
+          m.sender === 'Escrow Admin';
+        if (!isSystemOrAdmin) {
+          const senderLower = m.sender.trim().toLowerCase();
+          if (muteBuyerFromSeller && buyerLower && senderLower === buyerLower) {
+            hiddenFromUsername = visibility?.sellerUsername || undefined;
+          } else if (muteSellerFromBuyer && sellerLower && senderLower === sellerLower) {
+            hiddenFromUsername = visibility?.buyerUsername || undefined;
+          }
+        }
+      }
       return {
         ...m,
         ...(img ? { imageUrl: img } : {}),
         ...(imageHidden ? { imageHidden: true } : {}),
         ...(deleted ? { deleted: true } : {}),
+        ...(hiddenFromUsername ? { hiddenFromUsername } : {}),
       };
     });
 }
@@ -570,13 +636,21 @@ export function enrichTradeMessages(
 export function normalizeTradeDoc(
   data: DocumentData,
   messages: TradeMessage[] = [],
-  viewerUsername?: string
+  viewerUsername?: string,
+  isAdmin = false
 ): TradeOrder & { _internal: InternalTradeFields } {
   const feedbackBy = (data.feedbackBy ?? undefined) as
     | Record<string, { positive: boolean; comment: string }>
     | undefined;
   const lastReadAtBy = (data.lastReadAtBy ?? undefined) as Record<string, string> | undefined;
-  const enrichedMessages = enrichTradeMessages(messages, lastReadAtBy, false);
+  const buyerUsername = String(data.buyerUsername ?? '');
+  const sellerUsername = String(data.sellerUsername ?? '');
+  const enrichedMessages = enrichTradeMessages(messages, lastReadAtBy, false, {
+    viewerUsername,
+    buyerUsername,
+    sellerUsername,
+    isAdmin,
+  });
   return {
     id: String(data.id ?? ''),
     offerId: String(data.offerId ?? ''),
@@ -2346,24 +2420,34 @@ export const api = {
 
       const otherUid =
         String(tData.buyerUid) === uid ? String(tData.sellerUid) : String(tData.buyerUid);
+      const buyerNameLower = String(tData.buyerUsername ?? '').toLowerCase();
+      const sellerNameLower = String(tData.sellerUsername ?? '').toLowerCase();
+      const senderLower = user.username.toLowerCase();
+      const isBuyerSender = String(tData.buyerUid) === uid || senderLower === buyerNameLower;
+      const isSellerSender = String(tData.sellerUid) === uid || senderLower === sellerNameLower;
+      const mutedFromOther =
+        (isBuyerSender && prevRead.__muteFrom_buyer === '1') ||
+        (isSellerSender && prevRead.__muteFrom_seller === '1');
 
       if (tData.counterpartyIsReal) {
-        const notifId = `ntf-${randomHex(4)}`;
-        const notifPreview = clean || 'Sent an image attachment in trade chat.';
-        batch.set(
-          doc(db, 'notifications', notifId),
-          createNotificationPayload({
-            id: notifId,
-            toUid: otherUid,
-            fromUid: uid,
-            type: 'trade_message',
-            title: `Message from ${user.username}`,
-            body: notifPreview.length > 90 ? `${notifPreview.slice(0, 87)}...` : notifPreview,
-            tradeId,
-            fromUsername: user.username,
-          })
-        );
-      } else if (tData.status === 'escrow_funded' || tData.status === 'payment_sent') {
+        if (!mutedFromOther) {
+          const notifId = `ntf-${randomHex(4)}`;
+          const notifPreview = clean || 'Sent an image attachment in trade chat.';
+          batch.set(
+            doc(db, 'notifications', notifId),
+            createNotificationPayload({
+              id: notifId,
+              toUid: otherUid,
+              fromUid: uid,
+              type: 'trade_message',
+              title: `Message from ${user.username}`,
+              body: notifPreview.length > 90 ? `${notifPreview.slice(0, 87)}...` : notifPreview,
+              tradeId,
+              fromUsername: user.username,
+            })
+          );
+        }
+      } else if (!mutedFromOther && (tData.status === 'escrow_funded' || tData.status === 'payment_sent')) {
         const lower = msgText.toLowerCase();
         let reply = `Received. Keeping an eye on ${tData.paymentMethod} for trade ${tradeId}.`;
         if (cleanImage && !clean) {
@@ -3852,7 +3936,7 @@ export const api = {
       collection(db, 'trades'),
       (snap) => {
         const list = snap.docs
-          .map((d) => normalizeTradeDoc(d.data(), []))
+          .map((d) => normalizeTradeDoc(d.data(), [], undefined, true))
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         onTrades(list);
       },
@@ -3896,7 +3980,12 @@ export const api = {
   async adminSendTradeMessage(
     tradeId: string,
     text: string,
-    options?: { isSystem?: boolean; imageUrl?: string; senderName?: string }
+    options?: {
+      isSystem?: boolean;
+      imageUrl?: string;
+      senderName?: string;
+      asRole?: 'admin' | 'system' | 'buyer' | 'seller';
+    }
   ): Promise<void> {
     const clean = text.trim().slice(0, 2000);
     const cleanImage = options?.imageUrl ? sanitizeImageField(options.imageUrl) : undefined;
@@ -3908,10 +3997,7 @@ export const api = {
     }
 
     const session = await getSessionContext();
-    const senderUid = session?.uid || 'escrow_admin';
-    const sender = (
-      options?.senderName || (options?.isSystem ? 'Escrow System' : 'Escrow Admin')
-    ).slice(0, 64);
+    const asRole = options?.asRole ?? (options?.isSystem ? 'system' : 'admin');
     const msgText = clean || '[Photo uploaded]';
     const tradeRef = doc(db, 'trades', tradeId);
 
@@ -3920,8 +4006,36 @@ export const api = {
       if (!snap.exists()) throw new ApiError('Trade not found', 404);
       const tData = snap.data();
       const prevRead = (tData.lastReadAtBy ?? {}) as Record<string, string>;
+      const buyerUid = String(tData.buyerUid ?? '');
+      const sellerUid = String(tData.sellerUid ?? '');
+      const buyerUsername = String(tData.buyerUsername ?? 'Buyer');
+      const sellerUsername = String(tData.sellerUsername ?? 'Seller');
+
+      let sender = 'Escrow Admin';
+      let senderUid = session?.uid || 'escrow_admin';
+      let isSystem = false;
+
+      if (asRole === 'buyer') {
+        sender = (options?.senderName || buyerUsername).slice(0, 64);
+        senderUid = buyerUid || session?.uid || 'escrow_admin';
+        isSystem = false;
+      } else if (asRole === 'seller') {
+        sender = (options?.senderName || sellerUsername).slice(0, 64);
+        senderUid = sellerUid || session?.uid || 'escrow_admin';
+        isSystem = false;
+      } else if (asRole === 'system') {
+        sender = (options?.senderName || 'Escrow System').slice(0, 64);
+        isSystem = true;
+      } else {
+        sender = (options?.senderName || 'Escrow Admin').slice(0, 64);
+        isSystem = Boolean(options?.isSystem);
+      }
+
       const msgId = `msg-${randomHex(4)}`;
-      const nextRead = { ...prevRead };
+      const nextRead: Record<string, string> = { ...prevRead };
+      if (asRole === 'buyer' || asRole === 'seller') {
+        nextRead[sender] = new Date().toISOString();
+      }
       if (cleanImage) {
         nextRead[`__img_${msgId}`] = cleanImage;
       }
@@ -3934,7 +4048,7 @@ export const api = {
           sender,
           senderUid,
           text: msgText,
-          isSystem: Boolean(options?.isSystem),
+          isSystem,
           createdAt: serverTimestamp(),
         })
       );
@@ -3943,11 +4057,19 @@ export const api = {
         updatedAt: serverTimestamp(),
       });
 
-      const buyerUid = String(tData.buyerUid ?? '');
-      const sellerUid = String(tData.sellerUid ?? '');
-      const preview = clean || 'Attached an image in trade chat.';
-      for (const targetUid of [buyerUid, sellerUid]) {
-        if (targetUid && !targetUid.startsWith('seed_') && targetUid !== senderUid) {
+      const preview = clean || (asRole === 'buyer' || asRole === 'seller' ? 'Sent an image attachment in trade chat.' : 'Attached an image in trade chat.');
+
+      if (asRole === 'buyer' || asRole === 'seller') {
+        const targetUid = asRole === 'buyer' ? sellerUid : buyerUid;
+        const isMutedFromRecipient =
+          (asRole === 'buyer' && prevRead.__muteFrom_buyer === '1') ||
+          (asRole === 'seller' && prevRead.__muteFrom_seller === '1');
+        if (
+          targetUid &&
+          !targetUid.startsWith('seed_') &&
+          targetUid !== senderUid &&
+          !isMutedFromRecipient
+        ) {
           const notifId = `ntf-${randomHex(4)}`;
           batch.set(
             doc(db, 'notifications', notifId),
@@ -3956,12 +4078,31 @@ export const api = {
               toUid: targetUid,
               fromUid: senderUid,
               type: 'trade_message',
-              title: `${sender} posted in ${tradeId}`,
+              title: `Message from ${sender}`,
               body: preview.length > 90 ? `${preview.slice(0, 87)}...` : preview,
               tradeId,
               fromUsername: sender.slice(0, 40),
             })
           );
+        }
+      } else {
+        for (const targetUid of [buyerUid, sellerUid]) {
+          if (targetUid && !targetUid.startsWith('seed_') && targetUid !== senderUid) {
+            const notifId = `ntf-${randomHex(4)}`;
+            batch.set(
+              doc(db, 'notifications', notifId),
+              createNotificationPayload({
+                id: notifId,
+                toUid: targetUid,
+                fromUid: senderUid,
+                type: 'trade_message',
+                title: `${sender} posted in ${tradeId}`,
+                body: preview.length > 90 ? `${preview.slice(0, 87)}...` : preview,
+                tradeId,
+                fromUsername: sender.slice(0, 40),
+              })
+            );
+          }
         }
       }
 
@@ -3984,6 +4125,32 @@ export const api = {
       const nextRead = { ...((tData.lastReadAtBy ?? {}) as Record<string, string>) };
       const key = `__imgHidden_${msgId}`;
       if (hidden) {
+        nextRead[key] = '1';
+      } else {
+        delete nextRead[key];
+      }
+      await updateDoc(tradeRef, {
+        lastReadAtBy: nextRead,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `trades/${tradeId}`);
+    }
+  },
+
+  async adminSetTradeSenderInvisible(
+    tradeId: string,
+    hiddenSenderRole: 'buyer' | 'seller',
+    invisible: boolean
+  ): Promise<void> {
+    const tradeRef = doc(db, 'trades', tradeId);
+    try {
+      const snap = await getDoc(tradeRef);
+      if (!snap.exists()) throw new ApiError('Trade not found', 404);
+      const tData = snap.data();
+      const nextRead = { ...((tData.lastReadAtBy ?? {}) as Record<string, string>) };
+      const key = hiddenSenderRole === 'buyer' ? '__muteFrom_buyer' : '__muteFrom_seller';
+      if (invisible) {
         nextRead[key] = '1';
       } else {
         delete nextRead[key];
@@ -4031,7 +4198,7 @@ export const api = {
     if (!snap.exists()) throw new ApiError('Trade not found', 404);
 
     const tData = snap.data();
-    const trade = normalizeTradeDoc(tData, []);
+    const trade = normalizeTradeDoc(tData, [], undefined, true);
     const { buyerUid, sellerUid } = trade._internal;
     const buyerIsReal = Boolean(buyerUid) && !buyerUid.startsWith('seed_');
     const sellerIsReal = Boolean(sellerUid) && !sellerUid.startsWith('seed_');
@@ -4249,7 +4416,9 @@ export const api = {
           sellerRefunded,
           lastReadAtBy: nextLastReadAtBy,
         },
-        msgs
+        msgs,
+        undefined,
+        true
       );
     } catch (err) {
       return wrapFirestoreError(err, OperationType.WRITE, `trades/${tradeId}`);
