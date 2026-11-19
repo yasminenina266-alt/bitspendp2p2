@@ -714,6 +714,7 @@ async function startServer() {
   getLivePrices().catch(() => undefined);
 
   const app = express();
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '6mb' }));
 
   const httpServer = http.createServer(app);
@@ -3160,6 +3161,89 @@ async function startServer() {
   // Never fall through to SPA HTML on unknown /api/* routes
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'API endpoint not found' });
+  });
+
+  const resolvePublicOrigin = (req: express.Request): string => {
+    const rawProto = String(req.headers['x-forwarded-proto'] ?? req.protocol ?? 'https')
+      .split(',')[0]
+      .trim()
+      .toLowerCase();
+    const proto = rawProto === 'http' || rawProto === 'https' ? rawProto : 'https';
+    const rawHost = String(req.headers['x-forwarded-host'] ?? req.get('host') ?? '')
+      .split(',')[0]
+      .trim();
+    const isLocalHost = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i.test(rawHost);
+    if (rawHost && !isLocalHost && /^[a-z0-9.-]+(:\d+)?$/i.test(rawHost)) {
+      return `${proto}://${rawHost}`;
+    }
+    const envUrl = process.env.APP_URL?.trim();
+    if (envUrl && /^https?:\/\//i.test(envUrl)) {
+      return envUrl.replace(/\/+$/, '');
+    }
+    if (rawHost && /^[a-z0-9.-]+(:\d+)?$/i.test(rawHost)) {
+      return `${proto}://${rawHost}`;
+    }
+    return 'https://oosab.com';
+  };
+
+  const escapeXml = (value: string): string =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+
+  app.get('/robots.txt', (req, res) => {
+    const origin = resolvePublicOrigin(req);
+    const body = [
+      'User-agent: *',
+      'Allow: /',
+      'Disallow: /api/',
+      '',
+      `Sitemap: ${origin}/sitemap.xml`,
+      '',
+    ].join('\n');
+    res.status(200);
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('X-Robots-Tag', 'all');
+    res.send(body);
+  });
+
+  app.get('/sitemap.xml', (req, res) => {
+    const origin = resolvePublicOrigin(req);
+    const today = new Date().toISOString().slice(0, 10);
+    const urls: Array<{ loc: string; changefreq: string; priority: string }> = [
+      { loc: `${origin}/`, changefreq: 'daily', priority: '1.0' },
+    ];
+
+    for (const offer of db.offers.slice(0, 50)) {
+      if (offer.active && offer.id) {
+        urls.push({
+          loc: `${origin}/offer/${encodeURIComponent(offer.id)}`,
+          changefreq: 'daily',
+          priority: '0.8',
+        });
+      }
+    }
+
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      ...urls.map(
+        (u) =>
+          `  <url>\n    <loc>${escapeXml(u.loc)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
+      ),
+      '</urlset>',
+      '',
+    ].join('\n');
+
+    res.status(200);
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('X-Robots-Tag', 'all');
+    res.send(xml);
   });
 
   // Vite Dev Middleware or Static Production Build
