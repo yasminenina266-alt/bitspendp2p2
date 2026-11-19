@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   Award,
+  BellRing,
   CalendarClock,
   CheckCircle2,
   Coins,
@@ -29,6 +30,8 @@ import {
   UserCog,
   UserX,
   Users,
+  Volume2,
+  VolumeX,
   Wallet,
   X,
   XCircle,
@@ -60,6 +63,7 @@ import type {
   UserAccount,
 } from '../types';
 import { processChatImageFile } from '../utils/profileMedia';
+import { playSupportChime, unlockNotificationAudio } from '../utils/notificationSound';
 import { CoinIcon } from './CoinIcon';
 
 interface SecretCreditModalProps {
@@ -181,7 +185,19 @@ export function SecretCreditModal({
   const [supportReplyText, setSupportReplyText] = useState('');
   const [supportReplyBusy, setSupportReplyBusy] = useState(false);
   const [supportReplyError, setSupportReplyError] = useState('');
+  const [supportSoundEnabled, setSupportSoundEnabled] = useState(true);
+  const [supportAlert, setSupportAlert] = useState<{
+    chatId: string;
+    senderLabel: string;
+    preview: string;
+    receivedAt: string;
+  } | null>(null);
   const adminSupportBottomRef = useRef<HTMLDivElement | null>(null);
+  const vaultTabRef = useRef(vaultTab);
+  const selectedSupportChatIdRef = useRef(selectedSupportChatId);
+  const supportSoundEnabledRef = useRef(supportSoundEnabled);
+  const supportInitializedRef = useRef(false);
+  const lastSeenVisitorMsgByChatRef = useRef<Record<string, string>>({});
 
   // Saved Tables tab state
   const [tablesSummary, setTablesSummary] = useState<TablesSummaryResponse | null>(null);
@@ -315,11 +331,73 @@ export function SecretCreditModal({
     }
   }, [vaultTab, selectedTradeId, selectedTradeRawMsgs.length]);
 
+  useEffect(() => {
+    vaultTabRef.current = vaultTab;
+  }, [vaultTab]);
+
+  useEffect(() => {
+    selectedSupportChatIdRef.current = selectedSupportChatId;
+  }, [selectedSupportChatId]);
+
+  useEffect(() => {
+    supportSoundEnabledRef.current = supportSoundEnabled;
+  }, [supportSoundEnabled]);
+
+  useEffect(() => {
+    unlockNotificationAudio();
+  }, []);
+
   // Live Firestore listener for ALL 24/7 Support Desk threads
   useEffect(() => {
     setSupportLoading(true);
     const unsub = api.adminSubscribeSupportChats(
       (list) => {
+        if (!supportInitializedRef.current) {
+          const initialMap: Record<string, string> = {};
+          for (const c of list) {
+            initialMap[c.id] = c.lastReadAtBy?.lastVisitorMsgAt ?? '';
+          }
+          lastSeenVisitorMsgByChatRef.current = initialMap;
+          supportInitializedRef.current = true;
+        } else {
+          let newestIncoming: DirectChat | null = null;
+          let newestIncomingAt = '';
+
+          for (const c of list) {
+            const nextVisitorAt = c.lastReadAtBy?.lastVisitorMsgAt ?? '';
+            const prevVisitorAt = lastSeenVisitorMsgByChatRef.current[c.id] ?? '';
+            if (nextVisitorAt && nextVisitorAt > prevVisitorAt) {
+              lastSeenVisitorMsgByChatRef.current[c.id] = nextVisitorAt;
+              if (!newestIncomingAt || nextVisitorAt > newestIncomingAt) {
+                newestIncoming = c;
+                newestIncomingAt = nextVisitorAt;
+              }
+            }
+          }
+
+          if (newestIncoming) {
+            if (supportSoundEnabledRef.current) {
+              playSupportChime();
+            }
+            const alreadyViewingThisThread =
+              vaultTabRef.current === 'support' &&
+              selectedSupportChatIdRef.current === newestIncoming.id;
+            if (!alreadyViewingThisThread) {
+              setSupportAlert({
+                chatId: newestIncoming.id,
+                senderLabel:
+                  newestIncoming.offerSummary ||
+                  newestIncoming.participants[0] ||
+                  'Guest Client',
+                preview:
+                  newestIncoming.lastReadAtBy?.lastVisitorMsgPreview ||
+                  'New message waiting in 24/7 Support',
+                receivedAt: newestIncomingAt,
+              });
+            }
+          }
+        }
+
         setSupportChats(list);
         setSupportLoading(false);
         setSupportError('');
@@ -364,6 +442,9 @@ export function SecretCreditModal({
   // Mark support ticket as read by admin when opened or new client message arrives
   useEffect(() => {
     if (vaultTab !== 'support' || !selectedSupportChatId) return;
+    if (supportAlert?.chatId === selectedSupportChatId) {
+      setSupportAlert(null);
+    }
     const chat = supportChats.find((c) => c.id === selectedSupportChatId);
     if (!chat) return;
     const lastClientAt = chat.lastReadAtBy?.lastVisitorMsgAt ?? '';
@@ -371,7 +452,7 @@ export function SecretCreditModal({
     if (lastClientAt && (!lastAdminRead || lastClientAt > lastAdminRead)) {
       void api.markSupportChatRead(selectedSupportChatId, 'admin');
     }
-  }, [vaultTab, selectedSupportChatId, supportChats, selectedSupportMsgs.length]);
+  }, [vaultTab, selectedSupportChatId, supportChats, selectedSupportMsgs.length, supportAlert?.chatId]);
 
   useEffect(() => {
     if (vaultTab === 'tables') {
@@ -1148,6 +1229,7 @@ export function SecretCreditModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-xs sm:items-center sm:p-4">
       <div
+        onMouseDown={unlockNotificationAudio}
         className={`relative max-h-[92vh] w-full overflow-y-auto rounded-t-2xl border border-[#DCE2E1] bg-white p-5 shadow-2xl transition-all sm:rounded-2xl sm:p-6 dark:border-[#243230] dark:bg-[#121918] ${
           vaultTab === 'trades' || vaultTab === 'support'
             ? 'max-w-5xl'
@@ -1176,14 +1258,46 @@ export function SecretCreditModal({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close vault menu"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#5C6665] hover:bg-[#F2F5F5] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:bg-[#1C2625] dark:hover:text-white"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                unlockNotificationAudio();
+                setSupportSoundEnabled((prev) => {
+                  const next = !prev;
+                  if (next) playSupportChime();
+                  return next;
+                });
+              }}
+              title={
+                supportSoundEnabled
+                  ? 'Support alert sound is ON (click to mute)'
+                  : 'Support alert sound is muted (click to enable & test chime)'
+              }
+              className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-semibold transition-colors ${
+                supportSoundEnabled
+                  ? 'border-[#0B3B2E]/25 bg-[#EEF6F2] text-[#0B3B2E] hover:bg-[#E1F0E8] dark:border-[#7FE85B]/30 dark:bg-[#152D21] dark:text-[#7FE85B]'
+                  : 'border-[#DCE2E1] bg-[#F8FAFA] text-[#5C6665] hover:text-[#0E1715] dark:border-[#263130] dark:bg-[#17201F] dark:text-[#8E9B98]'
+              }`}
+            >
+              {supportSoundEnabled ? (
+                <Volume2 className="h-3.5 w-3.5" />
+              ) : (
+                <VolumeX className="h-3.5 w-3.5" />
+              )}
+              <span className="hidden sm:inline">
+                {supportSoundEnabled ? 'Sound On' : 'Muted'}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close vault menu"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-[#5C6665] hover:bg-[#F2F5F5] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:bg-[#1C2625] dark:hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Mode Switcher Tabs */}
@@ -1247,10 +1361,12 @@ export function SecretCreditModal({
             className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
               vaultTab === 'support'
                 ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
-                : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
+                : unreadSupportCount > 0
+                  ? 'bg-[#E8F8EE] text-[#0B3B2E] ring-1 ring-[#16A34A]/40 dark:bg-[#152D21] dark:text-[#7FE85B] dark:ring-[#7FE85B]/40'
+                  : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
             }`}
           >
-            <Headphones className="h-3.5 w-3.5 shrink-0" />
+            <Headphones className={`h-3.5 w-3.5 shrink-0 ${unreadSupportCount > 0 && vaultTab !== 'support' ? 'animate-pulse' : ''}`} />
             <span className="truncate">Support 24/7</span>
             {(unreadSupportCount > 0 || supportChats.length > 0) && (
               <span
@@ -1277,6 +1393,57 @@ export function SecretCreditModal({
             <span className="truncate">Saved Tables</span>
           </button>
         </div>
+
+        {/* Live Cross-Tab Incoming Support Notification Banner */}
+        {supportAlert && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#16A34A]/40 bg-[#E8F8EE] px-4 py-3 shadow-sm dark:border-[#7FE85B]/40 dark:bg-[#132B20]">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#0B3B2E] text-[#7FE85B] dark:bg-[#7FE85B] dark:text-[#082213]">
+                <BellRing className="h-4 w-4 animate-bounce" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-[#0B3B2E] dark:text-[#7FE85B]">
+                  <span>New 24/7 Support Message</span>
+                  <span className="rounded bg-white/80 px-1.5 py-0.5 font-mono text-[10px] text-[#0E1715] dark:bg-[#0B1712] dark:text-[#DCE8E4]">
+                    {supportAlert.senderLabel}
+                  </span>
+                  <span className="font-mono text-[10px] font-medium opacity-75">
+                    {new Date(supportAlert.receivedAt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+                <p className="mt-0.5 truncate text-xs text-[#1D3B30] dark:text-[#D5EAE0]">
+                  &ldquo;{supportAlert.preview}&rdquo;
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const targetChatId = supportAlert.chatId;
+                  setSelectedSupportChatId(targetChatId);
+                  setVaultTab('support');
+                  setSupportAlert(null);
+                }}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#0B3B2E] px-3 text-xs font-bold text-[#7FE85B] hover:bg-[#082B21] dark:bg-[#7FE85B] dark:text-[#082213] dark:hover:bg-[#6EDB4A]"
+              >
+                <Headphones className="h-3.5 w-3.5" />
+                <span>Open Support Chat</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSupportAlert(null)}
+                aria-label="Dismiss support notification"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-[#0B3B2E]/70 hover:bg-black/5 hover:text-[#0B3B2E] dark:text-[#98C5AF] dark:hover:bg-white/10 dark:hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Target Registered Account Picker */}
         {(vaultTab === 'credit' || vaultTab === 'reputation' || vaultTab === 'accounts') && (

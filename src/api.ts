@@ -5386,6 +5386,7 @@ export const api = {
             lastReadAtBy: {
               visitor: nowIso,
               lastVisitorMsgAt: nowIso,
+              lastVisitorMsgPreview: cleanText.slice(0, 120),
             },
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
@@ -5400,6 +5401,7 @@ export const api = {
             ...prevRead,
             visitor: nowIso,
             lastVisitorMsgAt: nowIso,
+            lastVisitorMsgPreview: cleanText.slice(0, 120),
           },
           updatedAt: serverTimestamp(),
         });
