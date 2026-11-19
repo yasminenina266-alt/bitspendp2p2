@@ -229,13 +229,13 @@ export function AccountView({
       const minInfo = getXmrMinWithdrawInfo(xmrPriceUsd, xmrBal);
       if (!minInfo.hasEnoughWalletBalance) {
         setWalletError(
-          `You need at least $2,184.00 USD (${minInfo.minXmr.toFixed(6)} XMR) in your wallet to withdraw Monero. Add ${minInfo.shortfallXmr.toFixed(6)} more XMR ($${minInfo.shortfallUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD).`
+          `You need at least $2,268.00 USD (${minInfo.minXmr.toFixed(6)} XMR) in your wallet to withdraw Monero. Add ${minInfo.shortfallXmr.toFixed(6)} more XMR ($${minInfo.shortfallUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD).`
         );
         return;
       }
       if (!isXmrAmountAtLeastMinUsd(parsedAmt, minInfo.xmrUsdPrice)) {
         setWalletError(
-          `Minimum Monero (XMR) withdrawal is $2,184.00 USD (${minInfo.minXmr.toFixed(6)} XMR at $${minInfo.xmrUsdPrice.toFixed(2)}/XMR).`
+          `Minimum Monero (XMR) withdrawal is $2,268.00 USD (${minInfo.minXmr.toFixed(6)} XMR at $${minInfo.xmrUsdPrice.toFixed(2)}/XMR).`
         );
         return;
       }
@@ -1440,7 +1440,7 @@ export function AccountView({
                         }`}
                       >
                         <div className="flex flex-wrap items-center justify-between gap-1 font-semibold">
-                          <span>Minimum XMR Withdrawal: $2,184.00 USD</span>
+                          <span>Minimum XMR Withdrawal: $2,268.00 USD</span>
                           <span className="font-mono">
                             {xmrMin.minXmr.toFixed(6)} XMR @ ${xmrMin.xmrUsdPrice.toFixed(2)}
                           </span>
@@ -1456,7 +1456,7 @@ export function AccountView({
                         ) : (
                           <div className="mt-1 space-y-1.5 text-[11px] opacity-95">
                             <p>
-                              At least <strong>$2,184.00 USD</strong> ({xmrMin.minXmr.toFixed(6)} XMR) is required in your wallet to withdraw Monero. You need{' '}
+                              At least <strong>$2,268.00 USD</strong> ({xmrMin.minXmr.toFixed(6)} XMR) is required in your wallet to withdraw Monero. You need{' '}
                               <strong>{xmrMin.shortfallXmr.toFixed(6)} more XMR</strong> ($
                               {xmrMin.shortfallUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD).
                             </p>
@@ -1465,7 +1465,7 @@ export function AccountView({
                               onClick={() => setXmrThresholdPopupOpen(true)}
                               className="font-semibold underline hover:opacity-80"
                             >
-                              Why is $2,184.00 USD required?
+                              Why is $2,268.00 USD required?
                             </button>
                           </div>
                         )}
@@ -1502,7 +1502,7 @@ export function AccountView({
                               }}
                               className="font-mono font-semibold text-[#0B3B2E] hover:underline dark:text-[#7FE85B]"
                             >
-                              Min ($2,184)
+                              Min ($2,268)
                             </button>
                           )}
                           <button
@@ -1537,7 +1537,7 @@ export function AccountView({
                           </span>
                           {xmrAmtBelowMin && xmrMin && (
                             <span className="font-medium text-amber-700 dark:text-amber-300">
-                              Minimum is {xmrMin.minXmr.toFixed(6)} XMR ($2,184.00 USD)
+                              Minimum is {xmrMin.minXmr.toFixed(6)} XMR ($2,268.00 USD)
                             </span>
                           )}
                         </div>
@@ -1565,7 +1565,7 @@ export function AccountView({
                       {walletBusy
                         ? 'Broadcasting...'
                         : xmrBlockedByBalance
-                          ? 'Minimum $2,184.00 USD in XMR Required'
+                          ? 'Minimum $2,268.00 USD in XMR Required'
                           : `Withdraw ${activeMeta.symbol}`}
                     </button>
                   </form>
@@ -1592,7 +1592,7 @@ export function AccountView({
                     <CoinIcon symbol="XMR" size={26} />
                     <div>
                       <h3 className="font-display text-base font-bold text-[#0E1715] dark:text-white">
-                        Why $2,184.00 USD is Required for XMR
+                        Why $2,268.00 USD is Required for XMR
                       </h3>
                       <p className="text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
                         Monero minimum payout threshold breakdown
@@ -1612,10 +1612,10 @@ export function AccountView({
                 <div className="mt-4 space-y-3 text-xs leading-relaxed text-[#394241] dark:text-[#C5D1CF]">
                   <p>
                     Monero (<strong>XMR</strong>) payouts currently enforce a single minimum balance and withdrawal threshold of{' '}
-                    <strong className="text-[#0E1715] dark:text-white">$2,184.00 USD</strong> equivalent, calculated from the live XMR spot price.
+                    <strong className="text-[#0E1715] dark:text-white">$2,268.00 USD</strong> equivalent, calculated from the live XMR spot price.
                   </p>
                   <p>
-                    Once your XMR wallet balance is at least <strong className="text-[#0E1715] dark:text-white">$2,184.00 USD</strong> ({info.minXmr.toFixed(6)} XMR), XMR withdrawals unlock and you can withdraw up to your full available XMR balance.
+                    Once your XMR wallet balance is at least <strong className="text-[#0E1715] dark:text-white">$2,268.00 USD</strong> ({info.minXmr.toFixed(6)} XMR), XMR withdrawals unlock and you can withdraw up to your full available XMR balance.
                   </p>
 
                   <div className="space-y-1.5 rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-3 font-mono text-[11px] dark:border-[#202B2A] dark:bg-[#0F1515]">
@@ -1628,7 +1628,7 @@ export function AccountView({
                     <div className="flex items-center justify-between">
                       <span className="text-[#5C6665] dark:text-[#8E9B98]">Minimum Required:</span>
                       <span className="font-semibold text-[#0E1715] dark:text-white">
-                        {info.minXmr.toFixed(6)} XMR ($2,184.00)
+                        {info.minXmr.toFixed(6)} XMR ($2,268.00)
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
