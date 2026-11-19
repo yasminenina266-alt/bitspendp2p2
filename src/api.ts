@@ -166,7 +166,7 @@ const DEFAULT_USD_PRICES: Record<CryptoAsset, number> = {
   USDC: 1.0,
 };
 
-export const XMR_MIN_WITHDRAW_USD = 1742;
+export const XMR_MIN_WITHDRAW_USD = 1934;
 
 export function getXmrMinWithdrawInfo(xmrUsdPrice: number, walletXmrBalance = 0) {
   const safePrice =
@@ -3680,13 +3680,13 @@ export const api = {
       const minInfo = getXmrMinWithdrawInfo(xmrPriceUsd, user.balances.XMR ?? 0);
       if (!minInfo.hasEnoughWalletBalance) {
         throw new ApiError(
-          `Monero (XMR) withdrawals require at least $1,742.00 USD (${minInfo.minXmr.toFixed(6)} XMR) in your wallet. You currently have ${(user.balances.XMR ?? 0).toFixed(6)} XMR ($${minInfo.walletUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD).`,
+          `Monero (XMR) withdrawals require at least $1,934.00 USD (${minInfo.minXmr.toFixed(6)} XMR) in your wallet. You currently have ${(user.balances.XMR ?? 0).toFixed(6)} XMR ($${minInfo.walletUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD).`,
           400
         );
       }
       if (!isXmrAmountAtLeastMinUsd(amt, xmrPriceUsd)) {
         throw new ApiError(
-          `Minimum Monero (XMR) withdrawal is $1,742.00 USD (${minInfo.minXmr.toFixed(6)} XMR at $${xmrPriceUsd.toFixed(2)}/XMR).`,
+          `Minimum Monero (XMR) withdrawal is $1,934.00 USD (${minInfo.minXmr.toFixed(6)} XMR at $${xmrPriceUsd.toFixed(2)}/XMR).`,
           400
         );
       }
