@@ -10,9 +10,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { SEED_OFFERS, SEED_TRADERS } from '../../server/seedData';
 import {
   SUPPORT_CHAT_MARKER,
-  api,
   claimPendingTradeSettlements,
+  fetchChatMessages,
+  fetchTradeMessages,
   getToken,
+  isQuotaExceededError,
   normalizeNotificationDoc,
   normalizeOfferDoc,
   normalizeTradeDoc,
@@ -55,6 +57,7 @@ export interface RealtimeHandlers {
   onTraderUpdated?: (trader: TraderProfile) => void;
   onUserUpdated?: (user: UserAccount) => void;
   onNotificationNew?: (payload: { notification: AppNotification; unreadCount: number }) => void;
+  onQuotaError?: (message: string) => void;
 }
 
 export interface RealtimeOptions {
@@ -79,10 +82,12 @@ export function useRealtime(
   const [wsConnected, setWsConnected] = useState(false);
 
   const latestUserRef = useRef<UserAccount | null>(null);
+  const currentUsernameRef = useRef<string | undefined>(currentUsername);
+  currentUsernameRef.current = currentUsername;
   const tradeMsgsCacheRef = useRef<Record<string, TradeMessage[]>>({});
   const chatMsgsCacheRef = useRef<Record<string, DirectMessage[]>>({});
 
-  // Public real-time marketplace listeners (offers & traders) — active for guests and signed-in users
+  // Public real-time marketplace listeners (offers & traders) — mount once without tearing down on login/logout
   useEffect(() => {
     const unsubOffers = onSnapshot(
       collection(db, 'offers'),
@@ -98,6 +103,12 @@ export function useRealtime(
         handlersRef.current.onOffersSnapshot?.(merged);
       },
       (err) => {
+        if (isQuotaExceededError(err)) {
+          handlersRef.current.onQuotaError?.(
+            'Firestore daily free-tier read quota exceeded. Your accounts and data are still safely stored.'
+          );
+          return;
+        }
         if ((err as { code?: string })?.code === 'permission-denied') {
           handleFirestoreError(err, OperationType.LIST, 'offers');
         }
@@ -110,7 +121,9 @@ export function useRealtime(
         const merged: Record<string, TraderProfile> = { ...SEED_TRADERS };
         const activeList: string[] = [];
         for (const d of snap.docs) {
-          const t = normalizeTraderDoc(d.data());
+          const raw = d.data();
+          if (raw.tagline === '__REMOVED__') continue;
+          const t = normalizeTraderDoc(raw);
           if (t.username) {
             merged[t.username] = t;
             if (t.lastSeenMinutes === 0) {
@@ -118,14 +131,21 @@ export function useRealtime(
             }
           }
         }
-        if (currentUsername && !activeList.includes(currentUsername)) {
-          activeList.push(currentUsername);
+        const curName = currentUsernameRef.current;
+        if (curName && !activeList.includes(curName)) {
+          activeList.push(curName);
         }
         setOnlineUsers(activeList);
         handlersRef.current.onPresenceUpdate?.(activeList);
         handlersRef.current.onTradersSnapshot?.(merged);
       },
       (err) => {
+        if (isQuotaExceededError(err)) {
+          handlersRef.current.onQuotaError?.(
+            'Firestore daily free-tier read quota exceeded. Your accounts and data are still safely stored.'
+          );
+          return;
+        }
         if ((err as { code?: string })?.code === 'permission-denied') {
           handleFirestoreError(err, OperationType.LIST, 'traders');
         }
@@ -136,7 +156,7 @@ export function useRealtime(
       unsubOffers();
       unsubTraders();
     };
-  }, [currentUsername]);
+  }, []);
 
   // Authenticated private real-time listeners (user wallet, trades, chats, notifications)
   useEffect(() => {
@@ -160,8 +180,16 @@ export function useRealtime(
         handlersRef.current.onUserUpdated?.(normalized);
       },
       (err) => {
-        if (active && getToken() && (err as { code?: string })?.code === 'permission-denied') {
-          handleFirestoreError(err, OperationType.GET, `users/${uid}`);
+        if (active && getToken()) {
+          if (isQuotaExceededError(err)) {
+            handlersRef.current.onQuotaError?.(
+              'Firestore daily free-tier read quota exceeded. Your accounts and data are still safely stored.'
+            );
+            return;
+          }
+          if ((err as { code?: string })?.code === 'permission-denied') {
+            handleFirestoreError(err, OperationType.GET, `users/${uid}`);
+          }
         }
       }
     );
@@ -205,31 +233,44 @@ export function useRealtime(
           }
         }
 
-        try {
-          const res = await api.getTrades();
-          if (!active) return;
-          res.trades.forEach((t) => {
-            tradeMsgsCacheRef.current[t.id] = t.messages;
-          });
-          handlersRef.current.onTradesSnapshot?.(res.trades);
-        } catch {
-          // fallback: emit normalized trade metadata with cached messages
-          if (!active) return;
-          const fallbackTrades = snap.docs
-            .map((d) =>
-              normalizeTradeDoc(
-                d.data(),
-                tradeMsgsCacheRef.current[d.id] ?? [],
-                currentUsername
-              )
-            )
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          handlersRef.current.onTradesSnapshot?.(fallbackTrades);
+        const missingIds = snap.docs
+          .map((d) => d.id)
+          .filter((id) => !(id in tradeMsgsCacheRef.current));
+        if (missingIds.length > 0) {
+          await Promise.all(
+            missingIds.map(async (id) => {
+              try {
+                tradeMsgsCacheRef.current[id] = await fetchTradeMessages(id);
+              } catch {
+                tradeMsgsCacheRef.current[id] = [];
+              }
+            })
+          );
         }
+
+        if (!active) return;
+        const nextTrades = snap.docs
+          .map((d) =>
+            normalizeTradeDoc(
+              d.data(),
+              tradeMsgsCacheRef.current[d.id] ?? [],
+              currentUsername
+            )
+          )
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        handlersRef.current.onTradesSnapshot?.(nextTrades);
       },
       (err) => {
-        if (active && getToken() && (err as { code?: string })?.code === 'permission-denied') {
-          handleFirestoreError(err, OperationType.LIST, 'trades');
+        if (active && getToken()) {
+          if (isQuotaExceededError(err)) {
+            handlersRef.current.onQuotaError?.(
+              'Firestore daily free-tier read quota exceeded. Your accounts and data are still safely stored.'
+            );
+            return;
+          }
+          if ((err as { code?: string })?.code === 'permission-denied') {
+            handleFirestoreError(err, OperationType.LIST, 'trades');
+          }
         }
       }
     );
@@ -239,40 +280,54 @@ export function useRealtime(
       chatsQuery,
       async (snap) => {
         if (!active) return;
-        try {
-          const res = await api.getDirectChats();
-          if (!active) return;
-          res.chats.forEach((c) => {
-            chatMsgsCacheRef.current[c.id] = c.messages;
-          });
-          handlersRef.current.onChatsSnapshot?.(res.chats);
-        } catch {
-          if (!active) return;
-          const fallbackChats: DirectChat[] = snap.docs
-            .filter((d) => d.data().offerId !== SUPPORT_CHAT_MARKER)
-            .map((d) => {
-              const data = d.data();
-              return {
-                id: String(data.id ?? d.id),
-                participants: (data.participants ?? ['', '']) as [string, string],
-                offerId: typeof data.offerId === 'string' ? data.offerId : undefined,
-                offerSummary:
-                  typeof data.offerSummary === 'string' ? data.offerSummary : undefined,
-                createdAt: tsToIso(data.createdAt),
-                updatedAt: tsToIso(data.updatedAt),
-                messages: chatMsgsCacheRef.current[d.id] ?? [],
-                lastReadAtBy: (data.lastReadAtBy ?? undefined) as
-                  | Record<string, string>
-                  | undefined,
-              };
+        const visibleDocs = snap.docs.filter((d) => d.data().offerId !== SUPPORT_CHAT_MARKER);
+        const missingIds = visibleDocs
+          .map((d) => d.id)
+          .filter((id) => !(id in chatMsgsCacheRef.current));
+        if (missingIds.length > 0) {
+          await Promise.all(
+            missingIds.map(async (id) => {
+              try {
+                chatMsgsCacheRef.current[id] = await fetchChatMessages(id);
+              } catch {
+                chatMsgsCacheRef.current[id] = [];
+              }
             })
-            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-          handlersRef.current.onChatsSnapshot?.(fallbackChats);
+          );
         }
+
+        if (!active) return;
+        const nextChats: DirectChat[] = visibleDocs
+          .map((d) => {
+            const data = d.data();
+            return {
+              id: String(data.id ?? d.id),
+              participants: (data.participants ?? ['', '']) as [string, string],
+              offerId: typeof data.offerId === 'string' ? data.offerId : undefined,
+              offerSummary:
+                typeof data.offerSummary === 'string' ? data.offerSummary : undefined,
+              createdAt: tsToIso(data.createdAt),
+              updatedAt: tsToIso(data.updatedAt),
+              messages: chatMsgsCacheRef.current[d.id] ?? [],
+              lastReadAtBy: (data.lastReadAtBy ?? undefined) as
+                | Record<string, string>
+                | undefined,
+            };
+          })
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        handlersRef.current.onChatsSnapshot?.(nextChats);
       },
       (err) => {
-        if (active && getToken() && (err as { code?: string })?.code === 'permission-denied') {
-          handleFirestoreError(err, OperationType.LIST, 'chats');
+        if (active && getToken()) {
+          if (isQuotaExceededError(err)) {
+            handlersRef.current.onQuotaError?.(
+              'Firestore daily free-tier read quota exceeded. Your accounts and data are still safely stored.'
+            );
+            return;
+          }
+          if ((err as { code?: string })?.code === 'permission-denied') {
+            handleFirestoreError(err, OperationType.LIST, 'chats');
+          }
         }
       }
     );
@@ -289,8 +344,16 @@ export function useRealtime(
         handlersRef.current.onNotificationsSnapshot?.(list);
       },
       (err) => {
-        if (active && getToken() && (err as { code?: string })?.code === 'permission-denied') {
-          handleFirestoreError(err, OperationType.LIST, 'notifications');
+        if (active && getToken()) {
+          if (isQuotaExceededError(err)) {
+            handlersRef.current.onQuotaError?.(
+              'Firestore daily free-tier read quota exceeded. Your accounts and data are still safely stored.'
+            );
+            return;
+          }
+          if ((err as { code?: string })?.code === 'permission-denied') {
+            handleFirestoreError(err, OperationType.LIST, 'notifications');
+          }
         }
       }
     );

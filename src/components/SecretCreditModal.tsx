@@ -38,8 +38,10 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
+  FIRESTORE_QUOTA_UPGRADE_URL,
   api,
   enrichTradeMessages,
+  isQuotaExceededError,
   type AdminAccountDetails,
   type DirectoryUser,
   type TablesSummaryResponse,
@@ -109,6 +111,8 @@ export function SecretCreditModal({
 }: SecretCreditModalProps) {
   const [vaultTab, setVaultTab] = useState<'credit' | 'reputation' | 'accounts' | 'trades' | 'support' | 'tables'>('credit');
   const [directory, setDirectory] = useState<DirectoryUser[]>([]);
+  const [directoryLoading, setDirectoryLoading] = useState(true);
+  const [directoryError, setDirectoryError] = useState('');
   const [targetUsername, setTargetUsername] = useState<string>(user?.username ?? '');
   const [userSearch, setUserSearch] = useState('');
 
@@ -250,17 +254,33 @@ export function SecretCreditModal({
   const [repSuccess, setRepSuccess] = useState('');
 
   const loadDirectory = () => {
+    setDirectoryLoading(true);
+    setDirectoryError('');
     api
       .getUserDirectory()
       .then((res) => {
         const users = res.users ?? [];
         setDirectory(users);
+        setDirectoryError('');
         if (!targetUsername) {
           if (user?.username) setTargetUsername(user.username);
           else if (users.length > 0) setTargetUsername(users[0].username);
         }
       })
-      .catch(() => undefined);
+      .catch((err) => {
+        if (isQuotaExceededError(err)) {
+          setDirectoryError(
+            'Firestore daily free-tier read quota exceeded. Your registered accounts are still safely stored — quota resets tomorrow or right away after upgrading.'
+          );
+        } else {
+          setDirectoryError(
+            err instanceof Error ? err.message : 'Unable to load registered accounts.'
+          );
+        }
+      })
+      .finally(() => {
+        setDirectoryLoading(false);
+      });
   };
 
   const loadTablesSummary = (showSuccess = false) => {
@@ -286,11 +306,17 @@ export function SecretCreditModal({
 
   useEffect(() => {
     loadDirectory();
-    loadTablesSummary();
   }, []);
 
-  // Live Firestore listener for ALL platform trades
   useEffect(() => {
+    if (vaultTab === 'tables' && !tablesSummary && !tablesLoading && !tablesError) {
+      loadTablesSummary();
+    }
+  }, [vaultTab, tablesSummary, tablesLoading, tablesError]);
+
+  // Live Firestore listener for ALL platform trades (attached only when Live Trades tab is opened)
+  useEffect(() => {
+    if (vaultTab !== 'trades') return;
     setTradesLoading(true);
     const unsub = api.adminSubscribeAllTrades(
       (list) => {
@@ -308,7 +334,7 @@ export function SecretCreditModal({
       }
     );
     return () => unsub();
-  }, []);
+  }, [vaultTab]);
 
   // Live Firestore subcollection listener for currently selected trade chat
   useEffect(() => {
@@ -724,7 +750,7 @@ export function SecretCreditModal({
       const parsed = JSON.parse(rawText);
       const res = await api.importTablesJson(parsed);
       setTablesStatus(
-        `Restored ${res.importedUsers} account(s) and ${res.importedOffers} custom ad(s) into Cloud Firestore.`
+        `Restored ${res.importedUsers} account(s), ${res.importedOffers} ad(s), ${res.importedTrades} trade(s), and ${res.importedChats} chat(s) into Cloud Firestore.`
       );
       loadDirectory();
       loadTablesSummary();
@@ -945,7 +971,8 @@ export function SecretCreditModal({
     }
     onProfileUpdated?.(updated.trader);
     loadDirectory();
-    loadTablesSummary();
+    if (vaultTab === 'tables') loadTablesSummary();
+    else setTablesSummary(null);
     onDataSynced?.();
   };
 
@@ -1238,7 +1265,8 @@ export function SecretCreditModal({
     try {
       await api.deleteOffer(offerId);
       loadSelectedAccountDetails(acctDetails.username, true);
-      loadTablesSummary();
+      if (vaultTab === 'tables') loadTablesSummary();
+      else setTablesSummary(null);
       onDataSynced?.();
       setAcctMsg(`Deleted ad ${offerId}.`);
     } catch (err) {
@@ -1266,7 +1294,8 @@ export function SecretCreditModal({
           : prev
       );
       loadDirectory();
-      loadTablesSummary();
+      if (vaultTab === 'tables') loadTablesSummary();
+      else setTablesSummary(null);
       onAccountRemoved?.(res.removedUsername, res.removedSelf);
       onDataSynced?.();
       setAcctMsg(
@@ -1511,7 +1540,39 @@ export function SecretCreditModal({
             </span>
           </div>
 
-          {directory.length === 0 && !user ? (
+          {directoryError ? (
+            <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/35 dark:text-amber-100">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <div className="space-y-1">
+                  <p className="font-semibold">{directoryError}</p>
+                  <div className="flex flex-wrap items-center gap-3 pt-0.5">
+                    <a
+                      href={FIRESTORE_QUOTA_UPGRADE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-semibold underline hover:opacity-80"
+                    >
+                      <span>Open Firebase Upgrade Dialog</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={loadDirectory}
+                      className="inline-flex items-center gap-1 font-semibold underline hover:opacity-80"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      <span>Retry</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : directoryLoading && directory.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-3 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
+              Loading registered accounts from Cloud Firestore...
+            </div>
+          ) : directory.length === 0 && !user ? (
             <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-3 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
               <ShieldAlert className="mx-auto mb-1.5 h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
               No registered user accounts yet.{' '}

@@ -111,13 +111,19 @@ export interface TablesSummaryResponse {
 export interface TablesExportPayload {
   exportedAt?: string;
   version?: number;
+  authCredentials?: Record<string, Record<string, unknown>>;
   users?: Record<string, unknown>;
-  traders?: Record<string, TraderProfile>;
+  traders?: Record<string, TraderProfile | Record<string, unknown>>;
   offers?: P2POffer[];
+  tradesList?: Array<Record<string, unknown>>;
   tradeRooms?: Record<string, TradeOrder>;
+  chatsList?: Array<Record<string, unknown>>;
   chats?: Record<string, DirectChat>;
+  notificationsList?: Array<Record<string, unknown>>;
   notifications?: Record<string, AppNotification[]>;
+  swapsList?: Array<Record<string, unknown>>;
   swaps?: Record<string, SwapOrder[]>;
+  cardsList?: Array<Record<string, unknown>>;
   cards?: Record<string, VirtualCard[]>;
 }
 
@@ -422,6 +428,18 @@ export function getSupportChatId(visitorId?: string): string {
   return sanitizeDocId(`support_${vid}`);
 }
 
+export const FIRESTORE_QUOTA_UPGRADE_URL =
+  'https://console.firebase.google.com/project/ai-studio-applet-webapp-7217c/firestore/databases/ai-studio-bitspendp2p2-6855b0cf-000d-4080-91e9-18f83c69784d/data?openUpgradeDialog=true';
+
+export function hasSavedSupportVisitorId(): boolean {
+  try {
+    const existing = localStorage.getItem(SUPPORT_VISITOR_KEY);
+    return Boolean(existing && /^[a-zA-Z0-9_-]{4,64}$/.test(existing));
+  } catch {
+    return false;
+  }
+}
+
 export function getSavedSupportContactLabel(): string {
   try {
     return localStorage.getItem(SUPPORT_CONTACT_KEY) ?? '';
@@ -444,10 +462,28 @@ function isPermissionDenied(err: unknown): boolean {
   return code === 'permission-denied' || msg.includes('Missing or insufficient permissions');
 }
 
+export function isQuotaExceededError(err: unknown): boolean {
+  const code = String((err as { code?: string })?.code ?? '').toLowerCase();
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    code === 'resource-exhausted' ||
+    msg.includes('quota exceeded') ||
+    msg.includes('resource_exhausted') ||
+    msg.includes('free daily read units')
+  );
+}
+
 function wrapFirestoreError(err: unknown, op: OperationType, path: string): never {
   if (err instanceof ApiError) throw err;
   if (isPermissionDenied(err)) {
     handleFirestoreError(err, op, path);
+  }
+  if (isQuotaExceededError(err)) {
+    throw new ApiError(
+      'Firestore daily free-tier read quota exceeded. Your accounts and data remain safely stored — quota resets tomorrow or after upgrading the Firebase database.',
+      429,
+      'QUOTA_EXCEEDED'
+    );
   }
   const msg = err instanceof Error ? err.message : String(err);
   if (msg.includes('authInfo') && msg.includes('operationType')) {
@@ -1021,10 +1057,7 @@ async function getSessionContext(): Promise<{ uid: string; username: string; tok
     }
     return { uid, username, token };
   } catch (err) {
-    if (isPermissionDenied(err)) {
-      handleFirestoreError(err, OperationType.GET, `sessions/${token}`);
-    }
-    return null;
+    return wrapFirestoreError(err, OperationType.GET, `sessions/${token}`);
   }
 }
 
@@ -1079,7 +1112,7 @@ async function resolveUsernameTarget(
   };
 }
 
-async function fetchTradeMessages(tradeId: string): Promise<TradeMessage[]> {
+export async function fetchTradeMessages(tradeId: string): Promise<TradeMessage[]> {
   const path = `trades/${tradeId}/messages`;
   try {
     const q = query(collection(db, 'trades', tradeId, 'messages'), orderBy('createdAt', 'asc'));
@@ -1099,7 +1132,7 @@ async function fetchTradeMessages(tradeId: string): Promise<TradeMessage[]> {
   }
 }
 
-async function fetchChatMessages(chatId: string): Promise<DirectMessage[]> {
+export async function fetchChatMessages(chatId: string): Promise<DirectMessage[]> {
   const path = `chats/${chatId}/messages`;
   try {
     const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
@@ -4008,10 +4041,10 @@ export const api = {
 
   async getTablesSummary(): Promise<TablesSummaryResponse> {
     try {
-      const [offersSnap, tradersSnap, dirRes, tSnap, cSnap, nSnap, sSnap, kSnap] = await Promise.all([
+      const [offersSnap, tradersSnap, usersSnap, tSnap, cSnap, nSnap, sSnap, kSnap] = await Promise.all([
         getDocs(collection(db, 'offers')),
         getDocs(collection(db, 'traders')),
-        api.getUserDirectory(),
+        getDocs(collection(db, 'users')),
         getDocs(collection(db, 'trades')).catch(() => null),
         getDocs(collection(db, 'chats')).catch(() => null),
         getDocs(collection(db, 'notifications')).catch(() => null),
@@ -4026,6 +4059,42 @@ export const api = {
         offersByUser.set(key, (offersByUser.get(key) ?? 0) + 1);
       }
 
+      const traderMap = new Map<string, TraderProfile>();
+      tradersSnap.docs.forEach((d) => {
+        const t = normalizeTraderDoc(d.data());
+        if (t.username) traderMap.set(t.username.toLowerCase(), t);
+      });
+
+      const directoryUsers: DirectoryUser[] = [];
+      for (const d of usersSnap.docs) {
+        const raw = d.data();
+        if (raw.tagline === REMOVED_ACCOUNT_MARKER) continue;
+        const u = normalizeUserDoc(raw);
+        const t = traderMap.get(u.username.toLowerCase());
+        if (t?.tagline === REMOVED_ACCOUNT_MARKER) continue;
+        const walletMessages = (u.walletHistory ?? [])
+          .filter((tx) => typeof tx.message === 'string' && tx.message.trim().length > 0)
+          .map((tx) => ({
+            id: tx.id,
+            crypto: tx.crypto,
+            network: tx.network,
+            message: tx.message!.trim(),
+            timestamp: tx.timestamp,
+          }));
+        directoryUsers.push({
+          username: u.username,
+          createdAt: u.createdAt,
+          joinedAt: t?.joinedAt ?? u.createdAt.slice(0, 10),
+          balances: u.balances,
+          tradesCount: t?.tradesCount ?? 0,
+          ratingPct: t?.ratingPct ?? 100,
+          feedbackCount: t?.recentFeedback?.length ?? 0,
+          verified: t?.verified ?? false,
+          walletMessages,
+        });
+      }
+      directoryUsers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
       const tradesCount = tSnap?.size ?? 0;
       const chatsCount = cSnap?.size ?? 0;
       const notifsCount = nSnap?.size ?? 0;
@@ -4033,7 +4102,7 @@ export const api = {
       const cardsCount = kSnap?.size ?? 0;
 
       const tables: TableFileInfo[] = [
-        { name: 'users', path: '/users', rows: dirRes.users.length, sizeBytes: dirRes.users.length * 1024 },
+        { name: 'users', path: '/users', rows: directoryUsers.length, sizeBytes: directoryUsers.length * 1024 },
         { name: 'traders', path: '/traders', rows: tradersSnap.size + Object.keys(SEED_TRADERS).length, sizeBytes: (tradersSnap.size + 127) * 850 },
         { name: 'offers', path: '/offers', rows: customOffers.length + SEED_OFFERS.length, sizeBytes: (customOffers.length + SEED_OFFERS.length) * 620 },
         { name: 'trades', path: '/trades', rows: tradesCount, sizeBytes: tradesCount * 740 },
@@ -4043,7 +4112,7 @@ export const api = {
         { name: 'cards', path: '/cards', rows: cardsCount, sizeBytes: cardsCount * 512 },
       ];
 
-      const savedAccounts: SavedAccountRow[] = dirRes.users.map((u) => ({
+      const savedAccounts: SavedAccountRow[] = directoryUsers.map((u) => ({
         ...u,
         offersCount: offersByUser.get(u.username.toLowerCase()) ?? 0,
       }));
@@ -4060,61 +4129,371 @@ export const api = {
   },
 
   async exportTablesJson(): Promise<TablesExportPayload> {
-    const { offers, traders } = await api.getOffers();
-    const { trades } = await api.getTrades();
-    const { chats } = await api.getDirectChats();
-    const { notifications } = await api.getNotifications();
-    const { swaps } = await api.getSwaps();
-    const { cards } = await api.getCards();
-    const usersSnap = await getDocs(collection(db, 'users')).catch(() => null);
-    const usersMap: Record<string, UserAccount> = {};
-    usersSnap?.docs.forEach((d) => {
-      const u = normalizeUserDoc(d.data());
-      if (u.username) usersMap[u.username] = u;
-    });
-    const session = await getSessionContext();
+    try {
+      const [
+        usersSnap,
+        tradersSnap,
+        offersSnap,
+        tradesSnap,
+        chatsSnap,
+        notifsSnap,
+        swapsSnap,
+        cardsSnap,
+      ] = await Promise.all([
+        getDocs(collection(db, 'users')),
+        getDocs(collection(db, 'traders')),
+        getDocs(collection(db, 'offers')),
+        getDocs(collection(db, 'trades')),
+        getDocs(collection(db, 'chats')),
+        getDocs(collection(db, 'notifications')),
+        getDocs(collection(db, 'swaps')),
+        getDocs(collection(db, 'cards')),
+      ]);
 
-    const tradeRooms: Record<string, TradeOrder> = {};
-    trades.forEach((t) => {
-      tradeRooms[t.id] = t;
-    });
-    const chatMap: Record<string, DirectChat> = {};
-    chats.forEach((c) => {
-      chatMap[c.id] = c;
-    });
+      const usersMap: Record<string, Record<string, unknown>> = {};
+      const authCredentialsMap: Record<string, Record<string, unknown>> = {};
 
-    return {
-      exportedAt: new Date().toISOString(),
-      version: 2,
-      users: usersMap,
-      traders,
-      offers: offers.filter((o) => !o.id.startsWith('off-gen-') && !SEED_OFFERS.some((s) => s.id === o.id)),
-      tradeRooms,
-      chats: chatMap,
-      notifications: session?.username ? { [session.username]: notifications } : {},
-      swaps: session?.username ? { [session.username]: swaps } : {},
-      cards: session?.username ? { [session.username]: cards } : {},
-    };
+      await Promise.all(
+        usersSnap.docs.map(async (d) => {
+          const raw = d.data();
+          if (raw.tagline === REMOVED_ACCOUNT_MARKER) return;
+          const u = normalizeUserDoc(raw);
+          if (!u.username) return;
+          const uid = String(raw.uid ?? d.id).toLowerCase();
+          usersMap[uid] = {
+            ...u,
+            uid,
+          };
+          const credSnap = await getDoc(doc(db, 'authCredentials', u.username.toLowerCase())).catch(
+            () => null
+          );
+          if (credSnap?.exists()) {
+            const c = credSnap.data();
+            authCredentialsMap[u.username.toLowerCase()] = {
+              uid: String(c.uid ?? uid),
+              username: String(c.username ?? u.username),
+              lowerUsername: String(c.lowerUsername ?? u.username.toLowerCase()),
+              passwordHash: String(c.passwordHash ?? ''),
+              salt: String(c.salt ?? ''),
+              createdAt: tsToIso(c.createdAt),
+            };
+          }
+        })
+      );
+
+      const tradersMap: Record<string, TraderProfile & { ownerUid?: string }> = {};
+      tradersSnap.docs.forEach((d) => {
+        const raw = d.data();
+        if (raw.tagline === REMOVED_ACCOUNT_MARKER) return;
+        const t = normalizeTraderDoc(raw);
+        if (t.username) {
+          tradersMap[t.username] = {
+            ...t,
+            ownerUid: typeof raw.ownerUid === 'string' ? raw.ownerUid : t.username.toLowerCase(),
+          };
+        }
+      });
+
+      const customOffers = offersSnap.docs.map((d) => normalizeOfferDoc(d.data()));
+
+      const tradesList = await Promise.all(
+        tradesSnap.docs.map(async (d) => {
+          const raw = d.data();
+          const msgs = await fetchTradeMessages(d.id).catch(() => []);
+          const base = normalizeTradeDoc(raw, msgs, undefined, true);
+          return {
+            ...base,
+            buyerUid: String(raw.buyerUid ?? ''),
+            sellerUid: String(raw.sellerUid ?? ''),
+            participantUids: Array.isArray(raw.participantUids) ? raw.participantUids : [],
+            buyerSettled: Boolean(raw.buyerSettled),
+            sellerSettled: Boolean(raw.sellerSettled),
+            buyerRefunded: Boolean(raw.buyerRefunded),
+            sellerRefunded: Boolean(raw.sellerRefunded),
+          };
+        })
+      );
+
+      const chatsList = await Promise.all(
+        chatsSnap.docs.map(async (d) => {
+          const raw = d.data();
+          const msgs = await fetchChatMessages(d.id).catch(() => []);
+          const rawParticipants = Array.isArray(raw.participants) ? raw.participants : [];
+          const participants: [string, string] = [
+            String(rawParticipants[0] ?? 'Guest'),
+            String(rawParticipants[1] ?? 'OOSAB Support'),
+          ];
+          return {
+            id: String(raw.id ?? d.id),
+            participants,
+            participantUids: Array.isArray(raw.participantUids) ? raw.participantUids : ['support'],
+            offerId: typeof raw.offerId === 'string' ? raw.offerId : undefined,
+            offerSummary: typeof raw.offerSummary === 'string' ? raw.offerSummary : undefined,
+            lastReadAtBy: raw.lastReadAtBy ?? undefined,
+            createdAt: tsToIso(raw.createdAt),
+            updatedAt: tsToIso(raw.updatedAt),
+            messages: msgs,
+          };
+        })
+      );
+
+      const notificationsList = notifsSnap.docs.map((d) => {
+        const raw = d.data();
+        return {
+          ...normalizeNotificationDoc(raw),
+          toUid: String(raw.toUid ?? ''),
+          fromUid: String(raw.fromUid ?? ''),
+        };
+      });
+
+      const swapsList = swapsSnap.docs.map((d) => {
+        const raw = d.data();
+        return {
+          ...normalizeSwapDoc(raw),
+          ownerUid: String(raw.ownerUid ?? ''),
+        };
+      });
+
+      const cardsList = cardsSnap.docs.map((d) => {
+        const raw = d.data();
+        return {
+          ...normalizeCardDoc(raw),
+          ownerUid: String(raw.ownerUid ?? ''),
+        };
+      });
+
+      const tradeRooms: Record<string, TradeOrder> = {};
+      tradesList.forEach((t) => {
+        tradeRooms[t.id] = t;
+      });
+      const chatMap: Record<string, DirectChat> = {};
+      chatsList.forEach((c) => {
+        if (c.offerId !== SUPPORT_CHAT_MARKER) {
+          chatMap[c.id] = c as DirectChat;
+        }
+      });
+
+      return {
+        exportedAt: new Date().toISOString(),
+        version: 3,
+        authCredentials: authCredentialsMap,
+        users: usersMap,
+        traders: tradersMap,
+        offers: customOffers,
+        tradesList,
+        tradeRooms,
+        chatsList,
+        chats: chatMap,
+        notificationsList,
+        swapsList,
+        cardsList,
+      };
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.LIST, 'users');
+    }
   },
 
-  async importTablesJson(
-    payload: TablesExportPayload
-  ): Promise<{ ok: boolean; importedUsers: number; importedOffers: number }> {
-    const { uid, user } = await requireCurrentAccount();
+  async importTablesJson(payload: TablesExportPayload): Promise<{
+    ok: boolean;
+    importedUsers: number;
+    importedOffers: number;
+    importedTrades: number;
+    importedChats: number;
+  }> {
+    let importedUsers = 0;
     let importedOffers = 0;
+    let importedTrades = 0;
+    let importedChats = 0;
 
+    const rawUsers =
+      payload.users && typeof payload.users === 'object' ? Object.values(payload.users) : [];
+    const rawTraders =
+      payload.traders && typeof payload.traders === 'object' ? payload.traders : {};
+    const rawCreds =
+      payload.authCredentials && typeof payload.authCredentials === 'object'
+        ? payload.authCredentials
+        : {};
+
+    // 1. Restore accounts (/traders + /users + /usernames + /authCredentials)
+    for (const entry of rawUsers) {
+      if (!entry || typeof entry !== 'object') continue;
+      const uRaw = entry as Record<string, unknown>;
+      const username = String(uRaw.username ?? '').trim();
+      if (!/^[a-zA-Z0-9_]{3,24}$/.test(username)) continue;
+      const lower = username.toLowerCase();
+      const uid = sanitizeDocId(String(uRaw.uid ?? lower).toLowerCase());
+      const normalizedUser = normalizeUserDoc(uRaw);
+
+      const traderEntry =
+        (rawTraders[username] as Record<string, unknown> | undefined) ??
+        (rawTraders[lower] as Record<string, unknown> | undefined) ??
+        {};
+      const normalizedTrader = normalizeTraderDoc({
+        ...traderEntry,
+        username,
+        bio: traderEntry.bio ?? normalizedUser.bio,
+        pgpFingerprint:
+          traderEntry.pgpFingerprint ?? (normalizedUser.pgpKey || generatePgpFingerprint()),
+      });
+
+      const batch = writeBatch(db);
+
+      const existingTraderSnap = await getDoc(doc(db, 'traders', username)).catch(() => null);
+      if (!existingTraderSnap?.exists()) {
+        batch.set(
+          doc(db, 'traders', username),
+          stripUndefined({
+            ownerUid: uid,
+            username,
+            lowerUsername: lower,
+            isRegisteredUser: true,
+            joinedAt: normalizedTrader.joinedAt,
+            tradesCount: normalizedTrader.tradesCount,
+            ratingPct: normalizedTrader.ratingPct,
+            avgReleaseMinutes: normalizedTrader.avgReleaseMinutes,
+            lastSeenMinutes: normalizedTrader.lastSeenMinutes,
+            verified: normalizedTrader.verified,
+            languages: normalizedTrader.languages,
+            pgpFingerprint: normalizedTrader.pgpFingerprint.slice(0, 49),
+            bio: normalizedTrader.bio.slice(0, 320),
+            avatarUrl: normalizedTrader.avatarUrl,
+            bannerUrl: normalizedTrader.bannerUrl,
+            tagline: normalizedTrader.tagline,
+            location: normalizedTrader.location,
+            accentTheme: normalizedTrader.accentTheme ?? 'emerald',
+            preferredMethods: normalizedTrader.preferredMethods ?? [],
+            tradingHours: normalizedTrader.tradingHours,
+            volumeTier: normalizedTrader.volumeTier,
+            totalVolumeUsd: normalizedTrader.totalVolumeUsd,
+            completionRatePct: normalizedTrader.completionRatePct,
+            totalFeedbackCount: normalizedTrader.totalFeedbackCount,
+            recentFeedback: (normalizedTrader.recentFeedback ?? []).slice(0, 40),
+            tradeHistory: (normalizedTrader.tradeHistory ?? []).slice(0, 40),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          })
+        );
+      }
+
+      const existingUserSnap = await getDoc(doc(db, 'users', uid)).catch(() => null);
+      if (!existingUserSnap?.exists()) {
+        batch.set(
+          doc(db, 'users', uid),
+          stripUndefined({
+            uid,
+            username,
+            bio: normalizedUser.bio.slice(0, 320),
+            avatarUrl: normalizedUser.avatarUrl,
+            bannerUrl: normalizedUser.bannerUrl,
+            tagline: normalizedUser.tagline,
+            location: normalizedUser.location,
+            accentTheme: normalizedUser.accentTheme ?? 'emerald',
+            languages: normalizedUser.languages,
+            preferredMethods: normalizedUser.preferredMethods ?? [],
+            tradingHours: normalizedUser.tradingHours,
+            pgpKey: normalizedUser.pgpKey.slice(0, 120),
+            recoveryPhrase: normalizedUser.recoveryPhrase.slice(0, 256),
+            balances: normalizedUser.balances,
+            depositAddresses: normalizedUser.depositAddresses,
+            walletHistory: normalizedUser.walletHistory.slice(0, 100),
+            settings: normalizedUser.settings,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          })
+        );
+      }
+
+      const existingClaimSnap = await getDoc(doc(db, 'usernames', lower)).catch(() => null);
+      if (!existingClaimSnap?.exists()) {
+        batch.set(doc(db, 'usernames', lower), {
+          uid,
+          username,
+          lowerUsername: lower,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      const cred = rawCreds[lower];
+      if (cred && typeof cred.passwordHash === 'string' && typeof cred.salt === 'string') {
+        const existingCredSnap = await getDoc(doc(db, 'authCredentials', lower)).catch(() => null);
+        if (!existingCredSnap?.exists()) {
+          batch.set(doc(db, 'authCredentials', lower), {
+            uid,
+            username,
+            lowerUsername: lower,
+            passwordHash: cred.passwordHash,
+            salt: cred.salt,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      }
+
+      await batch.commit();
+      importedUsers += 1;
+    }
+
+    // Restore any standalone custom traders (skipping seed profiles)
+    const seedTraderSet = new Set(Object.keys(SEED_TRADERS).map((k) => k.toLowerCase()));
+    for (const [key, tVal] of Object.entries(rawTraders)) {
+      if (!tVal || typeof tVal !== 'object') continue;
+      const tRaw = tVal as Record<string, unknown>;
+      const username = String(tRaw.username ?? key).trim();
+      if (!/^[a-zA-Z0-9_]{3,24}$/.test(username)) continue;
+      if (seedTraderSet.has(username.toLowerCase())) continue;
+      const existingT = await getDoc(doc(db, 'traders', username)).catch(() => null);
+      if (existingT?.exists()) continue;
+      const nt = normalizeTraderDoc(tRaw);
+      await setDoc(
+        doc(db, 'traders', username),
+        stripUndefined({
+          ownerUid: sanitizeDocId(String(tRaw.ownerUid ?? username).toLowerCase()),
+          username,
+          lowerUsername: username.toLowerCase(),
+          isRegisteredUser: Boolean(tRaw.isRegisteredUser ?? false),
+          joinedAt: nt.joinedAt,
+          tradesCount: nt.tradesCount,
+          ratingPct: nt.ratingPct,
+          avgReleaseMinutes: nt.avgReleaseMinutes,
+          lastSeenMinutes: nt.lastSeenMinutes,
+          verified: nt.verified,
+          languages: nt.languages,
+          pgpFingerprint: nt.pgpFingerprint.slice(0, 49),
+          bio: nt.bio.slice(0, 320),
+          avatarUrl: nt.avatarUrl,
+          bannerUrl: nt.bannerUrl,
+          tagline: nt.tagline,
+          location: nt.location,
+          accentTheme: nt.accentTheme ?? 'emerald',
+          preferredMethods: nt.preferredMethods ?? [],
+          tradingHours: nt.tradingHours,
+          volumeTier: nt.volumeTier,
+          totalVolumeUsd: nt.totalVolumeUsd,
+          completionRatePct: nt.completionRatePct,
+          totalFeedbackCount: nt.totalFeedbackCount,
+          recentFeedback: (nt.recentFeedback ?? []).slice(0, 40),
+          tradeHistory: (nt.tradeHistory ?? []).slice(0, 40),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      );
+    }
+
+    // 2. Restore offers
     if (Array.isArray(payload.offers)) {
       const seedIds = new Set(SEED_OFFERS.map((s) => s.id.toLowerCase()));
       for (const o of payload.offers) {
         if (!o?.id || seedIds.has(o.id.toLowerCase())) continue;
         const cleanId = sanitizeDocId(o.id);
+        const ownerUid = sanitizeDocId(String(o.traderUsername ?? 'admin').toLowerCase());
+        const existingOffer = await getDoc(doc(db, 'offers', cleanId)).catch(() => null);
+        if (existingOffer?.exists()) continue;
         await setDoc(
           doc(db, 'offers', cleanId),
           stripUndefined({
             ...o,
             id: cleanId,
-            ownerUid: uid,
-            traderUsername: user.username,
+            ownerUid,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           })
@@ -4123,7 +4502,195 @@ export const api = {
       }
     }
 
-    return { ok: true, importedUsers: 0, importedOffers };
+    // 3. Restore trades & messages
+    const rawTrades: Array<Record<string, unknown>> = Array.isArray(payload.tradesList)
+      ? payload.tradesList
+      : payload.tradeRooms && typeof payload.tradeRooms === 'object'
+        ? (Object.values(payload.tradeRooms) as unknown as Array<Record<string, unknown>>)
+        : [];
+    for (const tr of rawTrades) {
+      const cleanId = sanitizeDocId(String(tr.id ?? ''));
+      if (!cleanId) continue;
+      const existingTrade = await getDoc(doc(db, 'trades', cleanId)).catch(() => null);
+      if (!existingTrade?.exists()) {
+        const finalStatus = String(tr.status ?? 'escrow_funded');
+        const buyerUsername = String(tr.buyerUsername ?? '');
+        const sellerUsername = String(tr.sellerUsername ?? '');
+        const buyerUid = String(tr.buyerUid ?? buyerUsername.toLowerCase());
+        const sellerUid = String(tr.sellerUid ?? sellerUsername.toLowerCase());
+        const baseDoc = stripUndefined({
+          id: cleanId,
+          offerId: sanitizeDocId(String(tr.offerId ?? 'off-101')),
+          side: tr.side ?? 'sell_crypto',
+          traderUsername: String(tr.traderUsername ?? sellerUsername),
+          buyerUsername,
+          sellerUsername,
+          buyerUid,
+          sellerUid,
+          participantUids: Array.isArray(tr.participantUids) && tr.participantUids.length > 0
+            ? tr.participantUids
+            : [buyerUid, sellerUid].filter(Boolean).slice(0, 2),
+          crypto: tr.crypto ?? 'BTC',
+          cryptoChain: tr.cryptoChain,
+          swapToCrypto: tr.swapToCrypto,
+          swapToChain: tr.swapToChain,
+          swapToAmount: tr.swapToAmount,
+          fiat: tr.fiat ?? 'USD',
+          fiatAmount: Number(tr.fiatAmount ?? 100),
+          cryptoAmount: Number(tr.cryptoAmount ?? 0.001),
+          unitPrice: Number(tr.unitPrice ?? 1),
+          paymentMethod: String(tr.paymentMethod ?? 'Bank Transfer'),
+          paymentDetails: String(tr.paymentDetails ?? ''),
+          terms: String(tr.terms ?? ''),
+          status: 'escrow_funded',
+          counterpartyIsReal: Boolean(tr.counterpartyIsReal ?? true),
+          buyerSettled: Boolean(tr.buyerSettled),
+          sellerSettled: Boolean(tr.sellerSettled),
+          buyerRefunded: Boolean(tr.buyerRefunded),
+          sellerRefunded: Boolean(tr.sellerRefunded),
+          lastReadAtBy: tr.lastReadAtBy,
+          feedbackBy: tr.feedbackBy,
+          expiresAt: String(tr.expiresAt ?? new Date().toISOString()),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        await setDoc(doc(db, 'trades', cleanId), baseDoc);
+        if (finalStatus !== 'escrow_funded') {
+          await updateDoc(doc(db, 'trades', cleanId), {
+            status: finalStatus,
+            updatedAt: serverTimestamp(),
+          });
+        }
+        const msgs = Array.isArray(tr.messages) ? (tr.messages as Array<Record<string, unknown>>) : [];
+        for (const m of msgs) {
+          const msgId = sanitizeDocId(String(m.id ?? `msg_${randomHex(6)}`));
+          await setDoc(
+            doc(db, 'trades', cleanId, 'messages', msgId),
+            stripUndefined({
+              id: msgId,
+              sender: String(m.sender ?? 'System').slice(0, 64),
+              senderUid: sanitizeDocId(String(m.sender ?? 'system').toLowerCase()) || 'system',
+              text: String(m.text ?? ' ').slice(0, 2000),
+              isSystem: typeof m.isSystem === 'boolean' ? m.isSystem : undefined,
+              createdAt: serverTimestamp(),
+            })
+          ).catch(() => undefined);
+        }
+        importedTrades += 1;
+      }
+    }
+
+    // 4. Restore direct chats & 24/7 support threads + messages
+    const rawChats: Array<Record<string, unknown>> = Array.isArray(payload.chatsList)
+      ? payload.chatsList
+      : payload.chats && typeof payload.chats === 'object'
+        ? (Object.values(payload.chats) as unknown as Array<Record<string, unknown>>)
+        : [];
+    for (const ch of rawChats) {
+      const cleanId = sanitizeDocId(String(ch.id ?? ''));
+      if (!cleanId) continue;
+      const existingChat = await getDoc(doc(db, 'chats', cleanId)).catch(() => null);
+      if (!existingChat?.exists()) {
+        const participants = Array.isArray(ch.participants) && ch.participants.length === 2
+          ? ch.participants
+          : ['Guest', 'OOSAB Support'];
+        const participantUids =
+          Array.isArray(ch.participantUids) && ch.participantUids.length > 0
+            ? ch.participantUids.slice(0, 2)
+            : [String(participants[0] ?? 'guest').toLowerCase()];
+        await setDoc(
+          doc(db, 'chats', cleanId),
+          stripUndefined({
+            id: cleanId,
+            participants,
+            participantUids,
+            offerId: typeof ch.offerId === 'string' ? ch.offerId : undefined,
+            offerSummary: typeof ch.offerSummary === 'string' ? ch.offerSummary : undefined,
+            lastReadAtBy: ch.lastReadAtBy,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          })
+        );
+        const msgs = Array.isArray(ch.messages) ? (ch.messages as Array<Record<string, unknown>>) : [];
+        for (const m of msgs) {
+          const msgId = sanitizeDocId(String(m.id ?? `cmsg_${randomHex(6)}`));
+          await setDoc(
+            doc(db, 'chats', cleanId, 'messages', msgId),
+            stripUndefined({
+              id: msgId,
+              sender: String(m.sender ?? 'Client').slice(0, 64),
+              senderUid: sanitizeDocId(String(m.senderUid ?? m.sender ?? 'visitor').toLowerCase()) || 'visitor',
+              text: String(m.text ?? ' ').slice(0, 2000),
+              offerId: typeof m.offerId === 'string' ? m.offerId : undefined,
+              createdAt: serverTimestamp(),
+            })
+          ).catch(() => undefined);
+        }
+        importedChats += 1;
+      }
+    }
+
+    // 5. Restore notifications, swaps, cards
+    if (Array.isArray(payload.notificationsList)) {
+      for (const n of payload.notificationsList) {
+        const nid = sanitizeDocId(String(n.id ?? ''));
+        if (!nid) continue;
+        const ex = await getDoc(doc(db, 'notifications', nid)).catch(() => null);
+        if (ex?.exists()) continue;
+        await setDoc(
+          doc(db, 'notifications', nid),
+          stripUndefined({
+            ...n,
+            id: nid,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          })
+        ).catch(() => undefined);
+      }
+    }
+
+    if (Array.isArray(payload.swapsList)) {
+      for (const s of payload.swapsList) {
+        const sid = sanitizeDocId(String(s.id ?? ''));
+        if (!sid) continue;
+        const ex = await getDoc(doc(db, 'swaps', sid)).catch(() => null);
+        if (ex?.exists()) continue;
+        await setDoc(
+          doc(db, 'swaps', sid),
+          stripUndefined({
+            ...s,
+            id: sid,
+            createdAt: serverTimestamp(),
+          })
+        ).catch(() => undefined);
+      }
+    }
+
+    if (Array.isArray(payload.cardsList)) {
+      for (const k of payload.cardsList) {
+        const kid = sanitizeDocId(String(k.id ?? ''));
+        if (!kid) continue;
+        const ex = await getDoc(doc(db, 'cards', kid)).catch(() => null);
+        if (ex?.exists()) continue;
+        await setDoc(
+          doc(db, 'cards', kid),
+          stripUndefined({
+            ...k,
+            id: kid,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          })
+        ).catch(() => undefined);
+      }
+    }
+
+    return {
+      ok: true,
+      importedUsers,
+      importedOffers,
+      importedTrades,
+      importedChats,
+    };
   },
 
   // -------------------------------------------------------------------------
