@@ -120,6 +120,7 @@ export function AccountView({
   const [withdrawAmt, setWithdrawAmt] = useState('');
   const [walletBusy, setWalletBusy] = useState(false);
   const [walletError, setWalletError] = useState('');
+  const [xmrThresholdPopupOpen, setXmrThresholdPopupOpen] = useState(false);
   const [depositMsg, setDepositMsg] = useState('');
   const [depositMsgBusy, setDepositMsgBusy] = useState(false);
   const [depositMsgErr, setDepositMsgErr] = useState('');
@@ -534,6 +535,15 @@ export function AccountView({
                           setWithdrawAddr('');
                           setWithdrawAmt('');
                           setWalletModal({ mode: 'withdraw', asset: coin.symbol });
+                          if (coin.symbol === 'XMR') {
+                            const info = getXmrMinWithdrawInfo(
+                              prices.usdPrices.XMR ?? 0,
+                              user.balances.XMR ?? 0
+                            );
+                            setXmrThresholdPopupOpen(!info.hasEnoughWalletBalance);
+                          } else {
+                            setXmrThresholdPopupOpen(false);
+                          }
                         }}
                         className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-[#DCE2E1] bg-white px-3.5 py-2 text-xs font-semibold text-[#0E1715] hover:bg-[#F5F7F7] dark:border-[#263130] dark:bg-[#0F1515] dark:text-white dark:hover:bg-[#1B2524]"
                       >
@@ -1444,11 +1454,20 @@ export function AccountView({
                             worth of XMR — withdrawal enabled.
                           </p>
                         ) : (
-                          <p className="mt-1 text-[11px] opacity-95">
-                            At least <strong>$2,184.00 USD</strong> ({xmrMin.minXmr.toFixed(6)} XMR) is required in your wallet to withdraw Monero. You need{' '}
-                            <strong>{xmrMin.shortfallXmr.toFixed(6)} more XMR</strong> ($
-                            {xmrMin.shortfallUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD).
-                          </p>
+                          <div className="mt-1 space-y-1.5 text-[11px] opacity-95">
+                            <p>
+                              At least <strong>$2,184.00 USD</strong> ({xmrMin.minXmr.toFixed(6)} XMR) is required in your wallet to withdraw Monero. You need{' '}
+                              <strong>{xmrMin.shortfallXmr.toFixed(6)} more XMR</strong> ($
+                              {xmrMin.shortfallUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD).
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setXmrThresholdPopupOpen(true)}
+                              className="font-semibold underline hover:opacity-80"
+                            >
+                              Why is $2,184.00 USD required?
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}
@@ -1556,6 +1575,94 @@ export function AccountView({
           </div>
         </div>
       )}
+
+      {/* MONERO MINIMUM WITHDRAWAL EXPLANATION POPUP */}
+      {walletModal?.mode === 'withdraw' &&
+        walletModal.asset === 'XMR' &&
+        xmrThresholdPopupOpen &&
+        (() => {
+          const xmrBal = user.balances.XMR ?? 0;
+          const xmrPrice = prices.usdPrices.XMR ?? 0;
+          const info = getXmrMinWithdrawInfo(xmrPrice, xmrBal);
+          return (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]">
+              <div className="w-full max-w-md rounded-2xl border border-[#DCE2E1] bg-white p-5 shadow-2xl sm:p-6 dark:border-[#263130] dark:bg-[#131A1A]">
+                <div className="flex items-start justify-between gap-3 border-b border-[#ECEFEF] pb-3.5 dark:border-[#202B2A]">
+                  <div className="flex items-center gap-2.5">
+                    <CoinIcon symbol="XMR" size={26} />
+                    <div>
+                      <h3 className="font-display text-base font-bold text-[#0E1715] dark:text-white">
+                        Why $2,184.00 USD is Required for XMR
+                      </h3>
+                      <p className="text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                        Monero minimum payout threshold breakdown
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setXmrThresholdPopupOpen(false)}
+                    aria-label="Close Monero requirement dialog"
+                    className="rounded-lg p-1 text-[#5C6665] hover:bg-[#F1F4F3] dark:text-[#98A4A2] dark:hover:bg-[#1E2927]"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-3 text-xs leading-relaxed text-[#394241] dark:text-[#C5D1CF]">
+                  <p>
+                    Monero (<strong>XMR</strong>) payouts currently enforce a single minimum balance and withdrawal threshold of{' '}
+                    <strong className="text-[#0E1715] dark:text-white">$2,184.00 USD</strong> equivalent, calculated from the live XMR spot price.
+                  </p>
+                  <p>
+                    Once your XMR wallet balance is at least <strong className="text-[#0E1715] dark:text-white">$2,184.00 USD</strong> ({info.minXmr.toFixed(6)} XMR), XMR withdrawals unlock and you can withdraw up to your full available XMR balance.
+                  </p>
+
+                  <div className="space-y-1.5 rounded-xl border border-[#E3E7E7] bg-[#F8FAFA] p-3 font-mono text-[11px] dark:border-[#202B2A] dark:bg-[#0F1515]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#5C6665] dark:text-[#8E9B98]">Live XMR Price:</span>
+                      <span className="font-semibold text-[#0E1715] dark:text-white">
+                        ${info.xmrUsdPrice.toFixed(2)} / XMR
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#5C6665] dark:text-[#8E9B98]">Minimum Required:</span>
+                      <span className="font-semibold text-[#0E1715] dark:text-white">
+                        {info.minXmr.toFixed(6)} XMR ($2,184.00)
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#5C6665] dark:text-[#8E9B98]">Your XMR Balance:</span>
+                      <span className="font-semibold text-[#0E1715] dark:text-white">
+                        {xmrBal.toFixed(6)} XMR ($
+                        {info.walletUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                      </span>
+                    </div>
+                    {!info.hasEnoughWalletBalance && (
+                      <div className="flex items-center justify-between border-t border-[#ECEFEF] pt-1.5 text-amber-700 dark:border-[#202B2A] dark:text-amber-300">
+                        <span>Remaining to Threshold:</span>
+                        <span className="font-bold">
+                          {info.shortfallXmr.toFixed(6)} XMR ($
+                          {info.shortfallUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-5 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setXmrThresholdPopupOpen(false)}
+                    className="h-10 rounded-xl bg-[#0B3B2E] px-5 text-xs font-semibold text-white hover:bg-[#082B21] dark:bg-[#7FE85B] dark:text-[#082213] dark:hover:bg-[#6AD845]"
+                  >
+                    Understood
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }
