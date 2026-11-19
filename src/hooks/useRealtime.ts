@@ -57,7 +57,7 @@ export interface RealtimeHandlers {
   onTraderUpdated?: (trader: TraderProfile) => void;
   onUserUpdated?: (user: UserAccount) => void;
   onNotificationNew?: (payload: { notification: AppNotification; unreadCount: number }) => void;
-  onQuotaError?: (message: string) => void;
+  onServerLoadError?: () => void;
 }
 
 export interface RealtimeOptions {
@@ -104,9 +104,7 @@ export function useRealtime(
       },
       (err) => {
         if (isQuotaExceededError(err)) {
-          handlersRef.current.onQuotaError?.(
-            'Firestore daily free-tier read quota exceeded. Your accounts and data are still safely stored.'
-          );
+          handlersRef.current.onServerLoadError?.();
           return;
         }
         if ((err as { code?: string })?.code === 'permission-denied') {
@@ -141,9 +139,7 @@ export function useRealtime(
       },
       (err) => {
         if (isQuotaExceededError(err)) {
-          handlersRef.current.onQuotaError?.(
-            'Firestore daily free-tier read quota exceeded. Your accounts and data are still safely stored.'
-          );
+          handlersRef.current.onServerLoadError?.();
           return;
         }
         if ((err as { code?: string })?.code === 'permission-denied') {
@@ -182,9 +178,7 @@ export function useRealtime(
       (err) => {
         if (active && getToken()) {
           if (isQuotaExceededError(err)) {
-            handlersRef.current.onQuotaError?.(
-              'Firestore daily free-tier read quota exceeded. Your accounts and data are still safely stored.'
-            );
+            handlersRef.current.onServerLoadError?.();
             return;
           }
           if ((err as { code?: string })?.code === 'permission-denied') {
@@ -263,9 +257,7 @@ export function useRealtime(
       (err) => {
         if (active && getToken()) {
           if (isQuotaExceededError(err)) {
-            handlersRef.current.onQuotaError?.(
-              'Firestore daily free-tier read quota exceeded. Your accounts and data are still safely stored.'
-            );
+            handlersRef.current.onServerLoadError?.();
             return;
           }
           if ((err as { code?: string })?.code === 'permission-denied') {
@@ -320,9 +312,7 @@ export function useRealtime(
       (err) => {
         if (active && getToken()) {
           if (isQuotaExceededError(err)) {
-            handlersRef.current.onQuotaError?.(
-              'Firestore daily free-tier read quota exceeded. Your accounts and data are still safely stored.'
-            );
+            handlersRef.current.onServerLoadError?.();
             return;
           }
           if ((err as { code?: string })?.code === 'permission-denied') {
@@ -346,9 +336,7 @@ export function useRealtime(
       (err) => {
         if (active && getToken()) {
           if (isQuotaExceededError(err)) {
-            handlersRef.current.onQuotaError?.(
-              'Firestore daily free-tier read quota exceeded. Your accounts and data are still safely stored.'
-            );
+            handlersRef.current.onServerLoadError?.();
             return;
           }
           if ((err as { code?: string })?.code === 'permission-denied') {

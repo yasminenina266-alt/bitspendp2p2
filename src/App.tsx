@@ -1,9 +1,8 @@
-import { AlertTriangle, ArrowUpDown, ChevronDown, ExternalLink, Lock, RefreshCw, X } from 'lucide-react';
+import { ArrowUpDown, ChevronDown, Lock, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SEED_OFFERS, SEED_TRADERS } from '../server/seedData';
 import {
   ApiError,
-  FIRESTORE_QUOTA_UPGRADE_URL,
   api,
   enrichTradeMessages,
   getSupportChatId,
@@ -225,7 +224,6 @@ export default function App() {
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [supportChatOpen, setSupportChatOpen] = useState(false);
   const [supportUnreadCount, setSupportUnreadCount] = useState(0);
-  const [quotaBannerError, setQuotaBannerError] = useState<string | null>(null);
   const [depositNotice, setDepositNotice] = useState<{
     asset: CryptoAsset;
     requiredAmount?: number;
@@ -328,13 +326,8 @@ export default function App() {
       const data = await api.getOffers();
       if (Array.isArray(data?.offers)) setOffers(data.offers);
       if (data?.traders && typeof data.traders === 'object') setTraders(data.traders);
-      setQuotaBannerError(null);
-    } catch (err) {
-      if (isQuotaExceededError(err) || (err instanceof ApiError && err.code === 'QUOTA_EXCEEDED')) {
-        setQuotaBannerError(
-          'Firestore daily free-tier read quota is exceeded. Your accounts and data are NOT lost — quota resets tomorrow or right away if you upgrade the database.'
-        );
-      }
+    } catch {
+      // keep existing offers/traders on transient or server load error
     } finally {
       setLoadingOffers(false);
     }
@@ -346,13 +339,9 @@ export default function App() {
       const meRes = await api.getMe();
       if (meRes?.user) {
         setUser(meRes.user);
-        setQuotaBannerError(null);
       }
     } catch (err) {
       if (isQuotaExceededError(err) || (err instanceof ApiError && err.code === 'QUOTA_EXCEEDED')) {
-        setQuotaBannerError(
-          'Firestore daily free-tier read quota is exceeded. Your accounts and data are NOT lost — quota resets tomorrow or right away if you upgrade the database.'
-        );
         return;
       }
       if (err instanceof ApiError && err.status === 401) {
@@ -456,7 +445,6 @@ export default function App() {
       onOffersSnapshot: (nextOffers) => {
         setOffers(nextOffers);
         setLoadingOffers(false);
-        setQuotaBannerError(null);
         setTradeModalState((prev) => {
           if (!prev?.offer) return prev;
           const updated = nextOffers.find((o) => o.id === prev.offer!.id);
@@ -465,7 +453,6 @@ export default function App() {
       },
       onTradersSnapshot: (nextTraders) => {
         setTraders(nextTraders);
-        setQuotaBannerError(null);
       },
       onTradesSnapshot: (nextTrades) => {
         setTrades(nextTrades);
@@ -594,9 +581,8 @@ export default function App() {
           return [notification, ...prev].slice(0, 60);
         });
       },
-      onQuotaError: (message) => {
+      onServerLoadError: () => {
         setLoadingOffers(false);
-        setQuotaBannerError(message);
       },
     },
     {
@@ -761,7 +747,6 @@ export default function App() {
 
   const handleAuthSuccess = (authedUser: UserAccount) => {
     setUser(authedUser);
-    setQuotaBannerError(null);
     const pending = pendingDirectChatRef.current;
     if (pending) {
       pendingDirectChatRef.current = null;
@@ -990,38 +975,6 @@ export default function App() {
       />
 
       <main className="mx-auto w-full max-w-[1380px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
-        {quotaBannerError && (
-          <div className="mb-5 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-950 shadow-xs dark:border-amber-700/60 dark:bg-amber-950/35 dark:text-amber-100">
-            <div className="flex min-w-0 flex-1 items-start gap-2.5">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-              <div className="space-y-1">
-                <p className="font-semibold">
-                  Database Daily Free-Tier Read Quota Exceeded — Accounts &amp; Data Are Safe
-                </p>
-                <p className="text-[11px] leading-relaxed text-amber-900/90 dark:text-amber-200/90">
-                  No accounts or trades were deleted. The Firebase Spark free-tier daily read limit resets automatically tomorrow, or you can restore instant access now by upgrading your Firestore database.
-                </p>
-                <a
-                  href={FIRESTORE_QUOTA_UPGRADE_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 font-semibold text-amber-900 underline hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-100"
-                >
-                  <span>Open Firestore Database Upgrade Dialog</span>
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setQuotaBannerError(null)}
-              aria-label="Dismiss quota notice"
-              className="rounded-lg p-1 text-amber-800 hover:bg-amber-200/60 dark:text-amber-300 dark:hover:bg-amber-800/40"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
         {activeTab === 'offers' && (
           <div className="space-y-6">
             {/* Filter Toolbar */}

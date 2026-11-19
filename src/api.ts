@@ -480,7 +480,7 @@ function wrapFirestoreError(err: unknown, op: OperationType, path: string): neve
   }
   if (isQuotaExceededError(err)) {
     throw new ApiError(
-      'Firestore daily free-tier read quota exceeded. Your accounts and data remain safely stored — quota resets tomorrow or after upgrading the Firebase database.',
+      'Temporarily experiencing server issues. Your account and funds remain safe — please contact Admin on WhatsApp +52 322 319 9334.',
       429,
       'QUOTA_EXCEEDED'
     );

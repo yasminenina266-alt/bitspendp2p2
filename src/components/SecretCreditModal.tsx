@@ -270,7 +270,7 @@ export function SecretCreditModal({
       .catch((err) => {
         if (isQuotaExceededError(err)) {
           setDirectoryError(
-            'Firestore daily free-tier read quota exceeded. Your registered accounts are still safely stored — quota resets tomorrow or right away after upgrading.'
+            'Database read limit temporarily reached. Registered accounts are still safely stored.'
           );
         } else {
           setDirectoryError(
