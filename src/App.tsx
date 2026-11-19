@@ -1,7 +1,7 @@
 import { ArrowUpDown, ChevronDown, Lock, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SEED_OFFERS, SEED_TRADERS } from '../server/seedData';
-import { ApiError, api, enrichTradeMessages, getToken, setToken } from './api';
+import { ApiError, api, enrichTradeMessages, getSupportChatId, getToken, setToken } from './api';
 import { AccountView } from './components/AccountView';
 import { AuthModal } from './components/AuthModal';
 import { CoinIcon } from './components/CoinIcon';
@@ -18,6 +18,7 @@ import { OfferFilterBar, type OfferFilters } from './components/OfferFilterBar';
 import { OfferRow, getOfferUnitPrice } from './components/OfferRow';
 import { ProfileView } from './components/ProfileView';
 import { SecretCreditModal } from './components/SecretCreditModal';
+import { SupportChatModal } from './components/SupportChatModal';
 import { TradeModal } from './components/TradeModal';
 import { CRYPTO_ASSETS, DEFAULT_FIAT_RATES } from './constants/market';
 import { useRealtime } from './hooks/useRealtime';
@@ -212,6 +213,8 @@ export default function App() {
   const [createOfferOpen, setCreateOfferOpen] = useState(false);
   const [secretMenuOpen, setSecretMenuOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
+  const [supportChatOpen, setSupportChatOpen] = useState(false);
+  const [supportUnreadCount, setSupportUnreadCount] = useState(0);
   const [depositNotice, setDepositNotice] = useState<{
     asset: CryptoAsset;
     requiredAmount?: number;
@@ -243,6 +246,22 @@ export default function App() {
       // ignore
     }
   }, [darkMode]);
+
+  useEffect(() => {
+    const chatId = getSupportChatId();
+    const unsub = api.subscribeSupportChatDoc(chatId, (docData) => {
+      if (!docData) {
+        setSupportUnreadCount(0);
+        return;
+      }
+      const lastAdminMsgAt = docData.lastReadAtBy?.lastAdminMsgAt ?? '';
+      const lastVisitorRead = docData.lastReadAtBy?.visitor ?? '';
+      setSupportUnreadCount(
+        lastAdminMsgAt && (!lastVisitorRead || lastAdminMsgAt > lastVisitorRead) ? 1 : 0
+      );
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     const origin = window.location.origin;
@@ -933,6 +952,7 @@ export default function App() {
         user={user}
         activeTradesCount={activeTradesCount}
         unreadMessagesCount={unreadMessagesCount}
+        supportUnreadCount={supportUnreadCount}
         notifications={notifications}
         unreadNotificationsCount={unreadNotificationsCount}
         darkMode={darkMode}
@@ -941,6 +961,7 @@ export default function App() {
         onLogout={handleLogout}
         onOpenSecretMenu={() => setSecretMenuOpen(true)}
         onOpenMessages={() => setMessagesOpen(true)}
+        onOpenSupport={() => setSupportChatOpen(true)}
         onViewMyProfile={() => {
           if (user) handleSelectTrader(user.username);
         }}
@@ -1466,6 +1487,10 @@ export default function App() {
           onClose={() => setAuthModal(null)}
           onSuccess={handleAuthSuccess}
         />
+      )}
+
+      {supportChatOpen && (
+        <SupportChatModal user={user} onClose={() => setSupportChatOpen(false)} />
       )}
 
       {secretMenuOpen && (

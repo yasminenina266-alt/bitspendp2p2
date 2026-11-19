@@ -4,6 +4,7 @@ import {
   CheckCheck,
   CreditCard,
   ExternalLink,
+  Headphones,
   Menu,
   MessageSquare,
   Moon,
@@ -24,6 +25,7 @@ interface HeaderProps {
   user: UserAccount | null;
   activeTradesCount: number;
   unreadMessagesCount: number;
+  supportUnreadCount?: number;
   notifications: AppNotification[];
   unreadNotificationsCount: number;
   darkMode: boolean;
@@ -32,6 +34,7 @@ interface HeaderProps {
   onLogout: () => void;
   onOpenSecretMenu?: () => void;
   onOpenMessages: () => void;
+  onOpenSupport: () => void;
   onViewMyProfile: () => void;
   onMarkNotificationsRead: (id?: string) => void;
   onNotificationClick: (notif: AppNotification) => void;
@@ -45,6 +48,7 @@ export function Header({
   user,
   activeTradesCount,
   unreadMessagesCount,
+  supportUnreadCount = 0,
   notifications,
   unreadNotificationsCount,
   darkMode,
@@ -53,6 +57,7 @@ export function Header({
   onLogout,
   onOpenSecretMenu,
   onOpenMessages,
+  onOpenSupport,
   onViewMyProfile,
   onMarkNotificationsRead,
   onNotificationClick,
@@ -118,6 +123,35 @@ export function Header({
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#E3E7E7] bg-white/95 backdrop-blur-sm dark:border-[#1E2726] dark:bg-[#111717]/95">
+      {/* Top 24/7 Support Banner Above Header */}
+      <div className="border-b border-[#144335]/30 bg-[#0B3B2E] text-white dark:border-[#1B352D] dark:bg-[#0A221B]">
+        <div className="mx-auto flex max-w-[1380px] items-center justify-between gap-3 px-4 py-1.5 text-xs sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full bg-[#7FE85B]" />
+            <span className="truncate font-medium text-[#E4F6EC]">
+              Lost account access or need escrow help? Our desk responds live.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setMobileMenuOpen(false);
+              setNotifOpen(false);
+              onOpenSupport();
+            }}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[#7FE85B] px-2.5 py-1 text-[11px] font-bold text-[#082213] transition-colors hover:bg-[#6EDB4A]"
+          >
+            <Headphones className="h-3.5 w-3.5" />
+            <span>Contact Support 24/7</span>
+            {supportUnreadCount > 0 && (
+              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#082213] px-1 font-mono text-[10px] font-bold text-[#7FE85B]">
+                {supportUnreadCount}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
       <div className="mx-auto flex h-16 max-w-[1380px] items-center justify-between gap-2 px-4 sm:gap-4 sm:px-6 lg:px-8">
         {/* Zone 1: Brand Wordmark */}
         <button
@@ -265,7 +299,7 @@ export function Header({
                 </button>
 
                 {notifOpen && (
-                  <div className="fixed left-4 right-4 top-16 z-40 mt-2 max-h-[75vh] overflow-hidden rounded-2xl border border-[#DCE2E1] bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-11 sm:mt-0 sm:w-88 dark:border-[#263130] dark:bg-[#151D1C]">
+                  <div className="fixed left-4 right-4 top-24 z-40 mt-2 max-h-[75vh] overflow-hidden rounded-2xl border border-[#DCE2E1] bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-11 sm:mt-0 sm:w-88 dark:border-[#263130] dark:bg-[#151D1C]">
                     <div className="flex items-center justify-between border-b border-[#ECEFEF] px-4 py-3 dark:border-[#222C2B]">
                       <span className="font-display text-sm font-bold text-[#0E1715] dark:text-white">
                         Notifications
@@ -458,6 +492,28 @@ export function Header({
                 </button>
               );
             })()}
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setNotifOpen(false);
+                onOpenSupport();
+              }}
+              className="mt-1 flex items-center justify-between rounded-lg border border-[#0B3B2E]/20 bg-[#EEF6F2] px-3 py-3 text-sm font-semibold text-[#0B3B2E] hover:bg-[#E1F0E8] dark:border-[#7FE85B]/30 dark:bg-[#13291F] dark:text-[#7FE85B]"
+            >
+              <span className="flex items-center gap-2.5">
+                <Headphones className="h-4 w-4" />
+                <span>Contact Support 24/7</span>
+              </span>
+              {supportUnreadCount > 0 ? (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0B3B2E] px-1.5 font-mono text-[11px] font-bold text-[#7FE85B] dark:bg-[#7FE85B] dark:text-[#082213]">
+                  {supportUnreadCount}
+                </span>
+              ) : (
+                <span className="text-[11px] font-medium opacity-80">Live Chat</span>
+              )}
+            </button>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2.5 border-t border-[#E3E7E7] pt-4 dark:border-[#1E2726]">
             {user ? (

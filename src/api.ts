@@ -135,6 +135,9 @@ export class ApiError extends Error {
 
 const TOKEN_KEY = 'oosab_session_token';
 const REMOVED_ACCOUNT_MARKER = '__REMOVED__';
+export const SUPPORT_CHAT_MARKER = 'support_247';
+const SUPPORT_VISITOR_KEY = 'oosab_support_visitor_id';
+const SUPPORT_CONTACT_KEY = 'oosab_support_contact_label';
 const SUPPORTED_ASSETS: CryptoAsset[] = ['BTC', 'XMR', 'ETH', 'USDT', 'LTC', 'SOL', 'USDC'];
 const ALLOWED_PROFILE_THEMES = new Set<ProfileThemeId>([
   'emerald',
@@ -394,6 +397,43 @@ function sanitizeDocId(raw: string): string {
 function makeChatId(userA: string, userB: string): string {
   const sorted = [userA.trim().toLowerCase(), userB.trim().toLowerCase()].sort();
   return sanitizeDocId(`chat_${sorted[0]}__${sorted[1]}`);
+}
+
+export function getOrCreateSupportVisitorId(): string {
+  try {
+    const existing = localStorage.getItem(SUPPORT_VISITOR_KEY);
+    if (existing && /^[a-zA-Z0-9_-]{4,64}$/.test(existing)) {
+      return existing;
+    }
+    const created = `sup_${randomHex(8)}`;
+    localStorage.setItem(SUPPORT_VISITOR_KEY, created);
+    return created;
+  } catch {
+    return `sup_${randomHex(8)}`;
+  }
+}
+
+export function getSupportChatId(visitorId?: string): string {
+  const vid = visitorId && /^[a-zA-Z0-9_-]{4,64}$/.test(visitorId)
+    ? visitorId
+    : getOrCreateSupportVisitorId();
+  return sanitizeDocId(`support_${vid}`);
+}
+
+export function getSavedSupportContactLabel(): string {
+  try {
+    return localStorage.getItem(SUPPORT_CONTACT_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function saveSupportContactLabel(label: string): void {
+  try {
+    localStorage.setItem(SUPPORT_CONTACT_KEY, label.trim().slice(0, 140));
+  } catch {
+    // ignore storage errors
+  }
 }
 
 function isPermissionDenied(err: unknown): boolean {
@@ -1067,6 +1107,7 @@ async function fetchChatMessages(chatId: string): Promise<DirectMessage[]> {
       return {
         id: String(m.id ?? d.id),
         sender: String(m.sender ?? ''),
+        senderUid: typeof m.senderUid === 'string' ? m.senderUid : undefined,
         text: String(m.text ?? ''),
         timestamp: tsToIso(m.createdAt),
         offerId: typeof m.offerId === 'string' ? m.offerId : undefined,
@@ -3060,20 +3101,22 @@ export const api = {
       const q = query(collection(db, 'chats'), where('participantUids', 'array-contains', session.uid));
       const snap = await getDocs(q);
       const chats = await Promise.all(
-        snap.docs.map(async (d) => {
-          const data = d.data();
-          const msgs = await fetchChatMessages(d.id);
-          return {
-            id: String(data.id ?? d.id),
-            participants: (data.participants ?? ['', '']) as [string, string],
-            offerId: typeof data.offerId === 'string' ? data.offerId : undefined,
-            offerSummary: typeof data.offerSummary === 'string' ? data.offerSummary : undefined,
-            createdAt: tsToIso(data.createdAt),
-            updatedAt: tsToIso(data.updatedAt),
-            messages: msgs,
-            lastReadAtBy: (data.lastReadAtBy ?? undefined) as Record<string, string> | undefined,
-          };
-        })
+        snap.docs
+          .filter((d) => d.data().offerId !== SUPPORT_CHAT_MARKER)
+          .map(async (d) => {
+            const data = d.data();
+            const msgs = await fetchChatMessages(d.id);
+            return {
+              id: String(data.id ?? d.id),
+              participants: (data.participants ?? ['', '']) as [string, string],
+              offerId: typeof data.offerId === 'string' ? data.offerId : undefined,
+              offerSummary: typeof data.offerSummary === 'string' ? data.offerSummary : undefined,
+              createdAt: tsToIso(data.createdAt),
+              updatedAt: tsToIso(data.updatedAt),
+              messages: msgs,
+              lastReadAtBy: (data.lastReadAtBy ?? undefined) as Record<string, string> | undefined,
+            };
+          })
       );
       chats.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
       return { chats };
@@ -5222,6 +5265,289 @@ export const api = {
       };
     } catch (err) {
       return wrapFirestoreError(err, OperationType.WRITE, `users/${uid}`);
+    }
+  },
+
+  // -------------------------------------------------------------------------
+  // 24/7 Support Chat (Guest + Logged-in Client <-> Admin Console)
+  // -------------------------------------------------------------------------
+  subscribeSupportChatDoc(
+    chatId: string,
+    onChat: (chat: DirectChat | null) => void,
+    onError?: (err: Error) => void
+  ): () => void {
+    const cleanId = sanitizeDocId(chatId);
+    return onSnapshot(
+      doc(db, 'chats', cleanId),
+      (snap) => {
+        if (!snap.exists()) {
+          onChat(null);
+          return;
+        }
+        const data = snap.data();
+        onChat({
+          id: String(data.id ?? snap.id),
+          participants: (data.participants ?? ['Guest Client', 'OOSAB Support']) as [string, string],
+          offerId: typeof data.offerId === 'string' ? data.offerId : undefined,
+          offerSummary: typeof data.offerSummary === 'string' ? data.offerSummary : undefined,
+          createdAt: tsToIso(data.createdAt),
+          updatedAt: tsToIso(data.updatedAt),
+          messages: [],
+          lastReadAtBy: (data.lastReadAtBy ?? undefined) as Record<string, string> | undefined,
+        });
+      },
+      (err) => {
+        if (onError) {
+          onError(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
+    );
+  },
+
+  subscribeSupportMessages(
+    chatId: string,
+    onMessages: (messages: DirectMessage[]) => void,
+    onError?: (err: Error) => void
+  ): () => void {
+    const cleanId = sanitizeDocId(chatId);
+    const q = query(collection(db, 'chats', cleanId, 'messages'), orderBy('createdAt', 'asc'));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const msgs: DirectMessage[] = snap.docs.map((d) => {
+          const m = d.data();
+          return {
+            id: String(m.id ?? d.id),
+            sender: String(m.sender ?? 'Client'),
+            senderUid: typeof m.senderUid === 'string' ? m.senderUid : undefined,
+            text: String(m.text ?? ''),
+            timestamp: tsToIso(m.createdAt),
+            offerId: typeof m.offerId === 'string' ? m.offerId : undefined,
+          };
+        });
+        onMessages(msgs);
+      },
+      (err) => {
+        if (onError) {
+          onError(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
+    );
+  },
+
+  async sendSupportMessage(payload: {
+    visitorId: string;
+    text: string;
+    contactLabel?: string;
+    currentUsername?: string;
+  }): Promise<{ chatId: string }> {
+    const cleanText = payload.text.trim().slice(0, 2000);
+    if (!cleanText) throw new ApiError('Message cannot be empty.', 400);
+
+    const visitorId = sanitizeDocId(payload.visitorId || getOrCreateSupportVisitorId());
+    const chatId = getSupportChatId(visitorId);
+    const contactClean = (payload.contactLabel ?? '').trim().slice(0, 140);
+    if (contactClean) {
+      saveSupportContactLabel(contactClean);
+    }
+
+    const senderDisplay = (
+      contactClean ||
+      (payload.currentUsername ? `@${payload.currentUsername}` : 'Guest Client')
+    ).slice(0, 64);
+
+    const offerSummary = (
+      contactClean
+        ? payload.currentUsername &&
+          !contactClean.toLowerCase().includes(payload.currentUsername.toLowerCase())
+          ? `${contactClean} (@${payload.currentUsername})`
+          : contactClean
+        : payload.currentUsername
+          ? `Account: @${payload.currentUsername}`
+          : `Guest Session (${visitorId.slice(0, 12)})`
+    ).slice(0, 200);
+
+    const chatRef = doc(db, 'chats', chatId);
+    try {
+      const snap = await getDoc(chatRef);
+      const nowIso = new Date().toISOString();
+      const msgId = `smsg-${randomHex(5)}`;
+      const batch = writeBatch(db);
+
+      if (!snap.exists()) {
+        batch.set(
+          chatRef,
+          stripUndefined({
+            id: chatId,
+            participants: [senderDisplay, 'OOSAB Support'],
+            participantUids: [visitorId, 'support_admin'],
+            offerId: SUPPORT_CHAT_MARKER,
+            offerSummary,
+            lastReadAtBy: {
+              visitor: nowIso,
+              lastVisitorMsgAt: nowIso,
+            },
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          })
+        );
+      } else {
+        const data = snap.data();
+        const prevRead = (data.lastReadAtBy ?? {}) as Record<string, string>;
+        batch.update(chatRef, {
+          offerSummary: offerSummary || (typeof data.offerSummary === 'string' ? data.offerSummary : ''),
+          lastReadAtBy: {
+            ...prevRead,
+            visitor: nowIso,
+            lastVisitorMsgAt: nowIso,
+          },
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      batch.set(
+        doc(db, 'chats', chatId, 'messages', msgId),
+        stripUndefined({
+          id: msgId,
+          sender: senderDisplay,
+          senderUid: visitorId,
+          text: cleanText,
+          offerId: SUPPORT_CHAT_MARKER,
+          createdAt: serverTimestamp(),
+        })
+      );
+
+      await batch.commit();
+      return { chatId };
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.WRITE, `chats/${chatId}`);
+    }
+  },
+
+  async updateSupportContactLabel(
+    visitorId: string,
+    contactLabel: string,
+    currentUsername?: string
+  ): Promise<void> {
+    const cleanLabel = contactLabel.trim().slice(0, 140);
+    saveSupportContactLabel(cleanLabel);
+    const chatId = getSupportChatId(visitorId);
+    const chatRef = doc(db, 'chats', chatId);
+    try {
+      const snap = await getDoc(chatRef);
+      if (!snap.exists()) return;
+      const summary = (
+        cleanLabel
+          ? currentUsername && !cleanLabel.toLowerCase().includes(currentUsername.toLowerCase())
+            ? `${cleanLabel} (@${currentUsername})`
+            : cleanLabel
+          : currentUsername
+            ? `Account: @${currentUsername}`
+            : `Guest Session (${visitorId.slice(0, 12)})`
+      ).slice(0, 200);
+      await updateDoc(chatRef, {
+        offerSummary: summary,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `chats/${chatId}`);
+    }
+  },
+
+  async markSupportChatRead(chatId: string, role: 'visitor' | 'admin'): Promise<void> {
+    const cleanId = sanitizeDocId(chatId);
+    const chatRef = doc(db, 'chats', cleanId);
+    try {
+      const snap = await getDoc(chatRef);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const prevRead = (data.lastReadAtBy ?? {}) as Record<string, string>;
+      const nowIso = new Date().toISOString();
+      await updateDoc(chatRef, {
+        lastReadAtBy: {
+          ...prevRead,
+          [role]: nowIso,
+        },
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `chats/${cleanId}`);
+    }
+  },
+
+  adminSubscribeSupportChats(
+    onChats: (chats: DirectChat[]) => void,
+    onError?: (err: Error) => void
+  ): () => void {
+    const q = query(collection(db, 'chats'), where('offerId', '==', SUPPORT_CHAT_MARKER));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const list: DirectChat[] = snap.docs
+          .map((d) => {
+            const data = d.data();
+            return {
+              id: String(data.id ?? d.id),
+              participants: (data.participants ?? ['Guest Client', 'OOSAB Support']) as [
+                string,
+                string,
+              ],
+              offerId: typeof data.offerId === 'string' ? data.offerId : undefined,
+              offerSummary: typeof data.offerSummary === 'string' ? data.offerSummary : undefined,
+              createdAt: tsToIso(data.createdAt),
+              updatedAt: tsToIso(data.updatedAt),
+              messages: [],
+              lastReadAtBy: (data.lastReadAtBy ?? undefined) as Record<string, string> | undefined,
+            };
+          })
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        onChats(list);
+      },
+      (err) => {
+        if (onError) {
+          onError(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
+    );
+  },
+
+  async adminSendSupportMessage(chatId: string, text: string): Promise<void> {
+    const cleanText = text.trim().slice(0, 2000);
+    if (!cleanText) throw new ApiError('Reply message cannot be empty.', 400);
+
+    const cleanId = sanitizeDocId(chatId);
+    const chatRef = doc(db, 'chats', cleanId);
+    try {
+      const snap = await getDoc(chatRef);
+      if (!snap.exists()) throw new ApiError('Support thread not found.', 404);
+      const data = snap.data();
+      const prevRead = (data.lastReadAtBy ?? {}) as Record<string, string>;
+      const nowIso = new Date().toISOString();
+      const msgId = `smsg-${randomHex(5)}`;
+
+      const batch = writeBatch(db);
+      batch.set(
+        doc(db, 'chats', cleanId, 'messages', msgId),
+        stripUndefined({
+          id: msgId,
+          sender: 'OOSAB Support',
+          senderUid: 'support_admin',
+          text: cleanText,
+          offerId: SUPPORT_CHAT_MARKER,
+          createdAt: serverTimestamp(),
+        })
+      );
+      batch.update(chatRef, {
+        lastReadAtBy: {
+          ...prevRead,
+          admin: nowIso,
+          lastAdminMsgAt: nowIso,
+        },
+        updatedAt: serverTimestamp(),
+      });
+      await batch.commit();
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.WRITE, `chats/${cleanId}`);
     }
   },
 };

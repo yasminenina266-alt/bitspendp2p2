@@ -9,6 +9,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SEED_OFFERS, SEED_TRADERS } from '../../server/seedData';
 import {
+  SUPPORT_CHAT_MARKER,
   api,
   claimPendingTradeSettlements,
   getToken,
@@ -248,6 +249,7 @@ export function useRealtime(
         } catch {
           if (!active) return;
           const fallbackChats: DirectChat[] = snap.docs
+            .filter((d) => d.data().offerId !== SUPPORT_CHAT_MARKER)
             .map((d) => {
               const data = d.data();
               return {

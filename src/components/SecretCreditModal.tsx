@@ -11,6 +11,7 @@ import {
   Eye,
   EyeOff,
   FileJson,
+  Headphones,
   ImagePlus,
   Lock,
   MessageSquare,
@@ -49,6 +50,8 @@ import {
 } from '../constants/market';
 import type {
   CryptoAsset,
+  DirectChat,
+  DirectMessage,
   FiatCurrency,
   MarketPrices,
   TradeMessage,
@@ -99,7 +102,7 @@ export function SecretCreditModal({
   onNavigateProfile,
   onOpenWallet,
 }: SecretCreditModalProps) {
-  const [vaultTab, setVaultTab] = useState<'credit' | 'reputation' | 'accounts' | 'trades' | 'tables'>('credit');
+  const [vaultTab, setVaultTab] = useState<'credit' | 'reputation' | 'accounts' | 'trades' | 'support' | 'tables'>('credit');
   const [directory, setDirectory] = useState<DirectoryUser[]>([]);
   const [targetUsername, setTargetUsername] = useState<string>(user?.username ?? '');
   const [userSearch, setUserSearch] = useState('');
@@ -167,6 +170,18 @@ export function SecretCreditModal({
   const [adminPreviewImageUrl, setAdminPreviewImageUrl] = useState<string | null>(null);
   const adminImageInputRef = useRef<HTMLInputElement | null>(null);
   const adminChatBottomRef = useRef<HTMLDivElement | null>(null);
+
+  // 24/7 Support Desk Admin tab state
+  const [supportChats, setSupportChats] = useState<DirectChat[]>([]);
+  const [supportLoading, setSupportLoading] = useState(true);
+  const [supportError, setSupportError] = useState('');
+  const [supportSearch, setSupportSearch] = useState('');
+  const [selectedSupportChatId, setSelectedSupportChatId] = useState<string>('');
+  const [selectedSupportMsgs, setSelectedSupportMsgs] = useState<DirectMessage[]>([]);
+  const [supportReplyText, setSupportReplyText] = useState('');
+  const [supportReplyBusy, setSupportReplyBusy] = useState(false);
+  const [supportReplyError, setSupportReplyError] = useState('');
+  const adminSupportBottomRef = useRef<HTMLDivElement | null>(null);
 
   // Saved Tables tab state
   const [tablesSummary, setTablesSummary] = useState<TablesSummaryResponse | null>(null);
@@ -299,6 +314,64 @@ export function SecretCreditModal({
       adminChatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [vaultTab, selectedTradeId, selectedTradeRawMsgs.length]);
+
+  // Live Firestore listener for ALL 24/7 Support Desk threads
+  useEffect(() => {
+    setSupportLoading(true);
+    const unsub = api.adminSubscribeSupportChats(
+      (list) => {
+        setSupportChats(list);
+        setSupportLoading(false);
+        setSupportError('');
+        setSelectedSupportChatId((prev) => {
+          if (prev && list.some((c) => c.id === prev)) return prev;
+          return list[0]?.id ?? '';
+        });
+      },
+      (err) => {
+        setSupportLoading(false);
+        setSupportError(err.message || 'Unable to subscribe to 24/7 support tickets.');
+      }
+    );
+    return () => unsub();
+  }, []);
+
+  // Live Firestore listener for selected support chat messages
+  useEffect(() => {
+    if (vaultTab !== 'support' || !selectedSupportChatId) {
+      setSelectedSupportMsgs([]);
+      return;
+    }
+    const unsub = api.subscribeSupportMessages(
+      selectedSupportChatId,
+      (msgs) => {
+        setSelectedSupportMsgs(msgs);
+        setSupportReplyError('');
+      },
+      (err) => {
+        setSupportReplyError(err.message || 'Unable to load support thread messages.');
+      }
+    );
+    return () => unsub();
+  }, [vaultTab, selectedSupportChatId]);
+
+  useEffect(() => {
+    if (vaultTab === 'support') {
+      adminSupportBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [vaultTab, selectedSupportChatId, selectedSupportMsgs.length]);
+
+  // Mark support ticket as read by admin when opened or new client message arrives
+  useEffect(() => {
+    if (vaultTab !== 'support' || !selectedSupportChatId) return;
+    const chat = supportChats.find((c) => c.id === selectedSupportChatId);
+    if (!chat) return;
+    const lastClientAt = chat.lastReadAtBy?.lastVisitorMsgAt ?? '';
+    const lastAdminRead = chat.lastReadAtBy?.admin ?? '';
+    if (lastClientAt && (!lastAdminRead || lastClientAt > lastAdminRead)) {
+      void api.markSupportChatRead(selectedSupportChatId, 'admin');
+    }
+  }, [vaultTab, selectedSupportChatId, supportChats, selectedSupportMsgs.length]);
 
   useEffect(() => {
     if (vaultTab === 'tables') {
@@ -619,6 +692,48 @@ export function SecretCreditModal({
       ).length,
     [allTrades]
   );
+
+  const filteredSupportChats = useMemo(() => {
+    const q = supportSearch.trim().toLowerCase();
+    if (!q) return supportChats;
+    return supportChats.filter(
+      (c) =>
+        c.id.toLowerCase().includes(q) ||
+        (c.offerSummary ?? '').toLowerCase().includes(q) ||
+        c.participants.some((p) => p.toLowerCase().includes(q))
+    );
+  }, [supportChats, supportSearch]);
+
+  const selectedSupportChat = useMemo(
+    () =>
+      supportChats.find((c) => c.id === selectedSupportChatId) ?? filteredSupportChats[0] ?? null,
+    [supportChats, filteredSupportChats, selectedSupportChatId]
+  );
+
+  const unreadSupportCount = useMemo(
+    () =>
+      supportChats.filter((c) => {
+        const lastClientAt = c.lastReadAtBy?.lastVisitorMsgAt ?? '';
+        const lastAdminRead = c.lastReadAtBy?.admin ?? '';
+        return Boolean(lastClientAt && (!lastAdminRead || lastClientAt > lastAdminRead));
+      }).length,
+    [supportChats]
+  );
+
+  const handleAdminSendSupportReply = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedSupportChat || !supportReplyText.trim() || supportReplyBusy) return;
+    setSupportReplyBusy(true);
+    setSupportReplyError('');
+    try {
+      await api.adminSendSupportMessage(selectedSupportChat.id, supportReplyText.trim());
+      setSupportReplyText('');
+    } catch (err) {
+      setSupportReplyError(err instanceof Error ? err.message : 'Unable to send support reply.');
+    } finally {
+      setSupportReplyBusy(false);
+    }
+  };
 
   const handleAdminTradeAction = async (
     action: 'fund_escrow' | 'mark_paid' | 'release' | 'cancel' | 'dispute' | 'reopen'
@@ -1034,7 +1149,7 @@ export function SecretCreditModal({
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-xs sm:items-center sm:p-4">
       <div
         className={`relative max-h-[92vh] w-full overflow-y-auto rounded-t-2xl border border-[#DCE2E1] bg-white p-5 shadow-2xl transition-all sm:rounded-2xl sm:p-6 dark:border-[#243230] dark:bg-[#121918] ${
-          vaultTab === 'trades'
+          vaultTab === 'trades' || vaultTab === 'support'
             ? 'max-w-5xl'
             : vaultTab === 'accounts'
               ? 'max-w-4xl'
@@ -1072,7 +1187,7 @@ export function SecretCreditModal({
         </div>
 
         {/* Mode Switcher Tabs */}
-        <div className="mt-4 grid grid-cols-2 gap-1.5 rounded-xl border border-[#DCE2E1] bg-[#F4F6F6] p-1 sm:grid-cols-5 dark:border-[#24302F] dark:bg-[#0E1413]">
+        <div className="mt-4 grid grid-cols-2 gap-1.5 rounded-xl border border-[#DCE2E1] bg-[#F4F6F6] p-1 sm:grid-cols-6 dark:border-[#24302F] dark:bg-[#0E1413]">
           <button
             type="button"
             onClick={() => setVaultTab('credit')}
@@ -1123,6 +1238,29 @@ export function SecretCreditModal({
             {allTrades.length > 0 && (
               <span className="rounded-md bg-[#0B3B2E] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#7FE85B] dark:bg-[#7FE85B] dark:text-[#082213]">
                 {activeTradesCount > 0 ? activeTradesCount : allTrades.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setVaultTab('support')}
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
+              vaultTab === 'support'
+                ? 'bg-white text-[#0E1715] shadow-xs dark:bg-[#1A2523] dark:text-[#7FE85B]'
+                : 'text-[#5C6665] hover:text-[#0E1715] dark:text-[#8E9B98] dark:hover:text-white'
+            }`}
+          >
+            <Headphones className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Support 24/7</span>
+            {(unreadSupportCount > 0 || supportChats.length > 0) && (
+              <span
+                className={`rounded-md px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                  unreadSupportCount > 0
+                    ? 'bg-emerald-600 text-white dark:bg-[#7FE85B] dark:text-[#082213]'
+                    : 'bg-[#0B3B2E] text-[#7FE85B] dark:bg-[#1A3329] dark:text-[#7FE85B]'
+                }`}
+              >
+                {unreadSupportCount > 0 ? unreadSupportCount : supportChats.length}
               </span>
             )}
           </button>
@@ -3307,7 +3445,217 @@ export function SecretCreditModal({
           </div>
         )}
 
-        {/* TAB 3: Saved Website JSON Tables */}
+        {/* TAB 5: Live 24/7 Support Desk */}
+        {vaultTab === 'support' && (
+          <div className="mt-4 space-y-3">
+            {supportError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                {supportError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+              {/* Left: Live Support Threads */}
+              <div className="flex flex-col rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3 lg:col-span-5 dark:border-[#222E2C] dark:bg-[#0E1413]">
+                <div className="flex items-center justify-between gap-2 pb-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0E1715] dark:text-white">
+                    <Headphones className="h-3.5 w-3.5 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                    <span>24/7 Support Inbox ({supportChats.length})</span>
+                  </span>
+                  {unreadSupportCount > 0 && (
+                    <span className="rounded-md bg-emerald-600 px-2 py-0.5 font-mono text-[10px] font-bold text-white dark:bg-[#7FE85B] dark:text-[#082213]">
+                      {unreadSupportCount} unread
+                    </span>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#7B8684]" />
+                  <input
+                    type="text"
+                    value={supportSearch}
+                    onChange={(e) => setSupportSearch(e.target.value)}
+                    placeholder="Search client handle, session ID..."
+                    className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white pl-8 pr-3 text-xs text-[#0E1715] placeholder-[#7B8684] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                  />
+                </div>
+
+                <div className="mt-3 max-h-[460px] flex-1 space-y-2 overflow-y-auto pr-1">
+                  {supportLoading ? (
+                    <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-4 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
+                      Loading 24/7 support threads...
+                    </div>
+                  ) : filteredSupportChats.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-5 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
+                      No client support messages yet. When a client writes from the top banner or mobile menu, it appears live here.
+                    </div>
+                  ) : (
+                    filteredSupportChats.map((c) => {
+                      const isSelected = selectedSupportChat?.id === c.id;
+                      const lastClientAt = c.lastReadAtBy?.lastVisitorMsgAt ?? '';
+                      const lastAdminRead = c.lastReadAtBy?.admin ?? '';
+                      const hasUnread = Boolean(
+                        lastClientAt && (!lastAdminRead || lastClientAt > lastAdminRead)
+                      );
+                      const displayLabel = c.offerSummary || c.participants[0] || 'Guest Client';
+
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setSelectedSupportChatId(c.id)}
+                          className={`w-full rounded-xl border p-3 text-left transition-colors ${
+                            isSelected
+                              ? 'border-[#0B3B2E] bg-[#EEF6F2] dark:border-[#7FE85B] dark:bg-[#152B20]'
+                              : 'border-[#DCE2E1] bg-white hover:bg-[#F5F7F7] dark:border-[#222E2C] dark:bg-[#131A1A] dark:hover:bg-[#192322]'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="truncate text-xs font-bold text-[#0E1715] dark:text-white">
+                              {displayLabel}
+                            </span>
+                            {hasUnread && (
+                              <span className="inline-flex shrink-0 items-center gap-1 rounded bg-emerald-600 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white dark:bg-[#7FE85B] dark:text-[#082213]">
+                                New
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 flex items-center justify-between gap-2 font-mono text-[10px] text-[#6C7775] dark:text-[#8E9B98]">
+                            <span className="truncate">{c.id}</span>
+                            <span className="shrink-0">
+                              {new Date(c.updatedAt).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Selected Support Thread + Live Reply Composer */}
+              <div className="flex flex-col rounded-xl border border-[#DCE2E1] bg-white lg:col-span-7 dark:border-[#222E2C] dark:bg-[#0E1413]">
+                {!selectedSupportChat ? (
+                  <div className="flex min-h-[420px] flex-col items-center justify-center p-6 text-center text-xs text-[#5C6665] dark:text-[#8E9B98]">
+                    <Headphones className="mb-2 h-6 w-6 opacity-60" />
+                    <p>Select a support ticket on the left to read messages and reply live.</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Thread Header */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ECEFEF] px-4 py-3 dark:border-[#202B2A]">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate font-display text-sm font-bold text-[#0E1715] dark:text-white">
+                            {selectedSupportChat.offerSummary || selectedSupportChat.participants[0]}
+                          </span>
+                          <span className="rounded bg-[#E8F8EE] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#0B3B2E] dark:bg-[#152D21] dark:text-[#7FE85B]">
+                            Live
+                          </span>
+                        </div>
+                        <p className="mt-0.5 truncate font-mono text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                          Thread ID: {selectedSupportChat.id} · Started{' '}
+                          {new Date(selectedSupportChat.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Messages */}
+                    <div className="min-h-[280px] max-h-[360px] flex-1 space-y-2.5 overflow-y-auto p-4">
+                      {selectedSupportMsgs.length === 0 ? (
+                        <div className="py-12 text-center text-xs text-[#5C6665] dark:text-[#8E9B98]">
+                          No messages in this support thread yet.
+                        </div>
+                      ) : (
+                        selectedSupportMsgs.map((m) => {
+                          const isSupportAdmin = m.senderUid === 'support_admin';
+                          return (
+                            <div
+                              key={m.id}
+                              className={`flex flex-col ${
+                                isSupportAdmin ? 'items-end' : 'items-start'
+                              }`}
+                            >
+                              <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-[#6C7775]">
+                                <span>
+                                  {isSupportAdmin ? 'OOSAB Support (You)' : m.sender || 'Client'}
+                                </span>
+                                <span className="font-mono text-[10px] opacity-75">
+                                  {new Date(m.timestamp).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                              </div>
+                              <div
+                                className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
+                                  isSupportAdmin
+                                    ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
+                                    : 'border border-[#DCE2E1] bg-[#F8FAFA] text-[#0E1715] dark:border-[#263130] dark:bg-[#151D1C] dark:text-[#EDF3F2]'
+                                }`}
+                              >
+                                {m.text}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                      <div ref={adminSupportBottomRef} />
+                    </div>
+
+                    {supportReplyError && (
+                      <div className="mx-4 mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                        {supportReplyError}
+                      </div>
+                    )}
+
+                    {/* Quick Templates + Reply Composer */}
+                    <div className="border-t border-[#ECEFEF] p-3 dark:border-[#202B2A]">
+                      <div className="mb-2 flex flex-wrap gap-1.5">
+                        {[
+                          'Hi! Please share your username so we can check your account right away.',
+                          'We are checking this now and will update you shortly.',
+                        ].map((tpl) => (
+                          <button
+                            key={tpl}
+                            type="button"
+                            onClick={() => setSupportReplyText(tpl)}
+                            className="rounded-md border border-[#DCE2E1] bg-[#F8FAFA] px-2 py-1 text-[10px] font-medium text-[#394241] hover:border-[#0B3B2E] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#C5D1CF] dark:hover:border-[#7FE85B]"
+                          >
+                            {tpl}
+                          </button>
+                        ))}
+                      </div>
+                      <form onSubmit={handleAdminSendSupportReply} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={supportReplyText}
+                          onChange={(e) => setSupportReplyText(e.target.value)}
+                          maxLength={2000}
+                          placeholder="Reply live to client as OOSAB Support..."
+                          className="h-10 flex-1 rounded-lg border border-[#DCE2E1] bg-white px-3 text-xs text-[#0E1715] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+                        />
+                        <button
+                          type="submit"
+                          disabled={supportReplyBusy || !supportReplyText.trim()}
+                          className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-[#0B3B2E] px-3.5 text-xs font-semibold text-white hover:bg-[#082E24] disabled:opacity-50 dark:bg-[#7FE85B] dark:text-[#082213]"
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          <span>{supportReplyBusy ? 'Sending...' : 'Reply'}</span>
+                        </button>
+                      </form>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: Saved Website JSON Tables */}
         {vaultTab === 'tables' && (
           <div className="mt-4 space-y-4">
             <div className="rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3.5 dark:border-[#222E2C] dark:bg-[#0E1413]">

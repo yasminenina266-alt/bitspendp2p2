@@ -197,6 +197,7 @@ export interface TradeOrder {
 export interface DirectMessage {
   id: string;
   sender: string;
+  senderUid?: string;
   text: string;
   timestamp: string;
   offerId?: string;
