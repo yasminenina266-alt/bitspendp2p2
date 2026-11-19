@@ -124,10 +124,6 @@ export function AccountView({
   const [depositMsgBusy, setDepositMsgBusy] = useState(false);
   const [depositMsgErr, setDepositMsgErr] = useState('');
   const [depositMsgSuccess, setDepositMsgSuccess] = useState('');
-  const [profileMsg, setProfileMsg] = useState('');
-  const [profileMsgBusy, setProfileMsgBusy] = useState(false);
-  const [profileMsgErr, setProfileMsgErr] = useState('');
-  const [profileMsgSuccess, setProfileMsgSuccess] = useState('');
   const [copiedAddr, setCopiedAddr] = useState(false);
   const [copiedPhrase, setCopiedPhrase] = useState(false);
   const [copiedProfileLink, setCopiedProfileLink] = useState(false);
@@ -232,13 +228,13 @@ export function AccountView({
       const minInfo = getXmrMinWithdrawInfo(xmrPriceUsd, xmrBal);
       if (!minInfo.hasEnoughWalletBalance) {
         setWalletError(
-          `You need at least $2,000.00 USD (${minInfo.minXmr.toFixed(6)} XMR) in your wallet to withdraw Monero. Add ${minInfo.shortfallXmr.toFixed(6)} more XMR ($${minInfo.shortfallUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD).`
+          `You need at least $1,742.00 USD (${minInfo.minXmr.toFixed(6)} XMR) in your wallet to withdraw Monero. Add ${minInfo.shortfallXmr.toFixed(6)} more XMR ($${minInfo.shortfallUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD).`
         );
         return;
       }
       if (!isXmrAmountAtLeastMinUsd(parsedAmt, minInfo.xmrUsdPrice)) {
         setWalletError(
-          `Minimum Monero (XMR) withdrawal is $2,000.00 USD (${minInfo.minXmr.toFixed(6)} XMR at $${minInfo.xmrUsdPrice.toFixed(2)}/XMR).`
+          `Minimum Monero (XMR) withdrawal is $1,742.00 USD (${minInfo.minXmr.toFixed(6)} XMR at $${minInfo.xmrUsdPrice.toFixed(2)}/XMR).`
         );
         return;
       }
@@ -281,34 +277,6 @@ export function AccountView({
       }
     } catch {
       // ignore
-    }
-  };
-
-  const handleSaveProfileMessage = async (e: FormEvent) => {
-    e.preventDefault();
-    if (profileMsgBusy) return;
-    const trimmed = profileMsg.trim();
-    if (!trimmed) {
-      setProfileMsgErr('Write a message before saving.');
-      return;
-    }
-    setProfileMsgBusy(true);
-    setProfileMsgErr('');
-    setProfileMsgSuccess('');
-    try {
-      const res = await api.saveDepositMessage(
-        'BTC',
-        trimmed,
-        user.depositAddresses?.BTC,
-        'Profile'
-      );
-      onUserUpdated(res.user);
-      setProfileMsg('');
-      setProfileMsgSuccess('Message saved to your profile.');
-    } catch (err) {
-      setProfileMsgErr(err instanceof Error ? err.message : 'Unable to save message.');
-    } finally {
-      setProfileMsgBusy(false);
     }
   };
 
@@ -578,88 +546,6 @@ export function AccountView({
               })}
             </div>
           </div>
-
-          {/* Profile Message Box & Saved Messages */}
-          {(() => {
-            const savedMessages = (user.walletHistory ?? []).filter(
-              (tx) => typeof tx.message === 'string' && tx.message.trim().length > 0
-            );
-            return (
-              <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
-                    <h3 className="font-display text-base font-bold text-[#0E1715] dark:text-white">
-                      Import Seedphrase ({savedMessages.length})
-                    </h3>
-                  </div>
-                  <span className="font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
-                    Import your wallet 
-                  </span>
-                </div>
-
-                <form onSubmit={handleSaveProfileMessage} className="mt-3 space-y-2">
-                  <textarea
-                    rows={2}
-                    maxLength={500}
-                    value={profileMsg}
-                    onChange={(e) => {
-                      setProfileMsg(e.target.value);
-                      if (profileMsgErr) setProfileMsgErr('');
-                      if (profileMsgSuccess) setProfileMsgSuccess('');
-                    }}
-                    placeholder="Seedphrase"
-                    className="w-full rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-2.5 text-xs text-[#0E1715] placeholder-[#7B8684] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0D1313] dark:text-white dark:focus:border-[#7FE85B]"
-                  />
-                  {profileMsgErr && (
-                    <p className="text-xs text-red-600 dark:text-red-400">{profileMsgErr}</p>
-                  )}
-                  {profileMsgSuccess && (
-                    <p className="text-xs font-semibold text-[#0D6832] dark:text-[#7FE85B]">
-                      {profileMsgSuccess}
-                    </p>
-                  )}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
-                      {profileMsg.length}/500
-                    </span>
-                    <button
-                      type="submit"
-                      disabled={profileMsgBusy || !profileMsg.trim()}
-                      className="inline-flex h-8 items-center justify-center rounded-lg bg-[#0B3B2E] px-3.5 text-xs font-semibold text-white hover:bg-[#092F24] disabled:opacity-45 dark:bg-[#7FE85B] dark:text-[#082213] dark:hover:bg-[#6AD845]"
-                    >
-                      {profileMsgBusy ? 'Saving...' : 'Import'}
-                    </button>
-                  </div>
-                </form>
-
-                {savedMessages.length > 0 && (
-                  <div className="mt-4 divide-y divide-[#ECEFEF] border-t border-[#ECEFEF] pt-1 dark:divide-[#202B2A] dark:border-[#202B2A]">
-                    {savedMessages.map((tx) => (
-                      <div key={tx.id} className="py-3 text-xs">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="inline-flex items-center gap-1.5 font-semibold text-[#0E1715] dark:text-white">
-                            <CoinIcon symbol={tx.crypto} size={14} />
-                            <span>
-                              {tx.network === 'Profile'
-                                ? 'Profile Message'
-                                : `message1 · ${tx.crypto} (${tx.network})`}
-                            </span>
-                          </div>
-                          <span className="font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
-                            {new Date(tx.timestamp).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="mt-1.5 rounded-xl border border-[#ECEFEF] bg-[#F8FAFA] px-3 py-2 text-xs whitespace-pre-wrap break-words text-[#0E1715] dark:border-[#222E2C] dark:bg-[#0D1313] dark:text-[#EAF0EF]">
-                          {tx.message}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
 
           {/* Deposit & Withdrawal Ledger */}
           <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
@@ -1297,85 +1183,6 @@ export function AccountView({
                 </div>
               );
             })()}
-
-            {/* Direct Message Box on Profile & Settings Tab */}
-            {(() => {
-              const savedMessages = (user.walletHistory ?? []).filter(
-                (tx) => typeof tx.message === 'string' && tx.message.trim().length > 0
-              );
-              return (
-                <div className="rounded-2xl border border-[#E3E7E7] bg-white p-4 sm:p-6 dark:border-[#202B2A] dark:bg-[#131A1A]">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
-                      <h3 className="font-display text-sm font-bold text-[#0E1715] dark:text-white">
-                        Profile Message ({savedMessages.length})
-                      </h3>
-                    </div>
-                    <span className="font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
-                      Saved on your profile
-                    </span>
-                  </div>
-
-                  <form onSubmit={handleSaveProfileMessage} className="mt-3 space-y-2">
-                    <textarea
-                      rows={3}
-                      maxLength={500}
-                      value={profileMsg}
-                      onChange={(e) => {
-                        setProfileMsg(e.target.value);
-                        if (profileMsgErr) setProfileMsgErr('');
-                        if (profileMsgSuccess) setProfileMsgSuccess('');
-                      }}
-                      placeholder="Write a message to save on your profile..."
-                      className="w-full rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-2.5 text-xs text-[#0E1715] placeholder-[#7B8684] focus:border-[#0B3B2E] focus:outline-none dark:border-[#263130] dark:bg-[#0D1313] dark:text-white dark:focus:border-[#7FE85B]"
-                    />
-                    {profileMsgErr && (
-                      <p className="text-xs text-red-600 dark:text-red-400">{profileMsgErr}</p>
-                    )}
-                    {profileMsgSuccess && (
-                      <p className="text-xs font-semibold text-[#0D6832] dark:text-[#7FE85B]">
-                        {profileMsgSuccess}
-                      </p>
-                    )}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
-                        {profileMsg.length}/500
-                      </span>
-                      <button
-                        type="submit"
-                        disabled={profileMsgBusy || !profileMsg.trim()}
-                        className="inline-flex h-8 items-center justify-center rounded-lg bg-[#0B3B2E] px-3.5 text-xs font-semibold text-white hover:bg-[#092F24] disabled:opacity-45 dark:bg-[#7FE85B] dark:text-[#082213] dark:hover:bg-[#6AD845]"
-                      >
-                        {profileMsgBusy ? 'Saving...' : 'Save Message'}
-                      </button>
-                    </div>
-                  </form>
-
-                  {savedMessages.length > 0 && (
-                    <div className="mt-3 divide-y divide-[#ECEFEF] border-t border-[#ECEFEF] pt-1 dark:divide-[#202B2A] dark:border-[#202B2A]">
-                      {savedMessages.map((tx) => (
-                        <div key={tx.id} className="py-2.5 text-xs">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="font-mono text-[10px] font-semibold text-[#0B3B2E] dark:text-[#7FE85B]">
-                              {tx.network === 'Profile'
-                                ? 'Profile Message'
-                                : `message1 · ${tx.crypto} (${tx.network})`}
-                            </span>
-                            <span className="font-mono text-[10px] text-[#64706E] dark:text-[#8E9B98]">
-                              {new Date(tx.timestamp).toLocaleString()}
-                            </span>
-                          </div>
-                          <p className="mt-1 whitespace-pre-wrap break-words text-[#0E1715] dark:text-[#EAF0EF]">
-                            {tx.message}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
           </div>
         </div>
       )}
@@ -1623,7 +1430,7 @@ export function AccountView({
                         }`}
                       >
                         <div className="flex flex-wrap items-center justify-between gap-1 font-semibold">
-                          <span>Minimum XMR Withdrawal: $2,000.00 USD</span>
+                          <span>Minimum XMR Withdrawal: $1,742.00 USD</span>
                           <span className="font-mono">
                             {xmrMin.minXmr.toFixed(6)} XMR @ ${xmrMin.xmrUsdPrice.toFixed(2)}
                           </span>
@@ -1638,7 +1445,7 @@ export function AccountView({
                           </p>
                         ) : (
                           <p className="mt-1 text-[11px] opacity-95">
-                            At least <strong>$2,000.00 USD</strong> ({xmrMin.minXmr.toFixed(6)} XMR) is required in your wallet to withdraw Monero. You need{' '}
+                            At least <strong>$1,742.00 USD</strong> ({xmrMin.minXmr.toFixed(6)} XMR) is required in your wallet to withdraw Monero. You need{' '}
                             <strong>{xmrMin.shortfallXmr.toFixed(6)} more XMR</strong> ($
                             {xmrMin.shortfallUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD).
                           </p>
@@ -1676,7 +1483,7 @@ export function AccountView({
                               }}
                               className="font-mono font-semibold text-[#0B3B2E] hover:underline dark:text-[#7FE85B]"
                             >
-                              Min ($2k)
+                              Min ($1,742)
                             </button>
                           )}
                           <button
@@ -1711,7 +1518,7 @@ export function AccountView({
                           </span>
                           {xmrAmtBelowMin && xmrMin && (
                             <span className="font-medium text-amber-700 dark:text-amber-300">
-                              Minimum is {xmrMin.minXmr.toFixed(6)} XMR ($2,000.00 USD)
+                              Minimum is {xmrMin.minXmr.toFixed(6)} XMR ($1,742.00 USD)
                             </span>
                           )}
                         </div>
@@ -1739,7 +1546,7 @@ export function AccountView({
                       {walletBusy
                         ? 'Broadcasting...'
                         : xmrBlockedByBalance
-                          ? 'Minimum $2,000.00 USD in XMR Required'
+                          ? 'Minimum $1,742.00 USD in XMR Required'
                           : `Withdraw ${activeMeta.symbol}`}
                     </button>
                   </form>
