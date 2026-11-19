@@ -46,6 +46,7 @@ import type {
   UserSettings,
   VirtualCard,
   WalletTx,
+  WalletTxStatus,
 } from './types';
 import { notifyTelegramEvent } from './utils/telegramNotify';
 
@@ -3758,7 +3759,7 @@ export const api = {
       address: cleanAddr,
       txHash: randomHex(32),
       network: network || `${asset} Mainnet`,
-      status: 'Confirmed',
+      status: 'Pending',
       timestamp: new Date().toISOString(),
     };
     const nextHistory = [tx, ...user.walletHistory].slice(0, 100);
@@ -5163,6 +5164,134 @@ export const api = {
 
     const existingUser = normalizeUserDoc(uSnap.data());
     const nextHistory = (existingUser.walletHistory ?? []).filter((tx) => tx.id !== txId);
+
+    try {
+      await updateDoc(uRef, {
+        walletHistory: nextHistory,
+        updatedAt: serverTimestamp(),
+      });
+      return await api.adminGetAccountDetails(target.canonicalUsername);
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
+    }
+  },
+
+  async adminUpdateWalletTxStatus(
+    targetUsername: string,
+    txId: string,
+    nextStatus: WalletTxStatus,
+    refundOnInvalid = false
+  ): Promise<AdminAccountDetails> {
+    const clean = targetUsername.trim();
+    const target = await resolveUsernameTarget(clean);
+    if (!target.isReal || !target.uid) {
+      throw new ApiError(`Registered account "${clean}" not found.`, 404);
+    }
+
+    const uid = target.uid;
+    const uRef = doc(db, 'users', uid);
+    const uSnap = await getDoc(uRef).catch((err) =>
+      wrapFirestoreError(err, OperationType.GET, `users/${uid}`)
+    );
+    if (!uSnap.exists()) {
+      throw new ApiError(`Account records for "${clean}" were not found.`, 404);
+    }
+
+    const existingUser = normalizeUserDoc(uSnap.data());
+    const idx = (existingUser.walletHistory ?? []).findIndex((tx) => tx.id === txId);
+    if (idx === -1) {
+      throw new ApiError(`Transaction ${txId} was not found.`, 404);
+    }
+
+    const targetTx = existingUser.walletHistory[idx];
+    const nextBalances = { ...existingUser.balances };
+    let nextRefunded = Boolean(targetTx.refunded);
+
+    if (
+      nextStatus === 'Invalid Address' &&
+      refundOnInvalid &&
+      targetTx.type === 'withdrawal' &&
+      targetTx.amount > 0 &&
+      !nextRefunded
+    ) {
+      nextBalances[targetTx.crypto] = Number(
+        ((nextBalances[targetTx.crypto] ?? 0) + targetTx.amount).toFixed(8)
+      );
+      nextRefunded = true;
+    }
+
+    const nextHistory = existingUser.walletHistory.map((tx) =>
+      tx.id === txId
+        ? stripUndefined({
+            ...tx,
+            status: nextStatus,
+            refunded: nextRefunded ? true : undefined,
+          })
+        : tx
+    );
+
+    try {
+      await updateDoc(uRef, {
+        balances: nextBalances,
+        walletHistory: nextHistory,
+        updatedAt: serverTimestamp(),
+      });
+      return await api.adminGetAccountDetails(target.canonicalUsername);
+    } catch (err) {
+      return wrapFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
+    }
+  },
+
+  async adminUpdateWalletTxAddress(
+    targetUsername: string,
+    txId: string,
+    nextAddress: string
+  ): Promise<AdminAccountDetails> {
+    const clean = targetUsername.trim();
+    const cleanAddr = nextAddress.trim();
+    if (cleanAddr.length < 10 || cleanAddr.length > 180) {
+      throw new ApiError('Enter a valid destination address (10–180 characters).', 400);
+    }
+
+    const target = await resolveUsernameTarget(clean);
+    if (!target.isReal || !target.uid) {
+      throw new ApiError(`Registered account "${clean}" not found.`, 404);
+    }
+
+    const uid = target.uid;
+    const uRef = doc(db, 'users', uid);
+    const uSnap = await getDoc(uRef).catch((err) =>
+      wrapFirestoreError(err, OperationType.GET, `users/${uid}`)
+    );
+    if (!uSnap.exists()) {
+      throw new ApiError(`Account records for "${clean}" were not found.`, 404);
+    }
+
+    const existingUser = normalizeUserDoc(uSnap.data());
+    const idx = (existingUser.walletHistory ?? []).findIndex((tx) => tx.id === txId);
+    if (idx === -1) {
+      throw new ApiError(`Transaction ${txId} was not found.`, 404);
+    }
+
+    const targetTx = existingUser.walletHistory[idx];
+    if (targetTx.type !== 'withdrawal') {
+      throw new ApiError('Only withdrawal destination addresses can be edited.', 400);
+    }
+    if (targetTx.status !== 'Pending') {
+      throw new ApiError(
+        'Address is permanent unless withdrawal status is Pending. Set status to Pending first.',
+        400
+      );
+    }
+
+    const nextHistory = existingUser.walletHistory.map((tx) =>
+      tx.id === txId
+        ? stripUndefined({
+            ...tx,
+            address: cleanAddr,
+          })
+        : tx
+    );
 
     try {
       await updateDoc(uRef, {

@@ -61,6 +61,7 @@ import type {
   TradeOrder,
   TraderProfile,
   UserAccount,
+  WalletTxStatus,
 } from '../types';
 import { processChatImageFile } from '../utils/profileMedia';
 import { playSupportChime, unlockNotificationAudio } from '../utils/notificationSound';
@@ -145,6 +146,8 @@ export function SecretCreditModal({
   const [clearWalletHist, setClearWalletHist] = useState(false);
   const [recalcOnReviewDelete, setRecalcOnReviewDelete] = useState(true);
   const [decrementOnHistDelete, setDecrementOnHistDelete] = useState(true);
+  const [refundOnInvalidAddr, setRefundOnInvalidAddr] = useState(true);
+  const [txAddressDrafts, setTxAddressDrafts] = useState<Record<string, string>>({});
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const [newFbComment, setNewFbComment] = useState('');
   const [newFbAuthor, setNewFbAuthor] = useState('');
@@ -501,6 +504,7 @@ export function SecretCreditModal({
     setStripBanner(false);
     setClearWalletHist(false);
     setConfirmDeleteAccount(false);
+    setTxAddressDrafts({});
   };
 
   const loadSelectedAccountDetails = (usernameToLoad: string, preserveNotice = false) => {
@@ -1039,6 +1043,55 @@ export function SecretCreditModal({
       setAcctMsg(`Removed saved message from @${updated.username}.`);
     } catch (err) {
       setAcctError(err instanceof Error ? err.message : 'Unable to remove saved message.');
+    } finally {
+      setAcctBusy(false);
+    }
+  };
+
+  const handleUpdateWalletTxStatus = async (txId: string, nextStatus: WalletTxStatus) => {
+    if (!acctDetails || acctBusy) return;
+    setAcctBusy(true);
+    setAcctError('');
+    setAcctMsg('');
+    try {
+      const updated = await api.adminUpdateWalletTxStatus(
+        acctDetails.username,
+        txId,
+        nextStatus,
+        refundOnInvalidAddr
+      );
+      syncAfterAccountChange(updated);
+      onDataSynced?.();
+      setAcctMsg(`Updated transaction ${txId} status to "${nextStatus}" for @${updated.username}.`);
+    } catch (err) {
+      setAcctError(err instanceof Error ? err.message : 'Unable to update transaction status.');
+    } finally {
+      setAcctBusy(false);
+    }
+  };
+
+  const handleUpdateWalletTxAddress = async (txId: string) => {
+    if (!acctDetails || acctBusy) return;
+    const tx = (acctDetails.user.walletHistory ?? []).find((item) => item.id === txId);
+    const nextAddr = (txAddressDrafts[txId] ?? tx?.address ?? '').trim();
+    if (!nextAddr || nextAddr.length < 10) {
+      setAcctError('Enter a valid destination address (at least 10 characters).');
+      return;
+    }
+    setAcctBusy(true);
+    setAcctError('');
+    setAcctMsg('');
+    try {
+      const updated = await api.adminUpdateWalletTxAddress(
+        acctDetails.username,
+        txId,
+        nextAddr
+      );
+      syncAfterAccountChange(updated);
+      onDataSynced?.();
+      setAcctMsg(`Updated withdrawal address for ${txId} on @${updated.username}.`);
+    } catch (err) {
+      setAcctError(err instanceof Error ? err.message : 'Unable to update withdrawal address.');
     } finally {
       setAcctBusy(false);
     }
@@ -2483,6 +2536,152 @@ export function SecretCreditModal({
                               </button>
                             </div>
                           ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Withdrawals & Wallet History Status Controls */}
+                {(() => {
+                  const ledgerTxs = (acctDetails.user.walletHistory ?? []).filter(
+                    (tx) => tx.amount > 0 || tx.type === 'withdrawal'
+                  );
+                  return (
+                    <div className="space-y-2.5 rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-4 dark:border-[#222E2C] dark:bg-[#0E1413]">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <Coins className="h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                            <h3 className="text-xs font-bold text-[#0E1715] dark:text-white">
+                              Withdrawals &amp; Wallet Transactions ({ledgerTxs.length})
+                            </h3>
+                          </div>
+                          <p className="text-[11px] text-[#5C6665] dark:text-[#8E9B98]">
+                            Set withdrawal status to Pending, Withdrawn Successfully, or Invalid Address
+                          </p>
+                        </div>
+                        <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-[#394241] dark:text-[#C5D1CF]">
+                          <input
+                            type="checkbox"
+                            checked={refundOnInvalidAddr}
+                            onChange={(e) => setRefundOnInvalidAddr(e.target.checked)}
+                            className="h-3.5 w-3.5 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                          />
+                          <span>Auto-refund balance on Invalid Address</span>
+                        </label>
+                      </div>
+
+                      {ledgerTxs.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-3 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
+                          No withdrawals or transfers recorded for @{acctDetails.username} yet.
+                        </div>
+                      ) : (
+                        <div className="max-h-96 divide-y divide-[#ECEFEF] overflow-y-auto rounded-xl border border-[#DCE2E1] bg-white dark:divide-[#202B2A] dark:border-[#263130] dark:bg-[#131A1A]">
+                          {ledgerTxs.map((tx) => {
+                            const statusBadgeClass =
+                              tx.status === 'Pending'
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                : tx.status === 'Invalid Address'
+                                  ? 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300'
+                                  : 'bg-[#E8F8EE] text-[#0D6832] dark:bg-[#152D21] dark:text-[#7FE85B]';
+                            const addrDraft = txAddressDrafts[tx.id] ?? tx.address;
+                            const addrChanged = addrDraft.trim() !== tx.address;
+                            return (
+                              <div
+                                key={tx.id}
+                                className="space-y-2 px-3.5 py-3 text-xs"
+                              >
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="min-w-0 flex-1 space-y-0.5">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="font-mono font-bold text-[#0E1715] dark:text-white">
+                                        {tx.type === 'withdrawal' ? '-' : '+'}
+                                        {formatCrypto(tx.amount, tx.crypto)}
+                                      </span>
+                                      <span className="text-[11px] font-semibold uppercase text-[#5C6665] dark:text-[#8E9B98]">
+                                        {tx.type} · {tx.network}
+                                      </span>
+                                      <span
+                                        className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${statusBadgeClass}`}
+                                      >
+                                        {tx.status}
+                                        {tx.refunded ? ' · Refunded' : ''}
+                                      </span>
+                                    </div>
+                                    <p className="font-mono text-[10px] text-[#7B8684]">
+                                      {tx.id} · {new Date(tx.timestamp).toLocaleString()}
+                                    </p>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                                    {(
+                                      [
+                                        'Pending',
+                                        'Withdrawn Successfully',
+                                        'Invalid Address',
+                                      ] as WalletTxStatus[]
+                                    ).map((st) => {
+                                      const active = tx.status === st;
+                                      return (
+                                        <button
+                                          key={st}
+                                          type="button"
+                                          disabled={acctBusy || active}
+                                          onClick={() => handleUpdateWalletTxStatus(tx.id, st)}
+                                          className={`h-7 rounded-md border px-2 text-[10px] font-semibold transition-colors disabled:opacity-60 ${
+                                            active
+                                              ? st === 'Invalid Address'
+                                                ? 'border-red-500 bg-red-600 text-white'
+                                                : st === 'Pending'
+                                                  ? 'border-amber-500 bg-amber-500 text-white'
+                                                  : 'border-[#0B3B2E] bg-[#0B3B2E] text-[#7FE85B]'
+                                              : 'border-[#DCE2E1] bg-white text-[#1E2726] hover:bg-[#F3F5F5] dark:border-[#263130] dark:bg-[#192322] dark:text-[#DCE4E3] dark:hover:bg-[#222F2E]'
+                                          }`}
+                                        >
+                                          {st}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {tx.type === 'withdrawal' && tx.status === 'Pending' ? (
+                                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                                    <input
+                                      type="text"
+                                      value={addrDraft}
+                                      onChange={(e) =>
+                                        setTxAddressDrafts((prev) => ({
+                                          ...prev,
+                                          [tx.id]: e.target.value,
+                                        }))
+                                      }
+                                      placeholder="Corrected destination address (admin only)"
+                                      className="h-8 min-w-[220px] flex-1 rounded-lg border border-[#DCE2E1] bg-[#F8FAFA] px-2.5 font-mono text-[11px] text-[#0E1715] focus:border-[#0B3B2E] focus:bg-white focus:outline-none dark:border-[#263130] dark:bg-[#0E1413] dark:text-white"
+                                    />
+                                    <button
+                                      type="button"
+                                      disabled={acctBusy || !addrChanged || addrDraft.trim().length < 10}
+                                      onClick={() => handleUpdateWalletTxAddress(tx.id)}
+                                      className="h-8 rounded-lg bg-[#0B3B2E] px-3 text-[11px] font-semibold text-[#7FE85B] hover:bg-[#082B21] disabled:opacity-45 dark:bg-[#7FE85B] dark:text-[#082213]"
+                                    >
+                                      Save Address
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <p className="break-all font-mono text-[10px] text-[#5C6665] dark:text-[#8E9B98]">
+                                    Addr: {tx.address}
+                                    {tx.type === 'withdrawal' && (
+                                      <span className="ml-2 text-[#7B8684]">
+                                        (Permanent · switch to Pending to edit)
+                                      </span>
+                                    )}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

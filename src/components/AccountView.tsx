@@ -603,8 +603,11 @@ export function AccountView({
                                 : 'Withdrawal'}{' '}
                             · {tx.network}
                           </div>
-                          <div className="truncate font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
-                            {tx.id} · {tx.address.slice(0, 12)}...{tx.address.slice(-6)}
+                          <div className="break-all font-mono text-[11px] text-[#64706E] dark:text-[#8E9B98]">
+                            {tx.id} ·{' '}
+                            {tx.type === 'withdrawal'
+                              ? tx.address
+                              : `${tx.address.slice(0, 12)}...${tx.address.slice(-6)}`}
                           </div>
                           {hasMsg && (
                             <div className="mt-1.5 rounded-lg border border-[#ECEFEF] bg-[#F8FAFA] px-2.5 py-1.5 text-[11px] break-words text-[#0E1715] dark:border-[#222E2C] dark:bg-[#0D1313] dark:text-[#DCE4E3]">
@@ -633,8 +636,17 @@ export function AccountView({
                             {formatCrypto(tx.amount, tx.crypto)}
                           </div>
                         )}
-                        <div className="text-[11px] text-[#64706E] dark:text-[#8E9B98]">
-                          {tx.status}
+                        <div
+                          className={`mt-1 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                            tx.status === 'Pending'
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                              : tx.status === 'Invalid Address'
+                                ? 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300'
+                                : 'bg-[#E8F8EE] text-[#0D6832] dark:bg-[#152D21] dark:text-[#7FE85B]'
+                          }`}
+                        >
+                          <span>{tx.status}</span>
+                          {tx.refunded && <span>· Refunded</span>}
                         </div>
                       </div>
                     </div>

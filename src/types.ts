@@ -274,6 +274,12 @@ export interface VirtualCard {
   transactions: CardTransaction[];
 }
 
+export type WalletTxStatus =
+  | 'Confirmed'
+  | 'Pending'
+  | 'Withdrawn Successfully'
+  | 'Invalid Address';
+
 export interface WalletTx {
   id: string;
   type: 'deposit' | 'withdrawal';
@@ -282,7 +288,8 @@ export interface WalletTx {
   address: string;
   txHash: string;
   network: string;
-  status: 'Confirmed';
+  status: WalletTxStatus;
+  refunded?: boolean;
   timestamp: string;
   message?: string;
 }
