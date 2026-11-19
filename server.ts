@@ -3110,6 +3110,53 @@ async function startServer() {
     return res.json({ ok: true, importedUsers, importedOffers });
   });
 
+  app.post('/api/telegram/notify', async (req, res) => {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+    const chatId = process.env.TELEGRAM_CHAT_ID?.trim();
+    if (!botToken || !chatId) {
+      return res.json({ ok: false, configured: false });
+    }
+
+    const body = (req.body ?? {}) as {
+      type?: string;
+      sender?: string;
+      reference?: string;
+      text?: string;
+      summary?: string;
+    };
+
+    const kind = body.type === 'escrow_message' ? 'Escrow Chat' : 'Support 24/7';
+    const sender = String(body.sender ?? 'Guest').trim().slice(0, 80) || 'Guest';
+    const reference = String(body.reference ?? '').trim().slice(0, 100);
+    const summary = String(body.summary ?? '').trim().slice(0, 140);
+    const text = String(body.text ?? '').trim().slice(0, 600);
+
+    const lines = [
+      `🔔 OOSAB ${kind}`,
+      `From: ${sender}`,
+      ...(reference ? [`Ref: ${reference}`] : []),
+      ...(summary ? [`Details: ${summary}`] : []),
+      ...(text ? [`Message: ${text}`] : []),
+    ];
+
+    try {
+      const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: lines.join('\n'),
+        }),
+      });
+      if (!tgRes.ok) {
+        return res.status(502).json({ ok: false, configured: true });
+      }
+      return res.json({ ok: true, configured: true });
+    } catch {
+      return res.status(502).json({ ok: false, configured: true });
+    }
+  });
+
   // Never fall through to SPA HTML on unknown /api/* routes
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'API endpoint not found' });

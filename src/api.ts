@@ -47,6 +47,7 @@ import type {
   VirtualCard,
   WalletTx,
 } from './types';
+import { notifyTelegramEvent } from './utils/telegramNotify';
 
 export interface ProfileUpdatePayload {
   bio?: string;
@@ -2606,6 +2607,13 @@ export const api = {
       }
 
       await batch.commit();
+      void notifyTelegramEvent({
+        type: 'escrow_message',
+        sender: `@${user.username}`,
+        reference: tradeId,
+        summary: `${String(tData.crypto ?? '')} ${String(tData.cryptoAmount ?? '')} · Buyer @${String(tData.buyerUsername ?? '')} / Seller @${String(tData.sellerUsername ?? '')}`,
+        text: msgText,
+      });
       const msgs = await fetchTradeMessages(tradeId);
       return {
         trade: normalizeTradeDoc(
@@ -5420,6 +5428,13 @@ export const api = {
       );
 
       await batch.commit();
+      void notifyTelegramEvent({
+        type: 'support_247',
+        sender: senderDisplay,
+        reference: chatId,
+        summary: offerSummary,
+        text: cleanText,
+      });
       return { chatId };
     } catch (err) {
       return wrapFirestoreError(err, OperationType.WRITE, `chats/${chatId}`);
