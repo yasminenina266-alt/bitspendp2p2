@@ -429,6 +429,35 @@ export function getSupportChatId(visitorId?: string): string {
   return sanitizeDocId(`support_${vid}`);
 }
 
+const DIRECTORY_CACHE_KEY = 'oosab_admin_directory_cache';
+let directoryMemCache: { at: number; users: DirectoryUser[] } | null = null;
+let tablesMemCache: { at: number; data: TablesSummaryResponse } | null = null;
+
+export function getCachedUserDirectory(): DirectoryUser[] {
+  if (directoryMemCache?.users?.length) return directoryMemCache.users;
+  try {
+    const raw = localStorage.getItem(DIRECTORY_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { users?: DirectoryUser[] };
+    return Array.isArray(parsed?.users) ? parsed.users : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCachedUserDirectory(users: DirectoryUser[]): void {
+  try {
+    localStorage.setItem(DIRECTORY_CACHE_KEY, JSON.stringify({ at: Date.now(), users }));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function invalidateAdminReadCaches(): void {
+  directoryMemCache = null;
+  tablesMemCache = null;
+}
+
 export const FIRESTORE_QUOTA_UPGRADE_URL =
   'https://console.firebase.google.com/project/ai-studio-applet-webapp-7217c/firestore/databases/ai-studio-bitspendp2p2-6855b0cf-000d-4080-91e9-18f83c69784d/data?openUpgradeDialog=true';
 
@@ -464,10 +493,12 @@ function isPermissionDenied(err: unknown): boolean {
 }
 
 export function isQuotaExceededError(err: unknown): boolean {
+  if (err instanceof ApiError && err.code === 'QUOTA_EXCEEDED') return true;
   const code = String((err as { code?: string })?.code ?? '').toLowerCase();
   const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
   return (
     code === 'resource-exhausted' ||
+    code === 'quota_exceeded' ||
     msg.includes('quota exceeded') ||
     msg.includes('resource_exhausted') ||
     msg.includes('free daily read units')
@@ -501,7 +532,32 @@ export function getToken(): string | null {
   }
 }
 
+let sessionMemCache: { token: string; uid: string; username: string } | null = null;
+let traderProfileCache = new Map<
+  string,
+  {
+    at: number;
+    data: {
+      trader: TraderProfile;
+      offers: P2POffer[];
+      isOnline?: boolean;
+      isRegisteredUser?: boolean;
+    };
+  }
+>();
+
+function clearTraderProfileCache(username?: string): void {
+  if (!username) {
+    traderProfileCache.clear();
+    return;
+  }
+  traderProfileCache.delete(username.trim().toLowerCase());
+}
+
 export function setToken(token: string | null): void {
+  if (!token || sessionMemCache?.token !== token) {
+    sessionMemCache = null;
+  }
   try {
     if (token) {
       localStorage.setItem(TOKEN_KEY, token);
@@ -1043,6 +1099,9 @@ async function getSessionContext(): Promise<{ uid: string; username: string; tok
     if (token) setToken(null);
     return null;
   }
+  if (sessionMemCache && sessionMemCache.token === token) {
+    return sessionMemCache;
+  }
   try {
     const snap = await getDoc(doc(db, 'sessions', token));
     if (!snap.exists()) {
@@ -1056,7 +1115,8 @@ async function getSessionContext(): Promise<{ uid: string; username: string; tok
       setToken(null);
       return null;
     }
-    return { uid, username, token };
+    sessionMemCache = { uid, username, token };
+    return sessionMemCache;
   } catch (err) {
     return wrapFirestoreError(err, OperationType.GET, `sessions/${token}`);
   }
@@ -1113,13 +1173,13 @@ async function resolveUsernameTarget(
   };
 }
 
-export async function fetchTradeMessages(tradeId: string): Promise<TradeMessage[]> {
+export async function fetchTradeMessages(tradeId: string, maxCount = 80): Promise<TradeMessage[]> {
   const path = `trades/${tradeId}/messages`;
   try {
     const q = query(
       collection(db, 'trades', tradeId, 'messages'),
       orderBy('createdAt', 'desc'),
-      limit(80)
+      limit(maxCount)
     );
     const snap = await getDocs(q);
     return snap.docs.reverse().map((d) => {
@@ -1137,13 +1197,13 @@ export async function fetchTradeMessages(tradeId: string): Promise<TradeMessage[
   }
 }
 
-export async function fetchChatMessages(chatId: string): Promise<DirectMessage[]> {
+export async function fetchChatMessages(chatId: string, maxCount = 80): Promise<DirectMessage[]> {
   const path = `chats/${chatId}/messages`;
   try {
     const q = query(
       collection(db, 'chats', chatId, 'messages'),
       orderBy('createdAt', 'desc'),
-      limit(80)
+      limit(maxCount)
     );
     const snap = await getDocs(q);
     return snap.docs.reverse().map((d) => {
@@ -1543,9 +1603,8 @@ export const api = {
   },
 
   async getMe(): Promise<{ user: UserAccount }> {
-    const { uid, user } = await requireCurrentAccount();
-    const settled = await claimPendingTradeSettlements(uid, user);
-    return { user: settled.user };
+    const { user } = await requireCurrentAccount();
+    return { user };
   },
 
   async logout(): Promise<{ ok: boolean }> {
@@ -1560,8 +1619,8 @@ export const api = {
   async getOffers(): Promise<{ offers: P2POffer[]; traders: Record<string, TraderProfile> }> {
     try {
       const [offersSnap, tradersSnap] = await Promise.all([
-        getDocs(collection(db, 'offers')),
-        getDocs(collection(db, 'traders')),
+        getDocs(query(collection(db, 'offers'), limit(150))),
+        getDocs(query(collection(db, 'traders'), limit(150))),
       ]);
 
       const customOffers = offersSnap.docs
@@ -1606,7 +1665,7 @@ export const api = {
         if (directSnap.exists()) {
           offer = normalizeOfferDoc(directSnap.data());
         } else {
-          const allSnap = await getDocs(collection(db, 'offers'));
+          const allSnap = await getDocs(query(collection(db, 'offers'), limit(150)));
           const match = allSnap.docs.find((d) => d.id.toLowerCase() === cleanId.toLowerCase());
           if (match) offer = normalizeOfferDoc(match.data());
         }
@@ -1642,17 +1701,22 @@ export const api = {
     return { offer, trader };
   },
 
-  async getUserDirectory(): Promise<{ users: DirectoryUser[] }> {
+  async getUserDirectory(force = false): Promise<{ users: DirectoryUser[] }> {
+    if (!force && directoryMemCache && Date.now() - directoryMemCache.at < 20_000) {
+      return { users: directoryMemCache.users };
+    }
     try {
-      const [usersSnap, tradersSnap] = await Promise.all([
-        getDocs(collection(db, 'users')),
-        getDocs(collection(db, 'traders')),
-      ]);
+      const usersSnap = await getDocs(query(collection(db, 'users'), limit(300)));
+      const tradersSnap = await getDocs(query(collection(db, 'traders'), limit(300))).catch(
+        () => null
+      );
       const traderMap = new Map<string, TraderProfile>();
-      tradersSnap.docs.forEach((d) => {
-        const t = normalizeTraderDoc(d.data());
-        traderMap.set(t.username.toLowerCase(), t);
-      });
+      if (tradersSnap) {
+        tradersSnap.docs.forEach((d) => {
+          const t = normalizeTraderDoc(d.data());
+          traderMap.set(t.username.toLowerCase(), t);
+        });
+      }
       const users: DirectoryUser[] = [];
       for (const d of usersSnap.docs) {
         const raw = d.data();
@@ -1682,13 +1746,18 @@ export const api = {
         });
       }
       users.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      directoryMemCache = { at: Date.now(), users };
+      saveCachedUserDirectory(users);
       return { users };
     } catch (err) {
       return wrapFirestoreError(err, OperationType.LIST, 'users');
     }
   },
 
-  async getTrader(username: string): Promise<{
+  async getTrader(
+    username: string,
+    force = false
+  ): Promise<{
     trader: TraderProfile;
     offers: P2POffer[];
     isOnline?: boolean;
@@ -1697,6 +1766,11 @@ export const api = {
     const clean = username.trim();
     const lower = clean.toLowerCase();
     if (!clean) throw new ApiError('Trader not found', 404, 'TRADER_NOT_FOUND');
+
+    const cached = traderProfileCache.get(lower);
+    if (!force && cached && Date.now() - cached.at < 45_000) {
+      return cached.data;
+    }
 
     let canonical = clean;
     let isRegisteredUser = false;
@@ -1745,7 +1819,11 @@ export const api = {
 
     let customOffers: P2POffer[] = [];
     try {
-      const q = query(collection(db, 'offers'), where('traderUsername', '==', canonical));
+      const q = query(
+        collection(db, 'offers'),
+        where('traderUsername', '==', canonical),
+        limit(60)
+      );
       const snap = await getDocs(q);
       customOffers = snap.docs.map((d) => normalizeOfferDoc(d.data()));
     } catch {
@@ -1766,12 +1844,14 @@ export const api = {
       ? baseTrader
       : buildTraderDetails(baseTrader, [...customOffers, ...SEED_OFFERS]);
 
-    return {
+    const result = {
       trader: detailed,
       offers: allTraderOffers.filter((o) => o.active),
       isOnline: detailed.lastSeenMinutes === 0,
       isRegisteredUser,
     };
+    traderProfileCache.set(lower, { at: Date.now(), data: result });
+    return result;
   },
 
   async getTraderTrades(
@@ -1879,6 +1959,7 @@ export const api = {
 
     try {
       await batch.commit();
+      clearTraderProfileCache(user.username);
       const [uSnap, tSnap] = await Promise.all([
         getDoc(doc(db, 'users', uid)),
         getDoc(doc(db, 'traders', user.username)),
@@ -1887,7 +1968,7 @@ export const api = {
         user: uSnap.exists() ? normalizeUserDoc(uSnap.data()) : user,
         trader: tSnap.exists()
           ? normalizeTraderDoc(tSnap.data())
-          : (await api.getTrader(user.username)).trader,
+          : (await api.getTrader(user.username, true)).trader,
       };
     } catch (err) {
       return wrapFirestoreError(err, OperationType.WRITE, `users/${uid}`);
@@ -2129,6 +2210,7 @@ export const api = {
 
     try {
       await setDoc(doc(db, 'offers', offerId), docData);
+      clearTraderProfileCache(user.username);
       return { offer: { ...normalizeOfferDoc(docData), createdAt: nowIso } };
     } catch (err) {
       return wrapFirestoreError(err, OperationType.CREATE, `offers/${offerId}`);
@@ -2155,6 +2237,7 @@ export const api = {
         updates.marginPct = Math.max(-50, Math.min(200, payload.marginPct));
       }
       await updateDoc(ref, updates);
+      clearTraderProfileCache(user.username);
       return {
         offer: {
           ...existing,
@@ -2168,10 +2251,11 @@ export const api = {
   },
 
   async deleteOffer(id: string): Promise<{ ok: boolean }> {
-    await requireCurrentAccount();
+    const { user } = await requireCurrentAccount();
     const path = `offers/${id}`;
     try {
       await deleteDoc(doc(db, 'offers', id));
+      clearTraderProfileCache(user.username);
       return { ok: true };
     } catch (err) {
       return wrapFirestoreError(err, OperationType.DELETE, path);
@@ -2194,11 +2278,15 @@ export const api = {
     }
 
     try {
-      const q = query(collection(db, 'trades'), where('participantUids', 'array-contains', session.uid));
+      const q = query(
+        collection(db, 'trades'),
+        where('participantUids', 'array-contains', session.uid),
+        limit(40)
+      );
       const snap = await getDocs(q);
       const list = await Promise.all(
         snap.docs.map(async (d) => {
-          const msgs = await fetchTradeMessages(d.id);
+          const msgs = await fetchTradeMessages(d.id, 15);
           return normalizeTradeDoc(d.data(), msgs, viewerUsername);
         })
       );
@@ -2519,27 +2607,18 @@ export const api = {
     }
   },
 
-  async markTradeRead(tradeId: string): Promise<{ trade: TradeOrder }> {
-    const { user } = await requireCurrentAccount();
+  async markTradeRead(tradeId: string): Promise<void> {
+    const session = await getSessionContext();
+    if (!session) return;
     const path = `trades/${tradeId}`;
     try {
-      const ref = doc(db, 'trades', tradeId);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) throw new ApiError('Trade not found', 404);
       const nowIso = new Date().toISOString();
-      const prevRead = (snap.data().lastReadAtBy ?? {}) as Record<string, string>;
-      await updateDoc(ref, {
-        lastReadAtBy: { ...prevRead, [user.username]: nowIso },
+      await updateDoc(doc(db, 'trades', tradeId), {
+        [`lastReadAtBy.${session.username}`]: nowIso,
         updatedAt: serverTimestamp(),
       });
-      const msgs = await fetchTradeMessages(tradeId);
-      const normalized = normalizeTradeDoc(
-        { ...snap.data(), lastReadAtBy: { ...prevRead, [user.username]: nowIso } },
-        msgs,
-        user.username
-      );
-      return { trade: normalized };
     } catch (err) {
+      if ((err as { code?: string })?.code === 'not-found') return;
       return wrapFirestoreError(err, OperationType.UPDATE, path);
     }
   },
@@ -3152,7 +3231,7 @@ export const api = {
       const q = query(
         collection(db, 'chats'),
         where('participantUids', 'array-contains', session.uid),
-        limit(50)
+        limit(30)
       );
       const snap = await getDocs(q);
       const chats = await Promise.all(
@@ -3164,7 +3243,7 @@ export const api = {
           )
           .map(async (d) => {
             const data = d.data();
-            const msgs = await fetchChatMessages(d.id);
+            const msgs = await fetchChatMessages(d.id, 15);
             return {
               id: String(data.id ?? d.id),
               participants: (data.participants ?? ['', '']) as [string, string],
@@ -3374,36 +3453,18 @@ export const api = {
     }
   },
 
-  async markDirectChatRead(chatId: string): Promise<{ chat: DirectChat }> {
-    const { user } = await requireCurrentAccount();
+  async markDirectChatRead(chatId: string): Promise<void> {
+    const session = await getSessionContext();
+    if (!session) return;
     const chatRef = doc(db, 'chats', chatId);
     try {
-      const snap = await getDoc(chatRef);
-      if (!snap.exists()) throw new ApiError('Conversation not found', 404);
-      const data = snap.data();
       const nowIso = new Date().toISOString();
-      const nextRead = {
-        ...((data.lastReadAtBy ?? {}) as Record<string, string>),
-        [user.username]: nowIso,
-      };
       await updateDoc(chatRef, {
-        lastReadAtBy: nextRead,
+        [`lastReadAtBy.${session.username}`]: nowIso,
         updatedAt: serverTimestamp(),
       });
-      const msgs = await fetchChatMessages(chatId);
-      return {
-        chat: {
-          id: chatId,
-          participants: (data.participants ?? ['', '']) as [string, string],
-          offerId: typeof data.offerId === 'string' ? data.offerId : undefined,
-          offerSummary: typeof data.offerSummary === 'string' ? data.offerSummary : undefined,
-          createdAt: tsToIso(data.createdAt),
-          updatedAt: nowIso,
-          messages: msgs,
-          lastReadAtBy: nextRead,
-        },
-      };
     } catch (err) {
+      if ((err as { code?: string })?.code === 'not-found') return;
       return wrapFirestoreError(err, OperationType.UPDATE, `chats/${chatId}`);
     }
   },
@@ -3412,7 +3473,11 @@ export const api = {
     const session = await getSessionContext();
     if (!session) return { notifications: [] };
     try {
-      const q = query(collection(db, 'notifications'), where('toUid', '==', session.uid));
+      const q = query(
+        collection(db, 'notifications'),
+        where('toUid', '==', session.uid),
+        limit(60)
+      );
       const snap = await getDocs(q);
       const notifications = snap.docs
         .map((d) => normalizeNotificationDoc(d.data()))
@@ -3428,21 +3493,42 @@ export const api = {
     const session = await getSessionContext();
     if (!session) return { notifications: [] };
     try {
-      const q = query(collection(db, 'notifications'), where('toUid', '==', session.uid));
-      const snap = await getDocs(q);
-      const batch = writeBatch(db);
-      let dirty = false;
-      for (const d of snap.docs) {
-        if ((!id || d.id === id) && d.data().read !== true) {
-          batch.update(doc(db, 'notifications', d.id), {
+      if (id) {
+        try {
+          await updateDoc(doc(db, 'notifications', id), {
             read: true,
             updatedAt: serverTimestamp(),
           });
-          dirty = true;
+        } catch (err) {
+          if ((err as { code?: string })?.code !== 'not-found') throw err;
         }
+        return { notifications: [] };
       }
+      const q = query(
+        collection(db, 'notifications'),
+        where('toUid', '==', session.uid),
+        limit(60)
+      );
+      const snap = await getDocs(q);
+      const batch = writeBatch(db);
+      let dirty = false;
+      const notifications = snap.docs
+        .map((d) => {
+          const item = normalizeNotificationDoc(d.data());
+          if (d.data().read !== true) {
+            batch.update(doc(db, 'notifications', d.id), {
+              read: true,
+              updatedAt: serverTimestamp(),
+            });
+            dirty = true;
+            return { ...item, read: true };
+          }
+          return item;
+        })
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 60);
       if (dirty) await batch.commit();
-      return await api.getNotifications();
+      return { notifications };
     } catch (err) {
       return wrapFirestoreError(err, OperationType.UPDATE, 'notifications');
     }
@@ -3452,7 +3538,7 @@ export const api = {
     const session = await getSessionContext();
     if (!session) return { swaps: [] };
     try {
-      const q = query(collection(db, 'swaps'), where('ownerUid', '==', session.uid));
+      const q = query(collection(db, 'swaps'), where('ownerUid', '==', session.uid), limit(50));
       const snap = await getDocs(q);
       const swaps = snap.docs
         .map((d) => normalizeSwapDoc(d.data()))
@@ -3542,7 +3628,7 @@ export const api = {
     const session = await getSessionContext();
     if (!session) return { cards: [] };
     try {
-      const q = query(collection(db, 'cards'), where('ownerUid', '==', session.uid));
+      const q = query(collection(db, 'cards'), where('ownerUid', '==', session.uid), limit(50));
       const snap = await getDocs(q);
       const cards = snap.docs
         .map((d) => normalizeCardDoc(d.data()))
@@ -3914,6 +4000,7 @@ export const api = {
 
     try {
       await batch.commit();
+      invalidateAdminReadCaches();
       return {
         user: { ...targetUser, balances: nextBalances, walletHistory: nextHistory },
         targetUsername: targetUser.username,
@@ -4037,6 +4124,8 @@ export const api = {
 
     try {
       await updateDoc(tRef, updates);
+      clearTraderProfileCache(tName);
+      invalidateAdminReadCaches();
       return {
         trader: {
           ...t,
@@ -4056,20 +4145,23 @@ export const api = {
     }
   },
 
-  async getTablesSummary(): Promise<TablesSummaryResponse> {
+  async getTablesSummary(force = false): Promise<TablesSummaryResponse> {
+    if (!force && tablesMemCache && Date.now() - tablesMemCache.at < 25_000) {
+      return tablesMemCache.data;
+    }
     try {
-      const [offersSnap, tradersSnap, usersSnap, tSnap, cSnap, nSnap, sSnap, kSnap] = await Promise.all([
-        getDocs(collection(db, 'offers')),
-        getDocs(collection(db, 'traders')),
-        getDocs(collection(db, 'users')),
-        getDocs(collection(db, 'trades')).catch(() => null),
-        getDocs(collection(db, 'chats')).catch(() => null),
-        getDocs(collection(db, 'notifications')).catch(() => null),
-        getDocs(collection(db, 'swaps')).catch(() => null),
-        getDocs(collection(db, 'cards')).catch(() => null),
+      const [usersSnap, tradersSnap, offersSnap, tSnap, cSnap, nSnap, sSnap, kSnap] = await Promise.all([
+        getDocs(query(collection(db, 'users'), limit(300))),
+        getDocs(query(collection(db, 'traders'), limit(300))).catch(() => null),
+        getDocs(query(collection(db, 'offers'), limit(200))).catch(() => null),
+        getDocs(query(collection(db, 'trades'), limit(200))).catch(() => null),
+        getDocs(query(collection(db, 'chats'), limit(200))).catch(() => null),
+        getDocs(query(collection(db, 'notifications'), limit(200))).catch(() => null),
+        getDocs(query(collection(db, 'swaps'), limit(200))).catch(() => null),
+        getDocs(query(collection(db, 'cards'), limit(200))).catch(() => null),
       ]);
 
-      const customOffers = offersSnap.docs.map((d) => normalizeOfferDoc(d.data()));
+      const customOffers = (offersSnap?.docs ?? []).map((d) => normalizeOfferDoc(d.data()));
       const offersByUser = new Map<string, number>();
       for (const o of customOffers) {
         const key = o.traderUsername.toLowerCase();
@@ -4077,7 +4169,7 @@ export const api = {
       }
 
       const traderMap = new Map<string, TraderProfile>();
-      tradersSnap.docs.forEach((d) => {
+      (tradersSnap?.docs ?? []).forEach((d) => {
         const t = normalizeTraderDoc(d.data());
         if (t.username) traderMap.set(t.username.toLowerCase(), t);
       });
@@ -4118,9 +4210,10 @@ export const api = {
       const swapsCount = sSnap?.size ?? 0;
       const cardsCount = kSnap?.size ?? 0;
 
+      const tradersCount = tradersSnap?.size ?? 0;
       const tables: TableFileInfo[] = [
         { name: 'users', path: '/users', rows: directoryUsers.length, sizeBytes: directoryUsers.length * 1024 },
-        { name: 'traders', path: '/traders', rows: tradersSnap.size + Object.keys(SEED_TRADERS).length, sizeBytes: (tradersSnap.size + 127) * 850 },
+        { name: 'traders', path: '/traders', rows: tradersCount + Object.keys(SEED_TRADERS).length, sizeBytes: (tradersCount + 127) * 850 },
         { name: 'offers', path: '/offers', rows: customOffers.length + SEED_OFFERS.length, sizeBytes: (customOffers.length + SEED_OFFERS.length) * 620 },
         { name: 'trades', path: '/trades', rows: tradesCount, sizeBytes: tradesCount * 740 },
         { name: 'chats', path: '/chats', rows: chatsCount, sizeBytes: chatsCount * 420 },
@@ -4134,14 +4227,19 @@ export const api = {
         offersCount: offersByUser.get(u.username.toLowerCase()) ?? 0,
       }));
 
-      return {
+      saveCachedUserDirectory(directoryUsers);
+      directoryMemCache = { at: Date.now(), users: directoryUsers };
+
+      const result: TablesSummaryResponse = {
         tablesDir: 'Cloud Firestore',
         tables,
         savedAccounts,
         customOffersCount: customOffers.length,
       };
+      tablesMemCache = { at: Date.now(), data: result };
+      return result;
     } catch (err) {
-      return wrapFirestoreError(err, OperationType.LIST, 'offers');
+      return wrapFirestoreError(err, OperationType.LIST, 'users');
     }
   },
 
@@ -5432,6 +5530,8 @@ export const api = {
 
     try {
       await batch.commit();
+      clearTraderProfileCache(canonical);
+      invalidateAdminReadCaches();
       return await api.adminGetAccountDetails(canonical);
     } catch (err) {
       return wrapFirestoreError(err, OperationType.WRITE, `users/${uid}`);
@@ -5529,6 +5629,8 @@ export const api = {
         ratingPct: nextRating,
         updatedAt: serverTimestamp(),
       });
+      clearTraderProfileCache(target.canonicalUsername);
+      invalidateAdminReadCaches();
       return {
         trader: {
           ...t,
@@ -5589,6 +5691,8 @@ export const api = {
         ratingPct: nextRating,
         updatedAt: serverTimestamp(),
       });
+      clearTraderProfileCache(target.canonicalUsername);
+      invalidateAdminReadCaches();
       return {
         trader: {
           ...t,
@@ -5717,6 +5821,8 @@ export const api = {
 
     try {
       await updateDoc(tRef, updates);
+      clearTraderProfileCache(target.canonicalUsername);
+      invalidateAdminReadCaches();
       return {
         trader: {
           ...t,
@@ -5758,6 +5864,7 @@ export const api = {
         walletHistory: nextHistory,
         updatedAt: serverTimestamp(),
       });
+      invalidateAdminReadCaches();
       return await api.adminGetAccountDetails(target.canonicalUsername);
     } catch (err) {
       return wrapFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
@@ -5824,6 +5931,7 @@ export const api = {
         walletHistory: nextHistory,
         updatedAt: serverTimestamp(),
       });
+      invalidateAdminReadCaches();
       return await api.adminGetAccountDetails(target.canonicalUsername);
     } catch (err) {
       return wrapFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
@@ -5886,6 +5994,7 @@ export const api = {
         walletHistory: nextHistory,
         updatedAt: serverTimestamp(),
       });
+      invalidateAdminReadCaches();
       return await api.adminGetAccountDetails(target.canonicalUsername);
     } catch (err) {
       return wrapFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
@@ -5912,10 +6021,11 @@ export const api = {
     const removedSelf = Boolean(session && session.uid === uid);
 
     const [offersSnap, notifSnap, credSnap] = await Promise.all([
-      getDocs(collection(db, 'offers')).catch(() => null),
-      getDocs(query(collection(db, 'notifications'), where('toUid', '==', uid))).catch(() => null),
+      getDocs(query(collection(db, 'offers'), limit(200))).catch(() => null),
+      getDocs(query(collection(db, 'notifications'), where('toUid', '==', uid), limit(100))).catch(() => null),
       getDoc(doc(db, 'authCredentials', lower)).catch(() => null),
     ]);
+    clearTraderProfileCache(canonical);
 
     const batch = writeBatch(db);
     let deletedOffers = 0;
@@ -5980,6 +6090,7 @@ export const api = {
 
     try {
       await batch.commit();
+      invalidateAdminReadCaches();
       if (removedSelf) {
         setToken(null);
       }
@@ -6309,6 +6420,7 @@ export const api = {
             lastReadAtBy: {},
             updatedAt: serverTimestamp(),
           });
+          tablesMemCache = null;
           return { deletedMessages, archivedOnly: true };
         } catch (updateErr) {
           return wrapFirestoreError(updateErr, OperationType.UPDATE, `chats/${cleanId}`);

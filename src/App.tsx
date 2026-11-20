@@ -216,6 +216,12 @@ export default function App() {
   const typingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const dmTypingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const pendingDirectChatRef = useRef<{ targetUsername: string; offer?: P2POffer } | null>(null);
+  const tradesRef = useRef<TradeOrder[]>([]);
+  tradesRef.current = trades;
+  const directChatsRef = useRef<DirectChat[]>([]);
+  directChatsRef.current = directChats;
+  const lastMarkedTradeStampRef = useRef<Record<string, string>>({});
+  const lastMarkedChatStampRef = useRef<Record<string, string>>({});
 
   // Modals
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
@@ -318,18 +324,6 @@ export default function App() {
       // keep existing prices
     } finally {
       setRefreshingPrices(false);
-    }
-  }, []);
-
-  const loadMarketplace = useCallback(async () => {
-    try {
-      const data = await api.getOffers();
-      if (Array.isArray(data?.offers)) setOffers(data.offers);
-      if (data?.traders && typeof data.traders === 'object') setTraders(data.traders);
-    } catch {
-      // keep existing offers/traders on transient or server load error
-    } finally {
-      setLoadingOffers(false);
     }
   }, []);
 
@@ -522,7 +516,6 @@ export default function App() {
       },
       onTradeUpdated: (trade) => {
         upsertTrade(trade);
-        loadMarketplace();
       },
       onTradeTyping: ({ tradeId, username, isTyping }) => {
         if (typingTimeoutsRef.current[tradeId]) {
@@ -595,6 +588,22 @@ export default function App() {
   const handleMarkTradeRead = useCallback(
     async (tradeId: string) => {
       if (!user) return;
+      const targetTrade =
+        (tradeModalState?.existingTrade?.id === tradeId
+          ? tradeModalState.existingTrade
+          : undefined) ?? tradesRef.current.find((t) => t.id === tradeId);
+      if (!targetTrade || getTradeUnreadCount(targetTrade, user.username) === 0) {
+        return;
+      }
+      const lastIncomingStamp =
+        targetTrade.messages
+          .filter((m) => m.sender.toLowerCase() !== user.username.toLowerCase())
+          .slice(-1)[0]?.timestamp ?? 'unread';
+      if (lastMarkedTradeStampRef.current[tradeId] === lastIncomingStamp) {
+        return;
+      }
+      lastMarkedTradeStampRef.current[tradeId] = lastIncomingStamp;
+
       sendTradeRead(tradeId);
       const nowIso = new Date().toISOString();
       setTrades((prev) =>
@@ -604,21 +613,44 @@ export default function App() {
             : t
         )
       );
+      setTradeModalState((prev) =>
+        prev?.existingTrade?.id === tradeId
+          ? {
+              ...prev,
+              existingTrade: {
+                ...prev.existingTrade,
+                lastReadAtBy: { ...(prev.existingTrade.lastReadAtBy ?? {}), [user.username]: nowIso },
+              },
+            }
+          : prev
+      );
       try {
-        const res = await api.markTradeRead(tradeId);
-        if (res?.trade) {
-          upsertTrade(res.trade);
-        }
+        await api.markTradeRead(tradeId);
       } catch {
-        // ignore transient error
+        delete lastMarkedTradeStampRef.current[tradeId];
       }
     },
-    [user, sendTradeRead, upsertTrade]
+    [user, tradeModalState?.existingTrade, sendTradeRead]
   );
 
   const handleMarkDirectChatRead = useCallback(
     async (chatId: string) => {
       if (!user) return;
+      const targetChat =
+        (directChatModalState?.chat.id === chatId ? directChatModalState.chat : undefined) ??
+        directChatsRef.current.find((c) => c.id === chatId);
+      if (!targetChat || getDirectChatUnreadCount(targetChat, user.username) === 0) {
+        return;
+      }
+      const lastIncomingStamp =
+        targetChat.messages
+          .filter((m) => m.sender.toLowerCase() !== user.username.toLowerCase())
+          .slice(-1)[0]?.timestamp ?? 'unread';
+      if (lastMarkedChatStampRef.current[chatId] === lastIncomingStamp) {
+        return;
+      }
+      lastMarkedChatStampRef.current[chatId] = lastIncomingStamp;
+
       sendDmRead(chatId);
       const nowIso = new Date().toISOString();
       setDirectChats((prev) =>
@@ -628,16 +660,23 @@ export default function App() {
             : c
         )
       );
+      setDirectChatModalState((prev) =>
+        prev?.chat.id === chatId
+          ? {
+              chat: {
+                ...prev.chat,
+                lastReadAtBy: { ...(prev.chat.lastReadAtBy ?? {}), [user.username]: nowIso },
+              },
+            }
+          : prev
+      );
       try {
-        const res = await api.markDirectChatRead(chatId);
-        if (res?.chat) {
-          upsertDirectChat(res.chat);
-        }
+        await api.markDirectChatRead(chatId);
       } catch {
-        // ignore transient error
+        delete lastMarkedChatStampRef.current[chatId];
       }
     },
-    [user, sendDmRead, upsertDirectChat]
+    [user, directChatModalState?.chat, sendDmRead]
   );
 
   const handleOpenDirectChat = useCallback(
@@ -1388,7 +1427,6 @@ export default function App() {
                     ? 'sell'
                     : 'swap',
             });
-            loadMarketplace();
           }}
           onOpenOffer={(offer) => {
             setCreateOfferOpen(false);
@@ -1437,7 +1475,6 @@ export default function App() {
               prev ? { ...prev, existingTrade: updatedTrade } : prev
             );
             if (updatedUser) setUser(updatedUser);
-            loadMarketplace();
           }}
         />
       )}
@@ -1508,7 +1545,6 @@ export default function App() {
           onProfileUpdated={(updatedTrader) => {
             setTraders((prev) => ({ ...prev, [updatedTrader.username]: updatedTrader }));
             setProfileRefreshKey((k) => k + 1);
-            loadMarketplace();
           }}
           onAccountRemoved={(removedUsername, removedSelf) => {
             const lower = removedUsername.toLowerCase();
@@ -1529,11 +1565,8 @@ export default function App() {
               void handleLogout();
             }
             setProfileRefreshKey((k) => k + 1);
-            loadMarketplace();
           }}
           onDataSynced={() => {
-            loadMarketplace();
-            loadUserWorkspace();
             setProfileRefreshKey((k) => k + 1);
           }}
           onNavigateProfile={(uname) => {

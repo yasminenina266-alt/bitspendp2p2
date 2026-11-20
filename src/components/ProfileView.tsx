@@ -85,12 +85,12 @@ export function ProfileView({
   }, [trader?.bannerUrl]);
 
   const fetchTraderProfile = useCallback(
-    async (showLoader: boolean) => {
+    async (showLoader: boolean, force = false) => {
       setNotFound(false);
       setLoadError('');
       if (showLoader) setLoading(true);
       try {
-        const res = await api.getTrader(username);
+        const res = await api.getTrader(username, force);
         setTrader(res.trader);
         setTraderOffers(res.offers ?? []);
         setIsOnlineServer(Boolean(res.isOnline));
@@ -116,7 +116,7 @@ export function ProfileView({
     const hasInitial = Boolean(
       initialTrader && initialTrader.username.toLowerCase() === username.toLowerCase()
     );
-    void fetchTraderProfile(!hasInitial);
+    void fetchTraderProfile(!hasInitial, refreshKey > 0);
   }, [username, refreshKey, fetchTraderProfile]);
 
   const isOwnProfile = Boolean(

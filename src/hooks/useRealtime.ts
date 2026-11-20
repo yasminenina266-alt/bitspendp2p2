@@ -91,7 +91,7 @@ export function useRealtime(
   // Public real-time marketplace listeners (offers & traders) — mount once without tearing down on login/logout
   useEffect(() => {
     const unsubOffers = onSnapshot(
-      collection(db, 'offers'),
+      query(collection(db, 'offers'), limit(150)),
       (snap) => {
         const customOffers = snap.docs
           .map((d) => normalizeOfferDoc(d.data()))
@@ -115,7 +115,7 @@ export function useRealtime(
     );
 
     const unsubTraders = onSnapshot(
-      collection(db, 'traders'),
+      query(collection(db, 'traders'), limit(150)),
       (snap) => {
         const merged: Record<string, TraderProfile> = { ...SEED_TRADERS };
         const activeList: string[] = [];
@@ -192,7 +192,7 @@ export function useRealtime(
     const tradesQuery = query(
       collection(db, 'trades'),
       where('participantUids', 'array-contains', uid),
-      limit(50)
+      limit(30)
     );
     const unsubTrades = onSnapshot(
       tradesQuery,
@@ -232,14 +232,20 @@ export function useRealtime(
           }
         }
 
+        // Only prefetch lightweight previews for open/active trades so closed history doesn't burn startup reads
         const missingIds = snap.docs
+          .filter((d) => {
+            const st = String(d.data().status ?? '');
+            return st === 'escrow_funded' || st === 'payment_sent' || st === 'disputed';
+          })
           .map((d) => d.id)
-          .filter((id) => !(id in tradeMsgsCacheRef.current));
+          .filter((id) => !(id in tradeMsgsCacheRef.current))
+          .slice(0, 5);
         if (missingIds.length > 0) {
           await Promise.all(
             missingIds.map(async (id) => {
               try {
-                tradeMsgsCacheRef.current[id] = await fetchTradeMessages(id);
+                tradeMsgsCacheRef.current[id] = await fetchTradeMessages(id, 10);
               } catch {
                 tradeMsgsCacheRef.current[id] = [];
               }
@@ -275,23 +281,31 @@ export function useRealtime(
     const chatsQuery = query(
       collection(db, 'chats'),
       where('participantUids', 'array-contains', uid),
-      limit(50)
+      limit(30)
     );
     const unsubChats = onSnapshot(
       chatsQuery,
       async (snap) => {
         if (!active) return;
-        const visibleDocs = snap.docs.filter(
-          (d) => d.data().offerId !== SUPPORT_CHAT_MARKER && d.data().offerId !== 'archived_hidden'
-        );
+        const visibleDocs = snap.docs
+          .filter(
+            (d) =>
+              d.data().offerId !== SUPPORT_CHAT_MARKER && d.data().offerId !== 'archived_hidden'
+          )
+          .sort(
+            (a, b) =>
+              new Date(tsToIso(b.data().updatedAt)).getTime() -
+              new Date(tsToIso(a.data().updatedAt)).getTime()
+          );
         const missingIds = visibleDocs
           .map((d) => d.id)
-          .filter((id) => !(id in chatMsgsCacheRef.current));
+          .filter((id) => !(id in chatMsgsCacheRef.current))
+          .slice(0, 3);
         if (missingIds.length > 0) {
           await Promise.all(
             missingIds.map(async (id) => {
               try {
-                chatMsgsCacheRef.current[id] = await fetchChatMessages(id);
+                chatMsgsCacheRef.current[id] = await fetchChatMessages(id, 10);
               } catch {
                 chatMsgsCacheRef.current[id] = [];
               }

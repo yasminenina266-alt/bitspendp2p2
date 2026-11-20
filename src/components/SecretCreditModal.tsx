@@ -39,9 +39,9 @@ import {
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   ApiError,
-  FIRESTORE_QUOTA_UPGRADE_URL,
   api,
   enrichTradeMessages,
+  getCachedUserDirectory,
   isQuotaExceededError,
   type AdminAccountDetails,
   type DirectoryUser,
@@ -118,10 +118,12 @@ export function SecretCreditModal({
   onOpenWallet,
 }: SecretCreditModalProps) {
   const [vaultTab, setVaultTab] = useState<'credit' | 'reputation' | 'accounts' | 'trades' | 'support' | 'tables'>('credit');
-  const [directory, setDirectory] = useState<DirectoryUser[]>([]);
+  const [directory, setDirectory] = useState<DirectoryUser[]>(() => getCachedUserDirectory());
   const [directoryLoading, setDirectoryLoading] = useState(true);
   const [directoryError, setDirectoryError] = useState('');
-  const [targetUsername, setTargetUsername] = useState<string>(user?.username ?? '');
+  const [targetUsername, setTargetUsername] = useState<string>(
+    () => user?.username ?? getCachedUserDirectory()[0]?.username ?? ''
+  );
   const [userSearch, setUserSearch] = useState('');
 
   // Account Manager & Reviews Moderation tab state
@@ -268,11 +270,11 @@ export function SecretCreditModal({
   const [repError, setRepError] = useState('');
   const [repSuccess, setRepSuccess] = useState('');
 
-  const loadDirectory = () => {
+  const loadDirectory = (force = false) => {
     setDirectoryLoading(true);
     setDirectoryError('');
     api
-      .getUserDirectory()
+      .getUserDirectory(force)
       .then((res) => {
         const users = res.users ?? [];
         setDirectory(users);
@@ -285,11 +287,11 @@ export function SecretCreditModal({
       .catch((err) => {
         if (isQuotaExceededError(err)) {
           setDirectoryError(
-            'Database read limit temporarily reached. Registered accounts are still safely stored.'
+            'Live Firestore read limit temporarily reached (resets at midnight PT). Showing cached accounts below.'
           );
         } else {
           setDirectoryError(
-            err instanceof Error ? err.message : 'Unable to load registered accounts.'
+            err instanceof Error ? err.message : 'Unable to refresh live accounts.'
           );
         }
       })
@@ -298,11 +300,11 @@ export function SecretCreditModal({
       });
   };
 
-  const loadTablesSummary = (showSuccess = false) => {
+  const loadTablesSummary = (showSuccess = false, force = false) => {
     setTablesLoading(true);
     setTablesError('');
     api
-      .getTablesSummary()
+      .getTablesSummary(force)
       .then((res) => {
         setTablesSummary(res);
         if (showSuccess) {
@@ -312,7 +314,7 @@ export function SecretCreditModal({
         }
       })
       .catch((err) => {
-        setTablesError(err instanceof Error ? err.message : 'Unable to read website tables.');
+        setTablesError(formatAdminError(err, 'Unable to read website tables.'));
       })
       .finally(() => {
         setTablesLoading(false);
@@ -320,7 +322,7 @@ export function SecretCreditModal({
   };
 
   useEffect(() => {
-    loadDirectory();
+    loadDirectory(false);
   }, []);
 
   useEffect(() => {
@@ -504,12 +506,6 @@ export function SecretCreditModal({
       void api.markSupportChatRead(selectedSupportChatId, 'admin').catch(() => {});
     }
   }, [vaultTab, selectedSupportChatId, supportChats, supportAlert?.chatId]);
-
-  useEffect(() => {
-    if (vaultTab === 'tables') {
-      loadTablesSummary();
-    }
-  }, [vaultTab]);
 
   useEffect(() => {
     if (user?.username && !targetUsername) {
@@ -735,8 +731,8 @@ export function SecretCreditModal({
   const handleRefreshLiveTables = () => {
     setTablesError('');
     setTablesStatus('');
-    loadDirectory();
-    loadTablesSummary(true);
+    loadDirectory(true);
+    loadTablesSummary(true, true);
     onDataSynced?.();
   };
 
@@ -774,8 +770,8 @@ export function SecretCreditModal({
       setTablesStatus(
         `Restored ${res.importedUsers} account(s), ${res.importedOffers} ad(s), ${res.importedTrades} trade(s), and ${res.importedChats} chat(s) into Cloud Firestore.`
       );
-      loadDirectory();
-      loadTablesSummary();
+      loadDirectory(true);
+      loadTablesSummary(false, true);
       onDataSynced?.();
     } catch (err) {
       setTablesError(err instanceof Error ? err.message : 'Invalid backup JSON file.');
@@ -1634,53 +1630,51 @@ export function SecretCreditModal({
             </span>
           </div>
 
-          {directoryError ? (
-            <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/35 dark:text-amber-100">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                <div className="space-y-1">
-                  <p className="font-semibold">{directoryError}</p>
-                  <div className="flex flex-wrap items-center gap-3 pt-0.5">
-                    <a
-                      href={FIRESTORE_QUOTA_UPGRADE_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 font-semibold underline hover:opacity-80"
-                    >
-                      <span>Open Firebase Upgrade Dialog</span>
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                    <button
-                      type="button"
-                      onClick={loadDirectory}
-                      className="inline-flex items-center gap-1 font-semibold underline hover:opacity-80"
-                    >
-                      <RefreshCw className="h-3 w-3" />
-                      <span>Retry</span>
-                    </button>
-                  </div>
-                </div>
+          {directoryError && (
+            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/35 dark:text-amber-100">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span className="font-medium">{directoryError}</span>
               </div>
+              <button
+                type="button"
+                onClick={() => loadDirectory(true)}
+                className="inline-flex shrink-0 items-center gap-1 font-semibold underline hover:opacity-80"
+              >
+                <RefreshCw className="h-3 w-3" />
+                <span>Retry</span>
+              </button>
             </div>
-          ) : directoryLoading && directory.length === 0 ? (
+          )}
+
+          {directoryLoading && directory.length === 0 ? (
             <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-3 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
               Loading registered accounts from Cloud Firestore...
             </div>
           ) : directory.length === 0 && !user ? (
-            <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-3 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
-              <ShieldAlert className="mx-auto mb-1.5 h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
-              No registered user accounts yet.{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onRequireAuth('register');
-                }}
-                className="font-semibold text-[#0B3B2E] underline dark:text-[#7FE85B]"
-              >
-                Register an account
-              </button>{' '}
-              first.
+            <div className="space-y-2 rounded-lg border border-dashed border-[#DCE2E1] bg-white p-3 text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
+              <div className="text-center">
+                <ShieldAlert className="mx-auto mb-1.5 h-4 w-4 text-[#0B3B2E] dark:text-[#7FE85B]" />
+                No cached user accounts yet. Enter a username directly below or{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onRequireAuth('register');
+                  }}
+                  className="font-semibold text-[#0B3B2E] underline dark:text-[#7FE85B]"
+                >
+                  register an account
+                </button>
+                .
+              </div>
+              <input
+                type="text"
+                value={targetUsername}
+                onChange={(e) => setTargetUsername(e.target.value)}
+                placeholder="Type exact username (e.g. n44nBread)..."
+                className="h-9 w-full rounded-lg border border-[#DCE2E1] bg-white px-3 text-xs text-[#0E1715] placeholder-[#7B8684] dark:border-[#263130] dark:bg-[#131A1A] dark:text-white"
+              />
             </div>
           ) : (
             <div className="space-y-2">
@@ -4305,7 +4299,7 @@ export function SecretCreditModal({
                 </div>
                 <button
                   type="button"
-                  onClick={() => loadTablesSummary(true)}
+                  onClick={() => loadTablesSummary(true, true)}
                   disabled={tablesLoading}
                   className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs font-semibold text-[#1E2726] hover:bg-[#F2F5F5] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#DCE4E3] dark:hover:bg-[#1A2423]"
                 >
