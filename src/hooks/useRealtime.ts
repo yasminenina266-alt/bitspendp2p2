@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -188,7 +189,11 @@ export function useRealtime(
       }
     );
 
-    const tradesQuery = query(collection(db, 'trades'), where('participantUids', 'array-contains', uid));
+    const tradesQuery = query(
+      collection(db, 'trades'),
+      where('participantUids', 'array-contains', uid),
+      limit(50)
+    );
     const unsubTrades = onSnapshot(
       tradesQuery,
       async (snap) => {
@@ -267,12 +272,18 @@ export function useRealtime(
       }
     );
 
-    const chatsQuery = query(collection(db, 'chats'), where('participantUids', 'array-contains', uid));
+    const chatsQuery = query(
+      collection(db, 'chats'),
+      where('participantUids', 'array-contains', uid),
+      limit(50)
+    );
     const unsubChats = onSnapshot(
       chatsQuery,
       async (snap) => {
         if (!active) return;
-        const visibleDocs = snap.docs.filter((d) => d.data().offerId !== SUPPORT_CHAT_MARKER);
+        const visibleDocs = snap.docs.filter(
+          (d) => d.data().offerId !== SUPPORT_CHAT_MARKER && d.data().offerId !== 'archived_hidden'
+        );
         const missingIds = visibleDocs
           .map((d) => d.id)
           .filter((id) => !(id in chatMsgsCacheRef.current));
@@ -322,7 +333,11 @@ export function useRealtime(
       }
     );
 
-    const notifQuery = query(collection(db, 'notifications'), where('toUid', '==', uid));
+    const notifQuery = query(
+      collection(db, 'notifications'),
+      where('toUid', '==', uid),
+      limit(50)
+    );
     const unsubNotifs = onSnapshot(
       notifQuery,
       (snap) => {
@@ -362,12 +377,13 @@ export function useRealtime(
 
     const msgsQuery = query(
       collection(db, 'trades', activeTradeId, 'messages'),
-      orderBy('createdAt', 'asc')
+      orderBy('createdAt', 'desc'),
+      limit(80)
     );
     const unsub = onSnapshot(
       msgsQuery,
       (snap) => {
-        const msgs: TradeMessage[] = snap.docs.map((d) => {
+        const msgs: TradeMessage[] = snap.docs.reverse().map((d) => {
           const m = d.data();
           return {
             id: String(m.id ?? d.id),
@@ -396,12 +412,13 @@ export function useRealtime(
 
     const msgsQuery = query(
       collection(db, 'chats', activeChatId, 'messages'),
-      orderBy('createdAt', 'asc')
+      orderBy('createdAt', 'desc'),
+      limit(80)
     );
     const unsub = onSnapshot(
       msgsQuery,
       (snap) => {
-        const msgs: DirectMessage[] = snap.docs.map((d) => {
+        const msgs: DirectMessage[] = snap.docs.reverse().map((d) => {
           const m = d.data();
           return {
             id: String(m.id ?? d.id),

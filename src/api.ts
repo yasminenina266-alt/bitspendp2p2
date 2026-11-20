@@ -5,6 +5,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -480,7 +481,7 @@ function wrapFirestoreError(err: unknown, op: OperationType, path: string): neve
   }
   if (isQuotaExceededError(err)) {
     throw new ApiError(
-      'Temporarily experiencing server issues. Your account and funds remain safe — please contact Admin on WhatsApp +52 322 319 9334.',
+      'Temporarily experiencing server issues. Your account and funds remain safe — please try again shortly.',
       429,
       'QUOTA_EXCEEDED'
     );
@@ -1115,9 +1116,13 @@ async function resolveUsernameTarget(
 export async function fetchTradeMessages(tradeId: string): Promise<TradeMessage[]> {
   const path = `trades/${tradeId}/messages`;
   try {
-    const q = query(collection(db, 'trades', tradeId, 'messages'), orderBy('createdAt', 'asc'));
+    const q = query(
+      collection(db, 'trades', tradeId, 'messages'),
+      orderBy('createdAt', 'desc'),
+      limit(80)
+    );
     const snap = await getDocs(q);
-    return snap.docs.map((d) => {
+    return snap.docs.reverse().map((d) => {
       const m = d.data();
       return {
         id: String(m.id ?? d.id),
@@ -1135,9 +1140,13 @@ export async function fetchTradeMessages(tradeId: string): Promise<TradeMessage[
 export async function fetchChatMessages(chatId: string): Promise<DirectMessage[]> {
   const path = `chats/${chatId}/messages`;
   try {
-    const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
+    const q = query(
+      collection(db, 'chats', chatId, 'messages'),
+      orderBy('createdAt', 'desc'),
+      limit(80)
+    );
     const snap = await getDocs(q);
-    return snap.docs.map((d) => {
+    return snap.docs.reverse().map((d) => {
       const m = d.data();
       return {
         id: String(m.id ?? d.id),
@@ -3140,11 +3149,19 @@ export const api = {
     const session = await getSessionContext();
     if (!session) return { chats: [] };
     try {
-      const q = query(collection(db, 'chats'), where('participantUids', 'array-contains', session.uid));
+      const q = query(
+        collection(db, 'chats'),
+        where('participantUids', 'array-contains', session.uid),
+        limit(50)
+      );
       const snap = await getDocs(q);
       const chats = await Promise.all(
         snap.docs
-          .filter((d) => d.data().offerId !== SUPPORT_CHAT_MARKER)
+          .filter(
+            (d) =>
+              d.data().offerId !== SUPPORT_CHAT_MARKER &&
+              d.data().offerId !== 'archived_hidden'
+          )
           .map(async (d) => {
             const data = d.data();
             const msgs = await fetchChatMessages(d.id);
@@ -4701,7 +4718,7 @@ export const api = {
     onError?: (err: Error) => void
   ): () => void {
     return onSnapshot(
-      collection(db, 'trades'),
+      query(collection(db, 'trades'), limit(60)),
       (snap) => {
         const list = snap.docs
           .map((d) => normalizeTradeDoc(d.data(), [], undefined, true))
@@ -4721,11 +4738,15 @@ export const api = {
     onMessages: (messages: TradeMessage[]) => void,
     onError?: (err: Error) => void
   ): () => void {
-    const q = query(collection(db, 'trades', tradeId, 'messages'), orderBy('createdAt', 'asc'));
+    const q = query(
+      collection(db, 'trades', tradeId, 'messages'),
+      orderBy('createdAt', 'desc'),
+      limit(80)
+    );
     return onSnapshot(
       q,
       (snap) => {
-        const msgs: TradeMessage[] = snap.docs.map((d) => {
+        const msgs: TradeMessage[] = snap.docs.reverse().map((d) => {
           const m = d.data();
           return {
             id: String(m.id ?? d.id),
@@ -6014,11 +6035,15 @@ export const api = {
     onError?: (err: Error) => void
   ): () => void {
     const cleanId = sanitizeDocId(chatId);
-    const q = query(collection(db, 'chats', cleanId, 'messages'), orderBy('createdAt', 'asc'));
+    const q = query(
+      collection(db, 'chats', cleanId, 'messages'),
+      orderBy('createdAt', 'desc'),
+      limit(80)
+    );
     return onSnapshot(
       q,
       (snap) => {
-        const msgs: DirectMessage[] = snap.docs.map((d) => {
+        const msgs: DirectMessage[] = snap.docs.reverse().map((d) => {
           const m = d.data();
           return {
             id: String(m.id ?? d.id),
@@ -6100,6 +6125,7 @@ export const api = {
         const data = snap.data();
         const prevRead = (data.lastReadAtBy ?? {}) as Record<string, string>;
         batch.update(chatRef, {
+          offerId: SUPPORT_CHAT_MARKER,
           offerSummary: offerSummary || (typeof data.offerSummary === 'string' ? data.offerSummary : ''),
           lastReadAtBy: {
             ...prevRead,
@@ -6171,32 +6197,30 @@ export const api = {
     const cleanId = sanitizeDocId(chatId);
     const chatRef = doc(db, 'chats', cleanId);
     try {
-      const snap = await getDoc(chatRef);
-      if (!snap.exists()) return;
-      const data = snap.data();
-      const prevRead = (data.lastReadAtBy ?? {}) as Record<string, string>;
       const nowIso = new Date().toISOString();
       await updateDoc(chatRef, {
-        lastReadAtBy: {
-          ...prevRead,
-          [role]: nowIso,
-        },
+        [`lastReadAtBy.${role}`]: nowIso,
         updatedAt: serverTimestamp(),
       });
     } catch (err) {
+      if ((err as { code?: string })?.code === 'not-found') return;
       return wrapFirestoreError(err, OperationType.UPDATE, `chats/${cleanId}`);
     }
   },
 
   adminSubscribeSupportChats(
     onChats: (chats: DirectChat[]) => void,
-    onError?: (err: Error) => void
+    onError?: (err: Error) => void,
+    includeAllChats = false
   ): () => void {
-    const q = query(collection(db, 'chats'), where('offerId', '==', SUPPORT_CHAT_MARKER));
+    const q = includeAllChats
+      ? query(collection(db, 'chats'), limit(60))
+      : query(collection(db, 'chats'), where('offerId', '==', SUPPORT_CHAT_MARKER), limit(60));
     return onSnapshot(
       q,
       (snap) => {
         const list: DirectChat[] = snap.docs
+          .filter((d) => d.data().offerId !== 'archived_hidden')
           .map((d) => {
             const data = d.data();
             return {
@@ -6231,10 +6255,6 @@ export const api = {
     const cleanId = sanitizeDocId(chatId);
     const chatRef = doc(db, 'chats', cleanId);
     try {
-      const snap = await getDoc(chatRef);
-      if (!snap.exists()) throw new ApiError('Support thread not found.', 404);
-      const data = snap.data();
-      const prevRead = (data.lastReadAtBy ?? {}) as Record<string, string>;
       const nowIso = new Date().toISOString();
       const msgId = `smsg-${randomHex(5)}`;
 
@@ -6251,16 +6271,193 @@ export const api = {
         })
       );
       batch.update(chatRef, {
-        lastReadAtBy: {
-          ...prevRead,
-          admin: nowIso,
-          lastAdminMsgAt: nowIso,
-        },
+        'lastReadAtBy.admin': nowIso,
+        'lastReadAtBy.lastAdminMsgAt': nowIso,
         updatedAt: serverTimestamp(),
       });
       await batch.commit();
     } catch (err) {
       return wrapFirestoreError(err, OperationType.WRITE, `chats/${cleanId}`);
+    }
+  },
+
+  async adminDeleteChat(chatId: string): Promise<{ deletedMessages: number; archivedOnly: boolean }> {
+    const cleanId = sanitizeDocId(chatId);
+    const chatRef = doc(db, 'chats', cleanId);
+    let deletedMessages = 0;
+
+    try {
+      const msgsSnap = await getDocs(collection(db, 'chats', cleanId, 'messages')).catch(() => null);
+      if (msgsSnap && !msgsSnap.empty) {
+        const docs = msgsSnap.docs;
+        for (let i = 0; i < docs.length; i += 350) {
+          const chunk = docs.slice(i, i + 350);
+          const batch = writeBatch(db);
+          chunk.forEach((m) => batch.delete(doc(db, 'chats', cleanId, 'messages', m.id)));
+          await batch.commit();
+          deletedMessages += chunk.length;
+        }
+      }
+      await deleteDoc(chatRef);
+      return { deletedMessages, archivedOnly: false };
+    } catch (err) {
+      if (isPermissionDenied(err)) {
+        try {
+          await updateDoc(chatRef, {
+            offerId: 'archived_hidden',
+            offerSummary: '[Removed by Admin]',
+            lastReadAtBy: {},
+            updatedAt: serverTimestamp(),
+          });
+          return { deletedMessages, archivedOnly: true };
+        } catch (updateErr) {
+          return wrapFirestoreError(updateErr, OperationType.UPDATE, `chats/${cleanId}`);
+        }
+      }
+      return wrapFirestoreError(err, OperationType.DELETE, `chats/${cleanId}`);
+    }
+  },
+
+  async adminPruneChatsExcept(options?: {
+    keepUsername?: string;
+    includeClosedTradeMessages?: boolean;
+  }): Promise<{
+    keepUsername: string;
+    keptChats: number;
+    deletedChats: number;
+    archivedChats: number;
+    deletedMessages: number;
+    deletedTradeMessages: number;
+    rulesUpdateNeeded: boolean;
+  }> {
+    const keepRaw = (options?.keepUsername ?? 'n44nBread').trim() || 'n44nBread';
+    const keepLower = keepRaw.toLowerCase();
+
+    const valueMatchesKeep = (val: unknown): boolean => {
+      if (typeof val === 'string') return val.toLowerCase().includes(keepLower);
+      if (Array.isArray(val)) return val.some((item) => valueMatchesKeep(item));
+      if (val && typeof val === 'object') {
+        return Object.entries(val as Record<string, unknown>).some(
+          ([k, v]) => k.toLowerCase().includes(keepLower) || valueMatchesKeep(v)
+        );
+      }
+      return false;
+    };
+
+    let keptChats = 0;
+    let deletedChats = 0;
+    let archivedChats = 0;
+    let deletedMessages = 0;
+    let deletedTradeMessages = 0;
+    let rulesUpdateNeeded = false;
+
+    try {
+      const chatsSnap = await getDocs(collection(db, 'chats'));
+      for (const cDoc of chatsSnap.docs) {
+        const data = cDoc.data();
+        const isKeep =
+          cDoc.id.toLowerCase().includes(keepLower) ||
+          valueMatchesKeep(data.participants) ||
+          valueMatchesKeep(data.participantUids) ||
+          valueMatchesKeep(data.offerSummary) ||
+          valueMatchesKeep(data.lastReadAtBy);
+
+        if (isKeep) {
+          keptChats += 1;
+          continue;
+        }
+
+        const msgsSnap = await getDocs(collection(db, 'chats', cDoc.id, 'messages')).catch(
+          () => null
+        );
+        try {
+          if (msgsSnap && !msgsSnap.empty) {
+            const mDocs = msgsSnap.docs;
+            for (let i = 0; i < mDocs.length; i += 350) {
+              const chunk = mDocs.slice(i, i + 350);
+              const batch = writeBatch(db);
+              chunk.forEach((m) => batch.delete(doc(db, 'chats', cDoc.id, 'messages', m.id)));
+              await batch.commit();
+              deletedMessages += chunk.length;
+            }
+          }
+          await deleteDoc(doc(db, 'chats', cDoc.id));
+          deletedChats += 1;
+        } catch (delErr) {
+          if (isPermissionDenied(delErr)) {
+            rulesUpdateNeeded = true;
+            if (data.offerId !== 'archived_hidden') {
+              await updateDoc(doc(db, 'chats', cDoc.id), {
+                offerId: 'archived_hidden',
+                offerSummary: '[Removed by Admin]',
+                lastReadAtBy: {},
+                updatedAt: serverTimestamp(),
+              });
+              archivedChats += 1;
+            }
+          } else {
+            throw delErr;
+          }
+        }
+      }
+
+      if (options?.includeClosedTradeMessages) {
+        const tradesSnap = await getDocs(collection(db, 'trades'));
+        for (const tDoc of tradesSnap.docs) {
+          const td = tDoc.data();
+          const isKeepTrade =
+            valueMatchesKeep(td.buyerUsername) ||
+            valueMatchesKeep(td.sellerUsername) ||
+            valueMatchesKeep(td.traderUsername) ||
+            valueMatchesKeep(td.buyerUid) ||
+            valueMatchesKeep(td.sellerUid) ||
+            valueMatchesKeep(td.participantUids);
+          if (isKeepTrade) continue;
+          const st = String(td.status ?? '');
+          if (st !== 'completed' && st !== 'cancelled') continue;
+
+          const tMsgsSnap = await getDocs(
+            query(collection(db, 'trades', tDoc.id, 'messages'), orderBy('createdAt', 'desc'))
+          ).catch(() => null);
+          if (!tMsgsSnap || tMsgsSnap.size <= 1) continue;
+
+          const toDelete = tMsgsSnap.docs.slice(1);
+          try {
+            for (let i = 0; i < toDelete.length; i += 350) {
+              const chunk = toDelete.slice(i, i + 350);
+              const batch = writeBatch(db);
+              chunk.forEach((m) => batch.delete(doc(db, 'trades', tDoc.id, 'messages', m.id)));
+              await batch.commit();
+              deletedTradeMessages += chunk.length;
+            }
+          } catch (delErr) {
+            if (isPermissionDenied(delErr)) {
+              rulesUpdateNeeded = true;
+            } else {
+              throw delErr;
+            }
+          }
+        }
+      }
+
+      return {
+        keepUsername: keepRaw,
+        keptChats,
+        deletedChats,
+        archivedChats,
+        deletedMessages,
+        deletedTradeMessages,
+        rulesUpdateNeeded,
+      };
+    } catch (err) {
+      if (isQuotaExceededError(err)) {
+        throw new ApiError(
+          `Firebase Spark daily write/delete quota was reached during cleanup (already kept ${keptChats} ${keepRaw} chat(s), deleted ${deletedChats} chat(s) & ${deletedMessages} message(s), archived ${archivedChats}). Retry after midnight PT reset or upgrade to Blaze.`,
+          429,
+          'QUOTA_EXCEEDED'
+        );
+      }
+      return wrapFirestoreError(err, OperationType.DELETE, 'chats');
     }
   },
 };

@@ -5,6 +5,7 @@ import {
   getOrCreateSupportVisitorId,
   getSavedSupportContactLabel,
   getSupportChatId,
+  isQuotaExceededError,
   saveSupportContactLabel,
 } from '../api';
 import type { DirectChat, DirectMessage, UserAccount } from '../types';
@@ -36,6 +37,7 @@ export function SupportChatModal({ user, onClose }: SupportChatModalProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastMarkedAdminMsgAtRef = useRef<string>('');
 
   useEffect(() => {
     if (user?.username && !contactLabel.trim()) {
@@ -50,7 +52,11 @@ export function SupportChatModal({ user, onClose }: SupportChatModalProps) {
         setChatDoc(docData);
       },
       (err) => {
-        setError(err.message || 'Unable to connect to live support.');
+        setError(
+          isQuotaExceededError(err)
+            ? 'Temporarily experiencing server issues. Your account and messages remain safe — please try again shortly.'
+            : err.message || 'Unable to connect to live support.'
+        );
       }
     );
     const unsubMsgs = api.subscribeSupportMessages(
@@ -60,7 +66,11 @@ export function SupportChatModal({ user, onClose }: SupportChatModalProps) {
         setError('');
       },
       (err) => {
-        setError(err.message || 'Unable to load support messages.');
+        setError(
+          isQuotaExceededError(err)
+            ? 'Temporarily experiencing server issues. Please try again shortly.'
+            : err.message || 'Unable to load support messages.'
+        );
       }
     );
     return () => {
@@ -77,8 +87,13 @@ export function SupportChatModal({ user, onClose }: SupportChatModalProps) {
     if (!chatDoc) return;
     const lastAdminMsgAt = chatDoc.lastReadAtBy?.lastAdminMsgAt ?? '';
     const lastVisitorRead = chatDoc.lastReadAtBy?.visitor ?? '';
-    if (lastAdminMsgAt && (!lastVisitorRead || lastAdminMsgAt > lastVisitorRead)) {
-      void api.markSupportChatRead(chatId, 'visitor');
+    if (
+      lastAdminMsgAt &&
+      lastMarkedAdminMsgAtRef.current !== lastAdminMsgAt &&
+      (!lastVisitorRead || lastAdminMsgAt > lastVisitorRead)
+    ) {
+      lastMarkedAdminMsgAtRef.current = lastAdminMsgAt;
+      void api.markSupportChatRead(chatId, 'visitor').catch(() => undefined);
     }
   }, [chatDoc, chatId, messages.length]);
 

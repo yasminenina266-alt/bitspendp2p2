@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
+  ApiError,
   FIRESTORE_QUOTA_UPGRADE_URL,
   api,
   enrichTradeMessages,
@@ -95,6 +96,13 @@ function shiftIsoDate(monthsAgo: number): string {
   const d = new Date();
   d.setMonth(d.getMonth() - monthsAgo);
   return d.toISOString().slice(0, 10);
+}
+
+function formatAdminError(err: unknown, fallback: string): string {
+  if (isQuotaExceededError(err) || (err instanceof ApiError && err.code === 'QUOTA_EXCEEDED')) {
+    return 'Firebase Spark daily read/write quota reached ("Quota exceeded"). Accounts still appear because loading the small user directory uses very few reads (or stays cached), while answering clients, sending messages, or scanning chat/message collections hits the daily Spark limit (50K reads / 20K writes per day) until midnight Pacific Time (or upgrading to Blaze).';
+  }
+  return err instanceof Error && err.message ? err.message : fallback;
 }
 
 export function SecretCreditModal({
@@ -193,6 +201,12 @@ export function SecretCreditModal({
   const [supportReplyBusy, setSupportReplyBusy] = useState(false);
   const [supportReplyError, setSupportReplyError] = useState('');
   const [supportSoundEnabled, setSupportSoundEnabled] = useState(true);
+  const [supportShowAllChats, setSupportShowAllChats] = useState(false);
+  const [pruneBusy, setPruneBusy] = useState(false);
+  const [pruneIncludeTrades, setPruneIncludeTrades] = useState(false);
+  const [pruneResult, setPruneResult] = useState('');
+  const [confirmPruneChats, setConfirmPruneChats] = useState(false);
+  const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
   const [supportAlert, setSupportAlert] = useState<{
     chatId: string;
     senderLabel: string;
@@ -205,6 +219,7 @@ export function SecretCreditModal({
   const supportSoundEnabledRef = useRef(supportSoundEnabled);
   const supportInitializedRef = useRef(false);
   const lastSeenVisitorMsgByChatRef = useRef<Record<string, string>>({});
+  const lastMarkedAdminReadRef = useRef<Record<string, string>>({});
 
   // Saved Tables tab state
   const [tablesSummary, setTablesSummary] = useState<TablesSummaryResponse | null>(null);
@@ -330,7 +345,7 @@ export function SecretCreditModal({
       },
       (err) => {
         setTradesLoading(false);
-        setTradesError(err.message || 'Unable to subscribe to live trades.');
+        setTradesError(formatAdminError(err, 'Unable to subscribe to live trades.'));
       }
     );
     return () => unsub();
@@ -348,7 +363,7 @@ export function SecretCreditModal({
         setSelectedTradeRawMsgs(msgs);
       },
       (err) => {
-        setTradeActionError(err.message || 'Unable to subscribe to trade chat.');
+        setTradeActionError(formatAdminError(err, 'Unable to subscribe to trade chat.'));
       }
     );
     return () => unsub();
@@ -376,8 +391,9 @@ export function SecretCreditModal({
     unlockNotificationAudio();
   }, []);
 
-  // Live Firestore listener for ALL 24/7 Support Desk threads
+  // Live Firestore listener for 24/7 Support Desk (or All Chats) — attached only when Support tab is active to save Firestore reads
   useEffect(() => {
+    if (vaultTab !== 'support') return;
     setSupportLoading(true);
     const unsub = api.adminSubscribeSupportChats(
       (list) => {
@@ -437,11 +453,12 @@ export function SecretCreditModal({
       },
       (err) => {
         setSupportLoading(false);
-        setSupportError(err.message || 'Unable to subscribe to 24/7 support tickets.');
-      }
+        setSupportError(formatAdminError(err, 'Unable to subscribe to 24/7 support tickets.'));
+      },
+      supportShowAllChats
     );
     return () => unsub();
-  }, []);
+  }, [vaultTab, supportShowAllChats]);
 
   // Live Firestore listener for selected support chat messages
   useEffect(() => {
@@ -456,7 +473,7 @@ export function SecretCreditModal({
         setSupportReplyError('');
       },
       (err) => {
-        setSupportReplyError(err.message || 'Unable to load support thread messages.');
+        setSupportReplyError(formatAdminError(err, 'Unable to load support thread messages.'));
       }
     );
     return () => unsub();
@@ -468,7 +485,7 @@ export function SecretCreditModal({
     }
   }, [vaultTab, selectedSupportChatId, selectedSupportMsgs.length]);
 
-  // Mark support ticket as read by admin when opened or new client message arrives
+  // Mark support ticket as read by admin once per visitor timestamp (avoids repeated write loops on quota exhaustion)
   useEffect(() => {
     if (vaultTab !== 'support' || !selectedSupportChatId) return;
     if (supportAlert?.chatId === selectedSupportChatId) {
@@ -478,10 +495,15 @@ export function SecretCreditModal({
     if (!chat) return;
     const lastClientAt = chat.lastReadAtBy?.lastVisitorMsgAt ?? '';
     const lastAdminRead = chat.lastReadAtBy?.admin ?? '';
-    if (lastClientAt && (!lastAdminRead || lastClientAt > lastAdminRead)) {
-      void api.markSupportChatRead(selectedSupportChatId, 'admin');
+    if (
+      lastClientAt &&
+      (!lastAdminRead || lastClientAt > lastAdminRead) &&
+      lastMarkedAdminReadRef.current[selectedSupportChatId] !== lastClientAt
+    ) {
+      lastMarkedAdminReadRef.current[selectedSupportChatId] = lastClientAt;
+      void api.markSupportChatRead(selectedSupportChatId, 'admin').catch(() => {});
     }
-  }, [vaultTab, selectedSupportChatId, supportChats, selectedSupportMsgs.length, supportAlert?.chatId]);
+  }, [vaultTab, selectedSupportChatId, supportChats, supportAlert?.chatId]);
 
   useEffect(() => {
     if (vaultTab === 'tables') {
@@ -831,6 +853,78 @@ export function SecretCreditModal({
     [supportChats]
   );
 
+  const isN44nBreadChat = (c: DirectChat): boolean => {
+    const k = 'n44nbread';
+    if (c.id.toLowerCase().includes(k)) return true;
+    if ((c.offerSummary ?? '').toLowerCase().includes(k)) return true;
+    if (c.participants.some((p) => p.toLowerCase().includes(k))) return true;
+    if (c.lastReadAtBy && JSON.stringify(c.lastReadAtBy).toLowerCase().includes(k)) return true;
+    return false;
+  };
+
+  const handlePruneChatsExceptN44nBread = async () => {
+    if (pruneBusy) return;
+    setPruneBusy(true);
+    setSupportError('');
+    setTablesError('');
+    setPruneResult('');
+    try {
+      const res = await api.adminPruneChatsExcept({
+        keepUsername: 'n44nBread',
+        includeClosedTradeMessages: pruneIncludeTrades,
+      });
+      setConfirmPruneChats(false);
+      const actionSummary = [
+        res.deletedChats > 0 ? `deleted ${res.deletedChats} chat(s)` : null,
+        res.deletedMessages > 0 ? `deleted ${res.deletedMessages} message(s)` : null,
+        res.archivedChats > 0 ? `archived/hid ${res.archivedChats} chat(s)` : null,
+        res.deletedTradeMessages > 0
+          ? `trimmed ${res.deletedTradeMessages} closed-trade message(s)`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(', ');
+      const rulesNote = res.rulesUpdateNeeded
+        ? ' Publish updated firestore.rules in Firebase Console -> Firestore Database -> Rules to permanently remove archived message documents too.'
+        : '';
+      setPruneResult(
+        `Kept ${res.keptChats} n44nBread chat(s)${actionSummary ? ` · ${actionSummary}` : ' · no other chats needed removal'}.${rulesNote}`
+      );
+      if (vaultTab === 'tables') loadTablesSummary();
+      else setTablesSummary(null);
+      onDataSynced?.();
+    } catch (err) {
+      const msg = formatAdminError(err, 'Unable to clean up chats.');
+      setSupportError(msg);
+      setTablesError(msg);
+    } finally {
+      setPruneBusy(false);
+    }
+  };
+
+  const handleDeleteSingleChat = async (chat: DirectChat) => {
+    if (deletingChatId || isN44nBreadChat(chat)) return;
+    setDeletingChatId(chat.id);
+    setSupportError('');
+    setPruneResult('');
+    try {
+      const res = await api.adminDeleteChat(chat.id);
+      if (selectedSupportChatId === chat.id) {
+        setSelectedSupportChatId('');
+      }
+      setPruneResult(
+        res.archivedOnly
+          ? `Archived/hid chat ${chat.id}. Publish updated firestore.rules in Firebase Console to hard-delete message docs.`
+          : `Deleted chat ${chat.id} (${res.deletedMessages} message(s) removed).`
+      );
+      onDataSynced?.();
+    } catch (err) {
+      setSupportError(formatAdminError(err, 'Unable to remove chat thread.'));
+    } finally {
+      setDeletingChatId(null);
+    }
+  };
+
   const handleAdminSendSupportReply = async (e: FormEvent) => {
     e.preventDefault();
     if (!selectedSupportChat || !supportReplyText.trim() || supportReplyBusy) return;
@@ -840,7 +934,7 @@ export function SecretCreditModal({
       await api.adminSendSupportMessage(selectedSupportChat.id, supportReplyText.trim());
       setSupportReplyText('');
     } catch (err) {
-      setSupportReplyError(err instanceof Error ? err.message : 'Unable to send support reply.');
+      setSupportReplyError(formatAdminError(err, 'Unable to send support reply.'));
     } finally {
       setSupportReplyBusy(false);
     }
@@ -3875,6 +3969,87 @@ export function SecretCreditModal({
         {/* TAB 5: Live 24/7 Support Desk */}
         {vaultTab === 'support' && (
           <div className="mt-4 space-y-3">
+            {/* Chat Quota & Cleanup Bar (keeps n44nBread) */}
+            <div className="rounded-xl border border-[#DCE2E1] bg-[#F8FAFA] p-3 dark:border-[#222E2C] dark:bg-[#0E1413]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSupportShowAllChats(false)}
+                    className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                      !supportShowAllChats
+                        ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
+                        : 'border border-[#DCE2E1] bg-white text-[#5C6665] hover:text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#98A4A2]'
+                    }`}
+                  >
+                    24/7 Support Tickets
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSupportShowAllChats(true)}
+                    className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                      supportShowAllChats
+                        ? 'bg-[#0B3B2E] text-white dark:bg-[#7FE85B] dark:text-[#082213]'
+                        : 'border border-[#DCE2E1] bg-white text-[#5C6665] hover:text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#98A4A2]'
+                    }`}
+                  >
+                    All Chats (Incl. Direct)
+                  </button>
+                  <label className="ml-1 inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-[#5C6665] dark:text-[#98A4A2]">
+                    <input
+                      type="checkbox"
+                      checked={pruneIncludeTrades}
+                      onChange={(e) => setPruneIncludeTrades(e.target.checked)}
+                      className="h-3.5 w-3.5 accent-[#0B3B2E] dark:accent-[#7FE85B]"
+                    />
+                    <span>Also trim old closed-trade msgs</span>
+                  </label>
+                </div>
+
+                {!confirmPruneChats ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmPruneChats(true);
+                      setPruneResult('');
+                    }}
+                    disabled={pruneBusy}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Remove All Chats Except n44nBread</span>
+                  </button>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handlePruneChatsExceptN44nBread}
+                      disabled={pruneBusy}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-red-600 px-3 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>{pruneBusy ? 'Cleaning...' : 'Confirm Keep Only n44nBread'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmPruneChats(false)}
+                      disabled={pruneBusy}
+                      className="h-8 rounded-lg border border-[#DCE2E1] bg-white px-2.5 text-xs font-semibold text-[#5C6665] hover:text-[#0E1715] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#98A4A2]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {pruneResult && (
+                <div className="mt-2.5 flex items-center gap-2 rounded-lg border border-[#8CE89E] bg-[#EAFBF0] px-3 py-2 text-xs font-medium text-[#0B3B2E] dark:border-[#1E4D33] dark:bg-[#112A1D] dark:text-[#7FE85B]">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span>{pruneResult}</span>
+                </div>
+              )}
+            </div>
+
             {supportError && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
                 {supportError}
@@ -3887,7 +4062,9 @@ export function SecretCreditModal({
                 <div className="flex items-center justify-between gap-2 pb-2">
                   <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0E1715] dark:text-white">
                     <Headphones className="h-3.5 w-3.5 text-[#0B3B2E] dark:text-[#7FE85B]" />
-                    <span>24/7 Support Inbox ({supportChats.length})</span>
+                    <span>
+                      {supportShowAllChats ? 'All Chats Inbox' : '24/7 Support Inbox'} ({supportChats.length})
+                    </span>
                   </span>
                   {unreadSupportCount > 0 && (
                     <span className="rounded-md bg-emerald-600 px-2 py-0.5 font-mono text-[10px] font-bold text-white dark:bg-[#7FE85B] dark:text-[#082213]">
@@ -3910,11 +4087,11 @@ export function SecretCreditModal({
                 <div className="mt-3 max-h-[460px] flex-1 space-y-2 overflow-y-auto pr-1">
                   {supportLoading ? (
                     <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-4 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
-                      Loading 24/7 support threads...
+                      Loading chats...
                     </div>
                   ) : filteredSupportChats.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-[#DCE2E1] bg-white p-5 text-center text-xs text-[#5C6665] dark:border-[#263130] dark:bg-[#131A1A] dark:text-[#8E9B98]">
-                      No client support messages yet. When a client writes from the top banner or mobile menu, it appears live here.
+                      No client support messages yet. When a client writes from the menu support button, it appears live here.
                     </div>
                   ) : (
                     filteredSupportChats.map((c) => {
@@ -3924,39 +4101,65 @@ export function SecretCreditModal({
                       const hasUnread = Boolean(
                         lastClientAt && (!lastAdminRead || lastClientAt > lastAdminRead)
                       );
-                      const displayLabel = c.offerSummary || c.participants[0] || 'Guest Client';
+                      const isProtected = isN44nBreadChat(c);
+                      const displayLabel =
+                        c.offerSummary || c.participants.join(' · ') || 'Guest Client';
 
                       return (
-                        <button
+                        <div
                           key={c.id}
-                          type="button"
-                          onClick={() => setSelectedSupportChatId(c.id)}
-                          className={`w-full rounded-xl border p-3 text-left transition-colors ${
+                          className={`flex items-start gap-2 rounded-xl border p-3 transition-colors ${
                             isSelected
                               ? 'border-[#0B3B2E] bg-[#EEF6F2] dark:border-[#7FE85B] dark:bg-[#152B20]'
                               : 'border-[#DCE2E1] bg-white hover:bg-[#F5F7F7] dark:border-[#222E2C] dark:bg-[#131A1A] dark:hover:bg-[#192322]'
                           }`}
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="truncate text-xs font-bold text-[#0E1715] dark:text-white">
-                              {displayLabel}
-                            </span>
-                            {hasUnread && (
-                              <span className="inline-flex shrink-0 items-center gap-1 rounded bg-emerald-600 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white dark:bg-[#7FE85B] dark:text-[#082213]">
-                                New
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSupportChatId(c.id)}
+                            className="min-w-0 flex-1 text-left"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="truncate text-xs font-bold text-[#0E1715] dark:text-white">
+                                {displayLabel}
                               </span>
-                            )}
-                          </div>
-                          <div className="mt-1 flex items-center justify-between gap-2 font-mono text-[10px] text-[#6C7775] dark:text-[#8E9B98]">
-                            <span className="truncate">{c.id}</span>
-                            <span className="shrink-0">
-                              {new Date(c.updatedAt).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </span>
-                          </div>
-                        </button>
+                              <div className="flex shrink-0 items-center gap-1">
+                                {isProtected && (
+                                  <span className="rounded bg-[#E8F8EE] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#0B3B2E] dark:bg-[#152D21] dark:text-[#7FE85B]">
+                                    Protected
+                                  </span>
+                                )}
+                                {hasUnread && (
+                                  <span className="inline-flex items-center gap-1 rounded bg-emerald-600 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white dark:bg-[#7FE85B] dark:text-[#082213]">
+                                    New
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="mt-1 flex items-center justify-between gap-2 font-mono text-[10px] text-[#6C7775] dark:text-[#8E9B98]">
+                              <span className="truncate">{c.id}</span>
+                              <span className="shrink-0">
+                                {new Date(c.updatedAt).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            </div>
+                          </button>
+
+                          {!isProtected && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSingleChat(c)}
+                              disabled={deletingChatId === c.id}
+                              title="Delete this chat thread"
+                              aria-label={`Delete chat ${c.id}`}
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       );
                     })
                   )}
@@ -4157,6 +4360,33 @@ export function SecretCreditModal({
               {tablesError && (
                 <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
                   {tablesError}
+                </div>
+              )}
+
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200/80 bg-red-50/70 px-3 py-2.5 dark:border-red-900/40 dark:bg-red-950/20">
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-red-800 dark:text-red-300">
+                    Chat Quota Cleanup
+                  </div>
+                  <p className="text-[11px] text-red-700/90 dark:text-red-300/80">
+                    Removes all chats &amp; old messages except <strong className="font-mono">n44nBread</strong>.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handlePruneChatsExceptN44nBread}
+                  disabled={pruneBusy}
+                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-red-600 px-3 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>{pruneBusy ? 'Cleaning...' : 'Remove All Chats Except n44nBread'}</span>
+                </button>
+              </div>
+
+              {pruneResult && (
+                <div className="mt-2 flex items-center gap-2 rounded-lg border border-[#8CE89E] bg-[#EAFBF0] px-3 py-2 text-xs font-medium text-[#0B3B2E] dark:border-[#1E4D33] dark:bg-[#112A1D] dark:text-[#7FE85B]">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span>{pruneResult}</span>
                 </div>
               )}
             </div>
