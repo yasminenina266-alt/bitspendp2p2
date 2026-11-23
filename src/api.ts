@@ -236,32 +236,26 @@ const DEFAULT_SETTINGS: UserSettings = {
   escrowAlerts: true,
 };
 
-const RECOVERY_WORDS = [
-  'ember',
-  'cipher',
-  'pine',
-  'vault',
-  'anchor',
-  'quartz',
-  'monarch',
-  'velvet',
-  'harbor',
-  'summit',
-  'cobalt',
-  'orbit',
-  'saffron',
-  'granite',
-  'horizon',
-  'cedar',
-  'prism',
-  'beacon',
-  'frost',
-  'meadow',
-  'silver',
-  'vector',
-  'pulse',
-  'atlas',
-];
+const RECOVERY_WORDS = Array.from(
+  new Set([
+    'ember', 'cipher', 'pine', 'vault', 'anchor', 'quartz', 'monarch', 'velvet',
+    'harbor', 'summit', 'cobalt', 'orbit', 'saffron', 'granite', 'horizon', 'cedar',
+    'prism', 'beacon', 'frost', 'meadow', 'silver', 'vector', 'pulse', 'atlas',
+    'amber', 'breeze', 'canyon', 'delta', 'echo', 'falcon', 'glacier', 'haven',
+    'ivory', 'jasper', 'karma', 'lantern', 'maple', 'nebula', 'onyx', 'prairie',
+    'quest', 'ripple', 'shadow', 'timber', 'umbra', 'valley', 'willow', 'zenith',
+    'acorn', 'basalt', 'canvas', 'drift', 'eclipse', 'flint', 'garnet', 'hollow',
+    'indigo', 'jungle', 'kernel', 'lagoon', 'marble', 'nectar', 'olive', 'pebble',
+    'quiver', 'raven', 'solace', 'thistle', 'utopia', 'vertex', 'warden', 'zephyr',
+    'alpine', 'bronze', 'clover', 'dune', 'ermine', 'fable', 'geyser', 'hemlock',
+    'island', 'juniper', 'kestrel', 'laurel', 'mirage', 'nomad', 'ochre', 'plume',
+    'quarry', 'relic', 'sequoia', 'trident', 'uplift', 'voyage', 'whisper', 'yarrow',
+    'arch', 'birch', 'crest', 'dawn', 'estuary', 'fern', 'grove', 'hearth',
+    'inlet', 'jade', 'kelp', 'lichen', 'mist', 'north', 'obsidian', 'petal',
+    'ridge', 'spruce', 'tundra', 'verge', 'wild', 'aurora', 'cairn', 'fjord',
+    'gale', 'halo', 'krypton', 'lotus', 'meridian', 'nova', 'opal', 'pyrite',
+  ])
+);
 
 function randomBytes(length: number): Uint8Array {
   const arr = new Uint8Array(length);
@@ -280,9 +274,15 @@ function randomHex(byteCount: number): string {
 }
 
 function randomInt(min: number, maxExclusive: number): number {
-  const bytes = randomBytes(4);
-  const val = ((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]) >>> 0;
-  return min + (val % (maxExclusive - min));
+  const range = maxExclusive - min;
+  if (range <= 1) return min;
+  const maxValid = Math.floor(0x100000000 / range) * range;
+  let val = 0;
+  do {
+    const bytes = randomBytes(4);
+    val = ((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]) >>> 0;
+  } while (val >= maxValid);
+  return min + (val % range);
 }
 
 function generatePgpFingerprint(): string {
@@ -291,11 +291,14 @@ function generatePgpFingerprint(): string {
 }
 
 function generateRecoveryPhrase(): string {
-  const picked: string[] = [];
+  const pool = [...RECOVERY_WORDS];
   for (let i = 0; i < 12; i++) {
-    picked.push(RECOVERY_WORDS[randomInt(0, RECOVERY_WORDS.length)]);
+    const j = randomInt(i, pool.length);
+    const tmp = pool[i];
+    pool[i] = pool[j];
+    pool[j] = tmp;
   }
-  return picked.join(' ');
+  return pool.slice(0, 12).join(' ');
 }
 
 function generateCardNumber(): string {
