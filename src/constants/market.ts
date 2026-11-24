@@ -674,3 +674,17 @@ export function formatCrypto(amount: number, symbol: CryptoAsset): string {
     maximumFractionDigits: decimals,
   })} ${symbol}`;
 }
+
+export function formatLastSeen(
+  minutes: number | undefined,
+  onlineLabel = 'Active now',
+  seenPrefix = 'Seen'
+): string {
+  if (minutes === undefined || minutes === null) return onlineLabel;
+  if (minutes <= 0) return onlineLabel;
+  if (minutes < 60) return `${seenPrefix} ${Math.round(minutes)}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${seenPrefix} ${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${seenPrefix} ${days}d ago`;
+}

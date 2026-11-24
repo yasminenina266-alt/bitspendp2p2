@@ -963,7 +963,7 @@ export default function App() {
       const score = (o: P2POffer, t?: TraderProfile) => {
         const marginScore = o.side === 'sell_crypto' || o.side === 'swap_crypto' ? -o.marginPct : o.marginPct;
         const onlineBonus = t?.lastSeenMinutes === 0 ? 5 : 0;
-        const repBonus = Math.min((t?.tradesCount ?? 0) / 500, 5);
+        const repBonus = Math.min((t?.tradesCount ?? 0) / 120, 5);
         return marginScore + onlineBonus + repBonus;
       };
       return score(b, traderB) - score(a, traderA);

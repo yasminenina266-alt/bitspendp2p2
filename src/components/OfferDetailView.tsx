@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api } from '../api';
-import { CHAIN_OPTIONS, formatCrypto, formatFiat } from '../constants/market';
+import { CHAIN_OPTIONS, formatCrypto, formatFiat, formatLastSeen } from '../constants/market';
 import type {
   MarketPrices,
   P2POffer,
@@ -470,7 +470,7 @@ export function OfferDetailView({
                         {isOnline
                           ? 'Online now'
                           : trader
-                            ? `Seen ${trader.lastSeenMinutes}m ago`
+                            ? formatLastSeen(trader.lastSeenMinutes, 'Online now')
                             : 'Active'}
                       </span>
                     </span>

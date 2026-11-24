@@ -1,6 +1,6 @@
 import { Check, ChevronDown, ChevronUp, Link2, Star } from 'lucide-react';
 import { useState } from 'react';
-import { CHAIN_OPTIONS, formatCrypto, formatFiat } from '../constants/market';
+import { CHAIN_OPTIONS, formatCrypto, formatFiat, formatLastSeen } from '../constants/market';
 import type { MarketPrices, P2POffer, TraderProfile } from '../types';
 import { ChainIcon, CoinIcon } from './CoinIcon';
 import { TraderAvatar } from './TraderAvatar';
@@ -149,11 +149,7 @@ export function OfferRow({
                   {offer.traderUsername}
                 </button>
                 <span className="shrink-0 text-xs text-[#64706E] dark:text-[#8E9B98]">
-                  {trader?.lastSeenMinutes === 0
-                    ? 'Active now'
-                    : trader
-                      ? `Seen ${trader.lastSeenMinutes}m ago`
-                      : 'Active'}
+                  {trader ? formatLastSeen(trader.lastSeenMinutes) : 'Active'}
                 </span>
               </div>
 

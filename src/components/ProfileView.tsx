@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api } from '../api';
-import { CHAIN_OPTIONS, formatCrypto, formatFiat } from '../constants/market';
+import { CHAIN_OPTIONS, formatCrypto, formatFiat, formatLastSeen } from '../constants/market';
 import type { MarketPrices, P2POffer, TraderProfile, UserAccount } from '../types';
 import { PROFILE_THEMES, isSafeImageUrl } from '../utils/profileMedia';
 import { ChainIcon, CoinIcon } from './CoinIcon';
@@ -427,7 +427,7 @@ export function ProfileView({
                       <span className="font-medium text-[#1E2726] dark:text-[#DCE4E3]">
                         {isLiveOnline
                           ? 'Online now'
-                          : `Last seen ${trader.lastSeenMinutes}m ago`}
+                          : formatLastSeen(trader.lastSeenMinutes, 'Online now', 'Last seen')}
                       </span>
                       <span>· Joined {trader.joinedAt}</span>
                       <span>· Languages: {trader.languages.join(', ')}</span>

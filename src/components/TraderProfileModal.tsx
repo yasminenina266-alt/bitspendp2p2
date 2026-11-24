@@ -1,7 +1,7 @@
 import { CheckCircle2, Clock, KeyRound, Star, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import { formatCrypto, formatFiat } from '../constants/market';
+import { formatCrypto, formatFiat, formatLastSeen } from '../constants/market';
 import type { MarketPrices, P2POffer, TraderProfile } from '../types';
 import { CoinIcon } from './CoinIcon';
 import { getOfferUnitPrice } from './OfferRow';
@@ -110,9 +110,8 @@ export function TraderProfileModal({
               )}
             </div>
             <p className="mt-1 text-xs text-[#5C6665] dark:text-[#98A4A2]">
-              Joined {trader.joinedAt} ·{' '}
-              {trader.lastSeenMinutes === 0 ? 'Active now' : `Seen ${trader.lastSeenMinutes}m ago`} ·
-              Languages: {trader.languages.join(', ')}
+              Joined {trader.joinedAt} · {formatLastSeen(trader.lastSeenMinutes)} · Languages:{' '}
+              {trader.languages.join(', ')}
             </p>
             <p className="mt-3 text-sm leading-relaxed text-[#2D3635] dark:text-[#D1DCDA]">
               {trader.bio}
