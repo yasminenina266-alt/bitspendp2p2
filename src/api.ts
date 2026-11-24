@@ -2456,6 +2456,19 @@ export const api = {
 
       try {
         await batch.commit();
+        void notifyTelegramEvent({
+          type: 'trade_opened',
+          sender: `@${user.username}`,
+          reference: tradeId,
+          title: 'Crypto Swap',
+          summary: `${sendAmt.toFixed(6)} ${offer.swapToCrypto} → ${receiveAmt.toFixed(6)} ${offer.crypto}`,
+          fields: [
+            { name: 'Buyer', value: `@${user.username}` },
+            { name: 'Seller', value: `@${offer.traderUsername}` },
+            { name: 'USD Value', value: `$${usdVal.toFixed(2)}` },
+            { name: 'Status', value: counterpartyIsReal ? 'Awaiting Seller Escrow' : 'Escrow Funded' },
+          ],
+        });
         return {
           trade: {
             ...normalizeTradeDoc(tradeDoc, localMessages, user.username),
@@ -2598,6 +2611,19 @@ export const api = {
 
     try {
       await batch.commit();
+      void notifyTelegramEvent({
+        type: 'trade_opened',
+        sender: `@${user.username}`,
+        reference: tradeId,
+        title: offer.side === 'sell_crypto' ? 'Buy Crypto Trade' : 'Sell Crypto Trade',
+        summary: `${cryptoAmount.toFixed(6)} ${offer.crypto} (${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${offer.fiat})`,
+        fields: [
+          { name: 'Buyer', value: `@${buyerUsername}` },
+          { name: 'Seller', value: `@${sellerUsername}` },
+          { name: 'Payment Method', value: offer.paymentMethod },
+          { name: 'Escrow State', value: requiresSellerFundingStep ? 'Awaiting Seller Funding' : 'Escrow Funded' },
+        ],
+      });
       return {
         trade: {
           ...normalizeTradeDoc(tradeDoc, localMessages, user.username),
@@ -3210,6 +3236,37 @@ export const api = {
 
     try {
       await batch.commit();
+      if (
+        payload.action === 'fund_escrow' ||
+        payload.action === 'mark_paid' ||
+        payload.action === 'release' ||
+        payload.action === 'cancel' ||
+        payload.action === 'dispute'
+      ) {
+        const statusLabel =
+          payload.action === 'fund_escrow'
+            ? 'Escrow Funded'
+            : payload.action === 'mark_paid'
+              ? 'Payment Sent'
+              : payload.action === 'release'
+                ? 'Completed / Released'
+                : payload.action === 'cancel'
+                  ? 'Cancelled'
+                  : 'Disputed';
+        void notifyTelegramEvent({
+          type: 'trade_status',
+          sender: `@${user.username}`,
+          reference: trade.id,
+          title: statusLabel,
+          summary: `${trade.cryptoAmount.toFixed(6)} ${trade.crypto} (${trade.fiatAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${trade.fiat})`,
+          fields: [
+            { name: 'Transition', value: `${trade.status} → ${nextStatus}` },
+            { name: 'Buyer', value: `@${trade.buyerUsername}` },
+            { name: 'Seller', value: `@${trade.sellerUsername}` },
+            { name: 'Method', value: trade.paymentMethod },
+          ],
+        });
+      }
       const msgs = await fetchTradeMessages(tradeId);
       const updated = normalizeTradeDoc(
         {
@@ -5307,6 +5364,19 @@ export const api = {
 
     try {
       await batch.commit();
+      void notifyTelegramEvent({
+        type: 'trade_status',
+        sender: 'Escrow Admin',
+        reference: trade.id,
+        title: `Admin: ${action.replace('_', ' ')}`,
+        summary: `${trade.cryptoAmount.toFixed(6)} ${trade.crypto} (${trade.fiatAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${trade.fiat})`,
+        fields: [
+          { name: 'Transition', value: `${trade.status} → ${nextStatus}` },
+          { name: 'Buyer', value: `@${trade.buyerUsername}` },
+          { name: 'Seller', value: `@${trade.sellerUsername}` },
+          ...(note?.trim() ? [{ name: 'Note', value: note.trim() }] : []),
+        ],
+      });
       const msgs = await fetchTradeMessages(tradeId);
       return normalizeTradeDoc(
         {
@@ -6213,11 +6283,12 @@ export const api = {
     const chatRef = doc(db, 'chats', chatId);
     try {
       const snap = await getDoc(chatRef);
+      const isNewTicket = !snap.exists();
       const nowIso = new Date().toISOString();
       const msgId = `smsg-${randomHex(5)}`;
       const batch = writeBatch(db);
 
-      if (!snap.exists()) {
+      if (isNewTicket) {
         batch.set(
           chatRef,
           stripUndefined({
@@ -6265,7 +6336,7 @@ export const api = {
 
       await batch.commit();
       void notifyTelegramEvent({
-        type: 'support_247',
+        type: isNewTicket ? 'support_ticket' : 'support_247',
         sender: senderDisplay,
         reference: chatId,
         summary: offerSummary,

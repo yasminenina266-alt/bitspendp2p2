@@ -2,7 +2,7 @@ import { Check, Copy, ShieldCheck, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { api, setToken } from '../api';
 import type { UserAccount } from '../types';
-import { notifyDiscordEvent } from '../utils/discordWebhook';
+import { notifyTelegramEvent } from '../utils/telegramNotify';
 import { AVATAR_PRESETS, processImageFile } from '../utils/profileMedia';
 import { TraderAvatar } from './TraderAvatar';
 
@@ -129,12 +129,12 @@ export function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
         setToken(res.token);
         setProvisioningStep(null);
         setRegisteredUser(res.user);
-        void notifyDiscordEvent({
-          title: 'New User Registered',
-          color: 0x7fe85b,
+        void notifyTelegramEvent({
+          type: 'user_registered',
+          sender: `@${res.user.username}`,
           fields: [
-            { name: 'Username', value: res.user.username },
             { name: 'Created At', value: res.user.createdAt },
+            ...(res.user.tagline ? [{ name: 'Tagline', value: res.user.tagline }] : []),
           ],
         });
       } else {

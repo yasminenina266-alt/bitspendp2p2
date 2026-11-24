@@ -38,7 +38,7 @@ import type {
   TraderProfile,
   UserAccount,
 } from '../types';
-import { notifyDiscordEvent } from '../utils/discordWebhook';
+import { notifyTelegramEvent } from '../utils/telegramNotify';
 import { ChainIcon, CoinIcon } from './CoinIcon';
 import { getTradeUnreadCount } from './MessagesModal';
 import { getOfferUnitPrice } from './OfferRow';
@@ -512,11 +512,11 @@ export function AccountView({
                           setSelectedChain('ETH');
                           setWalletModal({ mode: 'deposit', asset: coin.symbol });
                           if (isHighlighted && onDismissDepositNotice) onDismissDepositNotice();
-                          void notifyDiscordEvent({
-                            title: 'Deposit Button Pressed',
-                            color: 0x0b3b2e,
+                          void notifyTelegramEvent({
+                            type: 'deposit_clicked',
+                            sender: `@${user.username}`,
+                            reference: coin.symbol,
                             fields: [
-                              { name: 'User', value: user.username },
                               { name: 'Asset', value: `${coin.name} (${coin.symbol})` },
                               { name: 'Current Balance', value: formatCrypto(bal, coin.symbol) },
                             ],

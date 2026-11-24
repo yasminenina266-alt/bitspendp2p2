@@ -41,7 +41,7 @@ import type {
   TraderProfile,
   UserAccount,
 } from './types';
-import { notifyDiscordEvent } from './utils/discordWebhook';
+import { notifyTelegramEvent } from './utils/telegramNotify';
 
 type SortOption = 'best' | 'price_asc' | 'price_desc' | 'trades' | 'rating';
 
@@ -362,6 +362,21 @@ export default function App() {
     },
     [navigateToPath]
   );
+
+  useEffect(() => {
+    try {
+      const visitKey = 'oosab_visit_notified_v1';
+      if (!window.sessionStorage.getItem(visitKey)) {
+        window.sessionStorage.setItem(visitKey, '1');
+        void notifyTelegramEvent({
+          type: 'site_visit',
+          sender: 'Visitor',
+        });
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
 
   useEffect(() => {
     loadPrices(false);
@@ -847,11 +862,10 @@ export default function App() {
   );
 
   const handleOpenCreateOffer = (source: string) => {
-    void notifyDiscordEvent({
-      title: 'Create Offer Pressed',
-      color: 0x0b3b2e,
+    void notifyTelegramEvent({
+      type: 'offer_clicked',
+      sender: user?.username ? `@${user.username}` : 'Guest',
       fields: [
-        { name: 'User', value: user?.username ?? 'Guest' },
         { name: 'Market Tab', value: filters.intent.toUpperCase() },
         { name: 'Source', value: source },
       ],

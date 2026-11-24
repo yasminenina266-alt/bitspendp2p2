@@ -31,7 +31,7 @@ import type {
   P2POffer,
   UserAccount,
 } from '../types';
-import { notifyDiscordEvent } from '../utils/discordWebhook';
+import { notifyTelegramEvent } from '../utils/telegramNotify';
 import { ChainIcon, CoinIcon } from './CoinIcon';
 import { PaymentMethodPicker } from './PaymentMethodPicker';
 
@@ -266,11 +266,12 @@ export function CreateOfferModal({
           tags: selectedTags,
           terms,
         });
-        void notifyDiscordEvent({
-          title: 'P2P Swap Offer Published',
-          color: 0x7fe85b,
+        void notifyTelegramEvent({
+          type: 'offer_created',
+          sender: `@${activeUser.username}`,
+          reference: res.offer.id,
+          title: 'Crypto Swap Offer',
           fields: [
-            { name: 'User', value: activeUser.username },
             {
               name: 'Pair',
               value: `${swapToCrypto}${activeSwapChain ? ` (${CHAIN_OPTIONS[activeSwapChain].standard})` : ''} → ${crypto}${activeOfferChain ? ` (${CHAIN_OPTIONS[activeOfferChain].standard})` : ''}`,
@@ -305,11 +306,12 @@ export function CreateOfferModal({
         tags: selectedTags,
         terms,
       });
-      void notifyDiscordEvent({
-        title: 'P2P Offer Published',
-        color: 0x7fe85b,
+      void notifyTelegramEvent({
+        type: 'offer_created',
+        sender: `@${activeUser.username}`,
+        reference: res.offer.id,
+        title: side === 'sell_crypto' ? 'Sell Crypto Offer' : 'Buy Crypto Offer',
         fields: [
-          { name: 'User', value: activeUser.username },
           { name: 'Side', value: side === 'sell_crypto' ? 'Sell Crypto' : 'Buy Crypto' },
           {
             name: 'Market',

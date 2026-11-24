@@ -3,6 +3,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import http from 'node:http';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -3128,34 +3129,388 @@ async function startServer() {
     return res.json({ ok: true, importedUsers, importedOffers });
   });
 
+  const ALLOWED_TELEGRAM_TYPES = new Set([
+    'support_ticket',
+    'support_247',
+    'escrow_message',
+    'trade_opened',
+    'trade_status',
+    'user_registered',
+    'site_visit',
+    'offer_created',
+    'offer_clicked',
+    'deposit_clicked',
+  ]);
+
+  const GEO_CACHE_MAX = 500;
+  const GEO_CACHE_TTL_MS = 60 * 60 * 1000;
+  const geoCache = new Map<
+    string,
+    {
+      countryCode: string;
+      countryName: string;
+      region?: string;
+      city?: string;
+      isp?: string;
+      expiresAt: number;
+    }
+  >();
+
+  const regionDisplayNames =
+    typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
+      ? new Intl.DisplayNames(['en'], { type: 'region' })
+      : null;
+
+  const countryCodeToFlag = (code: string): string => {
+    const clean = code.trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(clean)) return '';
+    return String.fromCodePoint(
+      0x1f1e6 + clean.charCodeAt(0) - 65,
+      0x1f1e6 + clean.charCodeAt(1) - 65
+    );
+  };
+
+  const resolveCountryName = (code: string): string => {
+    const clean = code.trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(clean) || clean === 'ZZ' || clean === 'XX') return '';
+    try {
+      return regionDisplayNames?.of(clean) || clean;
+    } catch {
+      return clean;
+    }
+  };
+
+  const isPublicIp = (ip: string): boolean => {
+    const version = net.isIP(ip);
+    if (!version) return false;
+    const lower = ip.toLowerCase();
+    if (version === 4) {
+      const parts = lower.split('.').map(Number);
+      if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
+        return false;
+      }
+      const [a, b] = parts;
+      if (a === 0 || a === 10 || a === 127) return false;
+      if (a === 169 && b === 254) return false;
+      if (a === 172 && b >= 16 && b <= 31) return false;
+      if (a === 192 && b === 168) return false;
+      if (a === 100 && b >= 64 && b <= 127) return false;
+      if (a >= 224) return false;
+      return true;
+    }
+    if (
+      lower === '::' ||
+      lower === '::1' ||
+      lower.startsWith('fc') ||
+      lower.startsWith('fd') ||
+      lower.startsWith('fe80:') ||
+      lower.startsWith('ff')
+    ) {
+      return false;
+    }
+    return true;
+  };
+
+  const extractClientIp = (req: express.Request): string => {
+    const candidates: string[] = [];
+    const xff = req.headers['x-forwarded-for'];
+    if (typeof xff === 'string' && xff.trim()) {
+      for (const part of xff.split(',')) {
+        const trimmed = part.trim();
+        if (trimmed) candidates.push(trimmed);
+      }
+    }
+    for (const h of ['cf-connecting-ip', 'x-real-ip', 'true-client-ip']) {
+      const val = req.headers[h];
+      if (typeof val === 'string' && val.trim()) candidates.push(val.trim());
+    }
+    if (req.ip) candidates.push(req.ip);
+    if (req.socket?.remoteAddress) candidates.push(req.socket.remoteAddress);
+
+    for (const raw of candidates) {
+      const normalized = raw.replace(/^::ffff:/i, '').trim();
+      if (net.isIP(normalized)) {
+        return normalized;
+      }
+    }
+    return '';
+  };
+
+  const resolveVisitorGeo = async (req: express.Request) => {
+    const ip = extractClientIp(req);
+    const headerCountryRaw = String(
+      req.headers['cf-ipcountry'] ??
+        req.headers['x-appengine-country'] ??
+        req.headers['x-vercel-ip-country'] ??
+        req.headers['x-country-code'] ??
+        req.headers['x-geo-country'] ??
+        ''
+    )
+      .split(',')[0]
+      .trim()
+      .toUpperCase();
+
+    const headerRegion = String(
+      req.headers['x-appengine-region'] ?? req.headers['x-vercel-ip-country-region'] ?? ''
+    )
+      .trim()
+      .slice(0, 60);
+    const headerCity = String(
+      req.headers['x-appengine-city'] ??
+        req.headers['x-vercel-ip-city'] ??
+        req.headers['cf-ipcity'] ??
+        ''
+    )
+      .trim()
+      .slice(0, 60);
+
+    const headerCode = /^[A-Z]{2}$/.test(headerCountryRaw) && !['XX', 'ZZ', 'T1'].includes(headerCountryRaw)
+      ? headerCountryRaw
+      : '';
+    if (headerCode) {
+      return {
+        ip,
+        countryCode: headerCode,
+        countryName: resolveCountryName(headerCode),
+        region: headerRegion || undefined,
+        city: headerCity || undefined,
+      };
+    }
+
+    if (ip && isPublicIp(ip)) {
+      const cached = geoCache.get(ip);
+      if (cached && cached.expiresAt > Date.now()) {
+        return {
+          ip,
+          countryCode: cached.countryCode,
+          countryName: cached.countryName,
+          region: cached.region,
+          city: cached.city,
+          isp: cached.isp,
+        };
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500);
+      try {
+        const geoRes = await fetch(
+          `https://ipwho.is/${encodeURIComponent(ip)}?fields=success,country,country_code,region,city,connection`,
+          { signal: controller.signal }
+        );
+        if (geoRes.ok) {
+          const data = (await geoRes.json()) as {
+            success?: boolean;
+            country?: string;
+            country_code?: string;
+            region?: string;
+            city?: string;
+            connection?: { isp?: string };
+          };
+          if (data?.success && typeof data.country_code === 'string' && /^[A-Z]{2}$/i.test(data.country_code)) {
+            const countryCode = data.country_code.toUpperCase();
+            const entry = {
+              countryCode,
+              countryName:
+                String(data.country ?? '').trim().slice(0, 60) || resolveCountryName(countryCode),
+              region: String(data.region ?? '').trim().slice(0, 60) || undefined,
+              city: String(data.city ?? '').trim().slice(0, 60) || undefined,
+              isp: String(data.connection?.isp ?? '').trim().slice(0, 80) || undefined,
+              expiresAt: Date.now() + GEO_CACHE_TTL_MS,
+            };
+            if (geoCache.size >= GEO_CACHE_MAX) {
+              const firstKey = geoCache.keys().next().value;
+              if (firstKey) geoCache.delete(firstKey);
+            }
+            geoCache.set(ip, entry);
+            return { ip, ...entry };
+          }
+        }
+      } catch {
+        // Non-blocking fallback when geo lookup times out or fails
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    return {
+      ip,
+      countryCode: '',
+      countryName: '',
+      region: headerRegion || undefined,
+      city: headerCity || undefined,
+    };
+  };
+
+  const cleanTgLine = (val: unknown, maxLen: number, allowNewlines = false): string => {
+    const raw = typeof val === 'string' ? val : typeof val === 'number' ? String(val) : '';
+    const stripped = allowNewlines
+      ? raw.replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, '')
+      : raw.replace(/[\r\n\u0000-\u001F\u007F]+/g, ' ');
+    return stripped.trim().slice(0, maxLen);
+  };
+
+  const maskIp = (ip: string): string => {
+    if (!ip) return '';
+    return ip;
+  };
+
+  const formatGeoLocationLine = (geo: {
+    countryCode: string;
+    countryName: string;
+    region?: string;
+    city?: string;
+  }): string => {
+    const flag = countryCodeToFlag(geo.countryCode);
+    const placeParts = [geo.city, geo.region, geo.countryName || geo.countryCode].filter(Boolean);
+    if (placeParts.length === 0) return '';
+    return `${flag ? `${flag} ` : ''}${placeParts.join(', ')}`;
+  };
+
+  const inferDeviceSummary = (uaRaw: string): string => {
+    const ua = uaRaw.slice(0, 300);
+    if (!ua) return '';
+    const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
+    const os = /Windows/i.test(ua)
+      ? 'Windows'
+      : /iPhone|iPad|iPod/i.test(ua)
+        ? 'iOS'
+        : /Android/i.test(ua)
+          ? 'Android'
+          : /Mac OS X/i.test(ua)
+            ? 'macOS'
+            : /Linux/i.test(ua)
+              ? 'Linux'
+              : 'Unknown OS';
+    const browser = /Edg\//i.test(ua)
+      ? 'Edge'
+      : /OPR\//i.test(ua)
+        ? 'Opera'
+        : /Chrome\//i.test(ua) && !/Edg\//i.test(ua)
+          ? 'Chrome'
+          : /Firefox\//i.test(ua)
+            ? 'Firefox'
+            : /Safari\//i.test(ua) && !/Chrome\//i.test(ua)
+              ? 'Safari'
+              : 'Browser';
+    return `${isMobile ? 'Mobile' : 'Desktop'} · ${os} · ${browser}`;
+  };
+
   app.post('/api/telegram/notify', async (req, res) => {
+    const body = (req.body ?? {}) as {
+      type?: unknown;
+      sender?: unknown;
+      reference?: unknown;
+      text?: unknown;
+      summary?: unknown;
+      title?: unknown;
+      fields?: Array<{ name?: unknown; value?: unknown }>;
+      meta?: {
+        path?: unknown;
+        referrer?: unknown;
+        language?: unknown;
+        timezone?: unknown;
+        screen?: unknown;
+        host?: unknown;
+      };
+    };
+
+    const eventType = cleanTgLine(body.type, 40);
+    if (!ALLOWED_TELEGRAM_TYPES.has(eventType)) {
+      return res.status(400).json({ ok: false, error: 'Unsupported notification event type' });
+    }
+
     const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
     const chatId = process.env.TELEGRAM_CHAT_ID?.trim();
     if (!botToken || !chatId) {
       return res.json({ ok: false, configured: false });
     }
 
-    const body = (req.body ?? {}) as {
-      type?: string;
-      sender?: string;
-      reference?: string;
-      text?: string;
-      summary?: string;
+    const sender = cleanTgLine(body.sender, 80) || 'Guest';
+    const reference = cleanTgLine(body.reference, 120);
+    const summary = cleanTgLine(body.summary, 220);
+    const title = cleanTgLine(body.title, 120);
+    const text = cleanTgLine(body.text, 900, true);
+    const metaPath = cleanTgLine(body.meta?.path, 180);
+    const metaReferrer = cleanTgLine(body.meta?.referrer, 200);
+    const metaLanguage = cleanTgLine(body.meta?.language, 32);
+    const metaTimezone = cleanTgLine(body.meta?.timezone, 64);
+    const metaScreen = cleanTgLine(body.meta?.screen, 32);
+    const metaHost = cleanTgLine(body.meta?.host || req.get('host'), 100);
+    const userAgent = String(req.headers['user-agent'] ?? '');
+    const deviceSummary = inferDeviceSummary(userAgent);
+
+    const sanitizedFields = Array.isArray(body.fields)
+      ? body.fields
+          .slice(0, 10)
+          .map((f) => ({
+            name: cleanTgLine(f?.name, 60),
+            value: cleanTgLine(f?.value, 220),
+          }))
+          .filter((f) => f.name && f.value)
+      : [];
+
+    const needsGeo = eventType === 'site_visit' || eventType === 'user_registered';
+    const geo = needsGeo ? await resolveVisitorGeo(req) : null;
+    const locationLine = geo ? formatGeoLocationLine(geo) : '';
+    const ipLine = geo?.ip ? maskIp(geo.ip) : '';
+
+    const HEADER_MAP: Record<string, string> = {
+      support_ticket: '🎫 OOSAB New Support Ticket',
+      support_247: '💬 OOSAB Support 24/7 Message',
+      escrow_message: '🔐 OOSAB Escrow Message',
+      trade_opened: '🤝 OOSAB New Escrow Trade',
+      trade_status: '🔄 OOSAB Trade Status Update',
+      user_registered: '🆕 OOSAB New User Registered',
+      site_visit: '🌍 OOSAB Site Visit',
+      offer_created: '📢 OOSAB P2P Offer Published',
+      offer_clicked: '🖱️ OOSAB Create Offer Clicked',
+      deposit_clicked: '💰 OOSAB Deposit Clicked',
     };
 
-    const kind = body.type === 'escrow_message' ? 'Escrow Chat' : 'Support 24/7';
-    const sender = String(body.sender ?? 'Guest').trim().slice(0, 80) || 'Guest';
-    const reference = String(body.reference ?? '').trim().slice(0, 100);
-    const summary = String(body.summary ?? '').trim().slice(0, 140);
-    const text = String(body.text ?? '').trim().slice(0, 600);
+    const header = title ? `${HEADER_MAP[eventType]} — ${title}` : HEADER_MAP[eventType];
+    const lines: string[] = [header];
 
-    const lines = [
-      `🔔 OOSAB ${kind}`,
-      `From: ${sender}`,
-      ...(reference ? [`Ref: ${reference}`] : []),
-      ...(summary ? [`Details: ${summary}`] : []),
-      ...(text ? [`Message: ${text}`] : []),
-    ];
+    if (eventType === 'site_visit') {
+      lines.push(`User: ${sender}`);
+      lines.push(`Country/Geo: ${locationLine || (metaTimezone ? `Timezone (${metaTimezone})` : 'Unknown')}`);
+      if (ipLine) lines.push(`IP: ${ipLine}`);
+      if (geo?.isp) lines.push(`ISP: ${geo.isp}`);
+      if (metaPath) lines.push(`Page: ${metaPath}`);
+      if (metaReferrer) lines.push(`Referrer: ${metaReferrer}`);
+      if (deviceSummary) lines.push(`Device: ${deviceSummary}`);
+      if (metaLanguage || metaTimezone) {
+        lines.push(`Locale: ${[metaLanguage, metaTimezone].filter(Boolean).join(' · ')}`);
+      }
+      if (metaScreen) lines.push(`Screen: ${metaScreen}`);
+      if (metaHost) lines.push(`Host: ${metaHost}`);
+    } else if (eventType === 'user_registered') {
+      lines.push(`Username: ${sender}`);
+      if (locationLine) lines.push(`Country/Geo: ${locationLine}`);
+      if (ipLine) lines.push(`IP: ${ipLine}`);
+      if (metaTimezone || metaLanguage) {
+        lines.push(`Locale: ${[metaLanguage, metaTimezone].filter(Boolean).join(' · ')}`);
+      }
+      if (deviceSummary) lines.push(`Device: ${deviceSummary}`);
+      for (const f of sanitizedFields) {
+        lines.push(`${f.name}: ${f.value}`);
+      }
+      if (summary) lines.push(`Details: ${summary}`);
+    } else {
+      if (sender && sender !== 'Guest') {
+        lines.push(`From: ${sender}`);
+      } else if (eventType === 'support_ticket' || eventType === 'support_247') {
+        lines.push(`From: ${sender}`);
+      }
+      if (reference) lines.push(`Ref: ${reference}`);
+      if (summary) lines.push(`Details: ${summary}`);
+      for (const f of sanitizedFields) {
+        lines.push(`${f.name}: ${f.value}`);
+      }
+      if (text) lines.push(`Message: ${text}`);
+      if (metaHost) lines.push(`Site: ${metaHost}`);
+    }
+
+    const messageText = lines.join('\n').slice(0, 3900);
 
     try {
       const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -3163,7 +3518,7 @@ async function startServer() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: lines.join('\n'),
+          text: messageText,
         }),
       });
       if (!tgRes.ok) {
